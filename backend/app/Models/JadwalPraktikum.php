@@ -68,7 +68,7 @@ class JadwalPraktikum extends Model
 
     public function kelompokKecil()
     {
-        return $this->belongsTo(KelompokKecil::class, 'kelompok_kecil_id');
+        return $this->belongsToMany(KelompokKecil::class, 'jadwal_praktikum_kelompok', 'jadwal_praktikum_id', 'kelompok_kecil_id');
     }
 
     public function getActivitylogOptions(): LogOptions

@@ -55,10 +55,10 @@ interface JadwalPBL extends JadwalItem {
   pertemuan_ke: number;
   topik: string;
   status_konfirmasi:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   tipe_pbl: string;
   kelompok: string;
@@ -76,10 +76,10 @@ interface JadwalKuliahBesar {
   materi: string;
   topik?: string;
   status_konfirmasi:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   mata_kuliah_kode: string;
   mata_kuliah_nama: string;
@@ -113,22 +113,22 @@ interface JadwalPraktikum {
   materi: string;
   topik?: string;
   status_konfirmasi:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   mata_kuliah_kode: string;
   mata_kuliah_nama: string;
-  kelompok_kecil?: { id: number; nama_kelompok: string } | null;
+  kelompok_kecil?: Array<{ id: number; nama_kelompok: string }> | null;
   dosen: Array<{
     id: number;
     name: string;
     status_konfirmasi?:
-      | "belum_konfirmasi"
-      | "bisa"
-      | "tidak_bisa"
-      | "waiting_reschedule";
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
     alasan_konfirmasi?: string;
   }>;
   ruangan: {
@@ -149,10 +149,10 @@ interface JadwalJurnalReading {
   jam_selesai: string;
   topik: string;
   status_konfirmasi:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   mata_kuliah_kode: string;
   mata_kuliah_nama: string;
@@ -183,10 +183,10 @@ interface JadwalPersamaanPersepsi {
   jam_selesai: string;
   topik?: string;
   status_konfirmasi:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   mata_kuliah_kode: string;
   mata_kuliah_nama: string;
@@ -219,10 +219,10 @@ interface JadwalSeminarPleno {
   jam_selesai: string;
   topik?: string;
   status_konfirmasi:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   mata_kuliah_kode: string;
   mata_kuliah_nama: string;
@@ -256,10 +256,10 @@ interface TodayScheduleItem {
   waktu: string;
   topik: string;
   status_konfirmasi:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
@@ -522,10 +522,10 @@ export default function DashboardDosen() {
     return notification.type === "success"
       ? faCheckCircle
       : notification.type === "warning"
-      ? faExclamationTriangle
-      : notification.type === "error"
-      ? faTimesCircle
-      : faInfoCircle;
+        ? faExclamationTriangle
+        : notification.type === "error"
+          ? faTimesCircle
+          : faInfoCircle;
   };
   const [jadwalPBL, setJadwalPBL] = useState<JadwalPBL[]>([]);
   const [jadwalKuliahBesar, setJadwalKuliahBesar] = useState<
@@ -554,7 +554,7 @@ export default function DashboardDosen() {
       jam_mulai: string;
       jam_selesai: string;
       ruangan: string;
-      kelompok_kecil?: { id: number; nama_kelompok: string } | null;
+      kelompok_kecil?: Array<{ id: number; nama_kelompok: string }> | null;
       materi: string;
       topik?: string;
       koordinator_signature: string | null;
@@ -562,7 +562,7 @@ export default function DashboardDosen() {
     }>
   >([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  
+
   // Ensure notifications is always an array
   const safeNotifications = Array.isArray(notifications) ? notifications : [];
   const [loading, setLoading] = useState(true);
@@ -894,8 +894,8 @@ export default function DashboardDosen() {
           ? Array.isArray(notifResult.value.data)
             ? notifResult.value.data
             : Array.isArray(notifResult.value.data?.data)
-            ? notifResult.value.data.data
-            : []
+              ? notifResult.value.data.data
+              : []
           : []
       );
       setTodaySchedule(
@@ -915,9 +915,9 @@ export default function DashboardDosen() {
         const jadwalNonBlokNonCSRResult = otherResults[1];
         // Pastikan semua data non blok non csr termasuk seminar proposal dan sidang skripsi
         const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
-            ? jadwalNonBlokNonCSRResult.value.data.data || []
+          ? jadwalNonBlokNonCSRResult.value.data.data || []
           : [];
-        
+
         // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi)
         const bimbinganAkhirData = nonBlokNonCSRData.filter(
           (item: any) =>
@@ -925,7 +925,7 @@ export default function DashboardDosen() {
             item.jenis_baris === "sidang_skripsi"
         );
         setJadwalBimbinganAkhir(bimbinganAkhirData);
-        
+
         // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
         const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
           (item: any) =>
@@ -938,9 +938,9 @@ export default function DashboardDosen() {
         const jadwalNonBlokNonCSRResult = otherResults[0];
         // Pastikan semua data non blok non csr termasuk seminar proposal dan sidang skripsi
         const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
-            ? jadwalNonBlokNonCSRResult.value.data.data || []
+          ? jadwalNonBlokNonCSRResult.value.data.data || []
           : [];
-        
+
         // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi)
         const bimbinganAkhirData = nonBlokNonCSRData.filter(
           (item: any) =>
@@ -948,7 +948,7 @@ export default function DashboardDosen() {
             item.jenis_baris === "sidang_skripsi"
         );
         setJadwalBimbinganAkhir(bimbinganAkhirData);
-        
+
         // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
         const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
           (item: any) =>
@@ -1092,8 +1092,10 @@ export default function DashboardDosen() {
     } else if (jadwalType === "jurnal") {
       // For Jurnal Reading
       const kelompok =
-        jadwal.kelompok_kecil?.nama ||
-        jadwal.kelompok_kecil_antara?.nama_kelompok;
+        (Array.isArray(jadwal.kelompok_kecil)
+          ? jadwal.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
+          : (jadwal.kelompok_kecil as any)?.nama_kelompok ? `Kelompok ${(jadwal.kelompok_kecil as any).nama_kelompok}` : "") ||
+        (jadwal.kelompok_kecil_antara?.nama_kelompok ? `Kelompok ${jadwal.kelompok_kecil_antara.nama_kelompok}` : "");
       const isAntara = jadwal.semester_type === "antara";
 
       if (isAntara) {
@@ -1263,11 +1265,11 @@ export default function DashboardDosen() {
         setEmailStatus((prev) =>
           prev
             ? {
-                ...prev,
-                isEmailValid: true,
-                needsEmailUpdate: false,
-                email: newEmail.trim(),
-              }
+              ...prev,
+              isEmailValid: true,
+              needsEmailUpdate: false,
+              email: newEmail.trim(),
+            }
             : null
         );
         setShowEmailWarning(false);
@@ -1366,11 +1368,11 @@ export default function DashboardDosen() {
           setEmailStatus((prev) =>
             prev
               ? {
-                  ...prev,
-                  isEmailValid: true,
-                  needsEmailUpdate: false,
-                  email: finalEmail,
-                }
+                ...prev,
+                isEmailValid: true,
+                needsEmailUpdate: false,
+                email: finalEmail,
+              }
               : null
           );
           setShowEmailWarning(false);
@@ -1408,7 +1410,7 @@ export default function DashboardDosen() {
         localStorage.setItem(
           "last_success_action",
           response.data.wablas_synced ? "whatsapp_sync" : "email_verify"
-          );
+        );
         setShowSuccessModal(true);
 
         // Dispatch event untuk refresh data
@@ -1439,8 +1441,7 @@ export default function DashboardDosen() {
         }
         if (errors.email) {
           errorMessages.push(
-            `Email: ${
-              Array.isArray(errors.email) ? errors.email[0] : errors.email
+            `Email: ${Array.isArray(errors.email) ? errors.email[0] : errors.email
             }`
           );
         }
@@ -1469,7 +1470,7 @@ export default function DashboardDosen() {
 
       setErrorMessage(errorMsg);
       setShowErrorModal(true);
-      
+
       // Jika sync gagal, refresh data untuk mendapatkan data terbaru (karena rollback)
       if (error.response?.status === 422 || error.response?.status === 500) {
         window.dispatchEvent(new Event("user-updated"));
@@ -1565,11 +1566,10 @@ export default function DashboardDosen() {
 
     return (
       <span
-        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-          semesterType === "reguler"
-            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-200"
-            : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200"
-        }`}
+        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${semesterType === "reguler"
+          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-200"
+          : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200"
+          }`}
       >
         {semesterType === "reguler" ? "Reguler" : "Antara"}
       </span>
@@ -1677,8 +1677,8 @@ export default function DashboardDosen() {
           dosenIds = Array.isArray(item.dosen_ids)
             ? item.dosen_ids
             : typeof item.dosen_ids === "string"
-            ? JSON.parse(item.dosen_ids || "[]")
-            : [];
+              ? JSON.parse(item.dosen_ids || "[]")
+              : [];
         }
 
         // Ambil dosen pengampu awal (elemen pertama)
@@ -1736,8 +1736,8 @@ export default function DashboardDosen() {
             dosenIds = Array.isArray(item.dosen_ids)
               ? item.dosen_ids
               : typeof item.dosen_ids === "string"
-              ? JSON.parse(item.dosen_ids || "[]")
-              : [];
+                ? JSON.parse(item.dosen_ids || "[]")
+                : [];
           }
 
           if (dosenIds.length > 0) {
@@ -1763,10 +1763,10 @@ export default function DashboardDosen() {
             const validDosen = item.dosen.find((d: any) => {
               const dosen = allDosenList.find((dl) => dl.id === d.id);
               return (
-            dosen &&
-            dosen.role !== "super_admin" &&
-            dosen.role !== "tim_akademik" &&
-            dosen.role !== "admin"
+                dosen &&
+                dosen.role !== "super_admin" &&
+                dosen.role !== "tim_akademik" &&
+                dosen.role !== "admin"
               );
             });
             if (validDosen) {
@@ -1776,7 +1776,7 @@ export default function DashboardDosen() {
             // Jika allDosenList belum ter-load, gunakan dosen pertama dari array
             const firstDosen = item.dosen[0];
             if (firstDosen && firstDosen.name) {
-            return firstDosen.name;
+              return firstDosen.name;
             }
           }
         }
@@ -1815,8 +1815,8 @@ export default function DashboardDosen() {
           dosenIds = Array.isArray(item.dosen_ids)
             ? item.dosen_ids
             : typeof item.dosen_ids === "string"
-            ? JSON.parse(item.dosen_ids || "[]")
-            : [];
+              ? JSON.parse(item.dosen_ids || "[]")
+              : [];
         }
 
         // Cari index dosen ini di dosen_ids
@@ -1973,16 +1973,16 @@ export default function DashboardDosen() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         {jadwalType === "kuliah_besar" ||
-                        jadwalType === "praktikum" ||
-                        jadwalType === "agenda_khusus" ||
-                        jadwalType === "pbl" ||
-                        jadwalType === "jurnal" ||
-                        jadwalType === "persamaan_persepsi" ||
-                        jadwalType === "seminar_pleno" ||
-                        jadwalType === "csr" ||
-                        jadwalType === "non_blok_non_csr" ||
-                        jadwalType === "bimbingan_akhir_sempro" ||
-                        jadwalType === "bimbingan_akhir_sidang"
+                          jadwalType === "praktikum" ||
+                          jadwalType === "agenda_khusus" ||
+                          jadwalType === "pbl" ||
+                          jadwalType === "jurnal" ||
+                          jadwalType === "persamaan_persepsi" ||
+                          jadwalType === "seminar_pleno" ||
+                          jadwalType === "csr" ||
+                          jadwalType === "non_blok_non_csr" ||
+                          jadwalType === "bimbingan_akhir_sempro" ||
+                          jadwalType === "bimbingan_akhir_sidang"
                           ? `${item.jam_mulai} - ${item.jam_selesai}`
                           : item.waktu_mulai}
                       </td>
@@ -2004,21 +2004,23 @@ export default function DashboardDosen() {
                       )}
                       {jadwalType === "praktikum" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                          {item.kelompok_kecil?.nama_kelompok || "-"}
+                          {Array.isArray(item.kelompok_kecil)
+                            ? item.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
+                            : item.kelompok_kecil?.nama_kelompok ? `Kelompok ${item.kelompok_kecil.nama_kelompok}` : "-"}
                         </td>
                       )}
                       {jadwalType !== "pbl" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                           {jadwalType === "kuliah_besar" ||
-                        jadwalType === "praktikum" ||
-                        jadwalType === "agenda_khusus" ||
-                        jadwalType === "jurnal" ||
-                        jadwalType === "persamaan_persepsi" ||
-                        jadwalType === "seminar_pleno" ||
-                        jadwalType === "csr" ||
-                        jadwalType === "non_blok_non_csr" ||
-                        jadwalType === "bimbingan_akhir_sempro" ||
-                        jadwalType === "bimbingan_akhir_sidang"
+                            jadwalType === "praktikum" ||
+                            jadwalType === "agenda_khusus" ||
+                            jadwalType === "jurnal" ||
+                            jadwalType === "persamaan_persepsi" ||
+                            jadwalType === "seminar_pleno" ||
+                            jadwalType === "csr" ||
+                            jadwalType === "non_blok_non_csr" ||
+                            jadwalType === "bimbingan_akhir_sempro" ||
+                            jadwalType === "bimbingan_akhir_sidang"
                             ? `${item.jumlah_sesi || 1} x 50 menit`
                             : `${item.durasi} menit`}
                         </td>
@@ -2048,10 +2050,10 @@ export default function DashboardDosen() {
                               const semester = mataKuliah?.semester || "";
                               const blok =
                                 mataKuliah?.blok !== null &&
-                                mataKuliah?.blok !== undefined
-                                ? `Blok ${mataKuliah.blok}` 
-                                : "";
-                              
+                                  mataKuliah?.blok !== undefined
+                                  ? `Blok ${mataKuliah.blok}`
+                                  : "";
+
                               // Gabungkan semester dan blok
                               const parts = [];
                               if (semester) {
@@ -2060,7 +2062,7 @@ export default function DashboardDosen() {
                               if (blok) {
                                 parts.push(blok);
                               }
-                              
+
                               return parts.length > 0
                                 ? parts.join(" / ")
                                 : "N/A";
@@ -2095,11 +2097,10 @@ export default function DashboardDosen() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                item.jenis_csr === "reguler"
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
-                                  : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700"
-                              }`}
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.jenis_csr === "reguler"
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                                : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700"
+                                }`}
                             >
                               {item.jenis_csr === "reguler"
                                 ? "CSR Reguler"
@@ -2112,11 +2113,10 @@ export default function DashboardDosen() {
                       {jadwalType === "non_blok_non_csr" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              item.jenis_baris === "materi"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
-                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-700"
-                            }`}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.jenis_baris === "materi"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
+                              : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-700"
+                              }`}
                           >
                             {item.jenis_baris === "materi"
                               ? "Materi"
@@ -2125,7 +2125,7 @@ export default function DashboardDosen() {
                         </td>
                       )}
                       {jadwalType === "persamaan_persepsi" ||
-                      jadwalType === "seminar_pleno" ? (
+                        jadwalType === "seminar_pleno" ? (
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {item.koordinator_names || "-"}
@@ -2326,32 +2326,34 @@ export default function DashboardDosen() {
                         jadwalType === "jurnal" ||
                         jadwalType === "seminar_pleno" ||
                         jadwalType === "non_blok_non_csr") && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {jadwalType === "kuliah_besar"
-                            ? item.kelompok_besar?.semester
-                              ? `Semester ${item.kelompok_besar.semester}`
-                              : item.kelompok_besar_antara?.nama_kelompok ||
-                                "N/A"
-                            : jadwalType === "jurnal"
-                            ? item.kelompok_kecil?.nama ||
-                              item.kelompok_kecil_antara?.nama_kelompok ||
-                              "N/A"
-                            : jadwalType === "seminar_pleno"
-                            ? item.kelompok_besar_antara?.nama_kelompok ||
-                              item.kelompok_besar?.nama_kelompok ||
-                              (item.kelompok_besar?.semester
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {jadwalType === "kuliah_besar"
+                              ? item.kelompok_besar?.semester
                                 ? `Semester ${item.kelompok_besar.semester}`
-                                : "N/A")
-                            : jadwalType === "non_blok_non_csr"
-                            ? item.kelompok_besar?.semester ||
-                              item.kelompok_besar_antara?.nama_kelompok ||
-                              "N/A"
-                            : "N/A"}
-                        </td>
-                      )}
+                                : item.kelompok_besar_antara?.nama_kelompok ||
+                                "N/A"
+                              : jadwalType === "jurnal"
+                                ? item.kelompok_kecil?.nama ||
+                                item.kelompok_kecil_antara?.nama_kelompok ||
+                                "N/A"
+                                : jadwalType === "seminar_pleno"
+                                  ? item.kelompok_besar_antara?.nama_kelompok ||
+                                  item.kelompok_besar?.nama_kelompok ||
+                                  (item.kelompok_besar?.semester
+                                    ? `Semester ${item.kelompok_besar.semester}`
+                                    : "N/A")
+                                  : jadwalType === "non_blok_non_csr"
+                                    ? item.kelompok_besar?.semester ||
+                                    item.kelompok_besar_antara?.nama_kelompok ||
+                                    "N/A"
+                                    : "N/A"}
+                          </td>
+                        )}
                       {jadwalType === "csr" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.kelompok_kecil?.nama || "N/A"}
+                          {Array.isArray(item.kelompok_kecil)
+                            ? item.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
+                            : (item.kelompok_kecil as any)?.nama ? `Kelompok ${(item.kelompok_kecil as any).nama}` : "N/A"}
                         </td>
                       )}
                       {/* Kolom RUANGAN - untuk bimbingan akhir sudah ditangani di kondisi khusus di atas, jadi skip di sini */}
@@ -2362,24 +2364,24 @@ export default function DashboardDosen() {
                           </td>
                         ) : (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                        {jadwalType === "persamaan_persepsi"
+                            {jadwalType === "persamaan_persepsi"
                               ? item.use_ruangan && item.ruangan?.nama
-                            ? item.ruangan.nama 
-                            : "Online"
-                          : jadwalType === "seminar_pleno"
-                              ? item.use_ruangan && item.ruangan?.nama
-                            ? item.ruangan.nama
-                            : "Online"
-                          : jadwalType === "kuliah_besar" ||
-                            jadwalType === "jurnal"
-                          ? item.ruangan?.nama || "N/A"
-                          : jadwalType === "pbl"
-                            ? (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"
-                          : jadwalType === "csr" ||
-                            jadwalType === "non_blok_non_csr"
-                          ? item.ruangan?.nama || "N/A"
-                            : item.lokasi || (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"}
-                      </td>
+                                ? item.ruangan.nama
+                                : "Online"
+                              : jadwalType === "seminar_pleno"
+                                ? item.use_ruangan && item.ruangan?.nama
+                                  ? item.ruangan.nama
+                                  : "Online"
+                                : jadwalType === "kuliah_besar" ||
+                                  jadwalType === "jurnal"
+                                  ? item.ruangan?.nama || "N/A"
+                                  : jadwalType === "pbl"
+                                    ? (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"
+                                    : jadwalType === "csr" ||
+                                      jadwalType === "non_blok_non_csr"
+                                      ? item.ruangan?.nama || "N/A"
+                                      : item.lokasi || (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"}
+                          </td>
                         )
                       )}
                       {/* Kolom FILE JURNAL - hanya untuk jurnal */}
@@ -2460,8 +2462,8 @@ export default function DashboardDosen() {
                       {/* Kolom JENIS SEMESTER - untuk jadwal type tertentu, skip untuk bimbingan akhir */}
                       {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                        {getSemesterTypeBadge(item.semester_type)}
-                      </td>
+                          {getSemesterTypeBadge(item.semester_type)}
+                        </td>
                       )}
                       {/* Kolom AKSI */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
@@ -2469,7 +2471,7 @@ export default function DashboardDosen() {
                           {/* Untuk Seminar Proposal dan Sidang Skripsi, jangan tampilkan getStatusBadge karena sudah ada logika khusus */}
                           {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") && (
                             getStatusBadge(
-                            item.status_konfirmasi,
+                              item.status_konfirmasi,
                               item.status_reschedule,
                               jadwalType
                             )
@@ -2500,15 +2502,15 @@ export default function DashboardDosen() {
                               {(() => {
                                 const user = getUser();
                                 if (!user) return null;
-                                
+
                                 // Cek apakah dosen ini terlibat (komentator atau penguji) tapi bukan pembimbing
                                 const isKomentator = (item.komentator_ids && Array.isArray(item.komentator_ids) && item.komentator_ids.includes(Number(user.id))) ||
-                                                     (item.komentator_list && Array.isArray(item.komentator_list) && item.komentator_list.some((k: any) => k.id === Number(user.id)));
+                                  (item.komentator_list && Array.isArray(item.komentator_list) && item.komentator_list.some((k: any) => k.id === Number(user.id)));
                                 const isPenguji = (item.penguji_ids && Array.isArray(item.penguji_ids) && item.penguji_ids.includes(Number(user.id))) ||
-                                                  (item.penguji_list && Array.isArray(item.penguji_list) && item.penguji_list.some((p: any) => p.id === Number(user.id)));
-                                
+                                  (item.penguji_list && Array.isArray(item.penguji_list) && item.penguji_list.some((p: any) => p.id === Number(user.id)));
+
                                 const isTerlibatBukanPembimbing = !item.is_pembimbing && (item.is_active_dosen || isKomentator || isPenguji);
-                                
+
                                 if (isTerlibatBukanPembimbing && item.status_konfirmasi === "belum_konfirmasi") {
                                   return (
                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
@@ -2530,15 +2532,15 @@ export default function DashboardDosen() {
                               {(() => {
                                 const user = getUser();
                                 if (!user) return null;
-                                
+
                                 // Cek apakah dosen ini terlibat (komentator atau penguji) tapi bukan pembimbing
                                 const isKomentator = (item.komentator_ids && Array.isArray(item.komentator_ids) && item.komentator_ids.includes(Number(user.id))) ||
-                                                     (item.komentator_list && Array.isArray(item.komentator_list) && item.komentator_list.some((k: any) => k.id === Number(user.id)));
+                                  (item.komentator_list && Array.isArray(item.komentator_list) && item.komentator_list.some((k: any) => k.id === Number(user.id)));
                                 const isPenguji = (item.penguji_ids && Array.isArray(item.penguji_ids) && item.penguji_ids.includes(Number(user.id))) ||
-                                                  (item.penguji_list && Array.isArray(item.penguji_list) && item.penguji_list.some((p: any) => p.id === Number(user.id)));
-                                
+                                  (item.penguji_list && Array.isArray(item.penguji_list) && item.penguji_list.some((p: any) => p.id === Number(user.id)));
+
                                 const isTerlibatBukanPembimbing = !item.is_pembimbing && (item.is_active_dosen || isKomentator || isPenguji);
-                                
+
                                 if (isTerlibatBukanPembimbing && item.status_konfirmasi === "tidak_bisa") {
                                   return (
                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
@@ -2569,13 +2571,13 @@ export default function DashboardDosen() {
                           )}
                           {/* Persamaan Persepsi dan Seminar Pleno tidak ada button konfirmasi (langsung bisa) */}
                           {jadwalType === "persamaan_persepsi" ||
-                          jadwalType === "seminar_pleno" ? (
+                            jadwalType === "seminar_pleno" ? (
                             <>
                               {/* Button Absensi hanya muncul jika dosen adalah koordinator */}
                               {(() => {
                                 const user = getUser();
                                 if (!user) return null;
-                                
+
                                 // Cek apakah dosen ini ada di koordinator_ids
                                 const koordinatorIds =
                                   item.koordinator_ids || [];
@@ -2584,23 +2586,23 @@ export default function DashboardDosen() {
                                 )
                                   ? koordinatorIds.includes(Number(user.id))
                                   : false;
-                                
+
                                 if (isKoordinator) {
                                   // Cek apakah antara berdasarkan semester_type
                                   const isAntara =
                                     item.semester_type === "antara";
-                                  
+
                                   let routePath = "";
                                   if (jadwalType === "persamaan_persepsi") {
-                                    routePath = isAntara 
+                                    routePath = isAntara
                                       ? `/absensi-persamaan-persepsi-antara/${item.mata_kuliah_kode}/${item.id}`
                                       : `/absensi-persamaan-persepsi/${item.mata_kuliah_kode}/${item.id}`;
                                   } else if (jadwalType === "seminar_pleno") {
-                                    routePath = isAntara 
+                                    routePath = isAntara
                                       ? `/absensi-seminar-pleno-antara/${item.mata_kuliah_kode}/${item.id}`
                                       : `/absensi-seminar-pleno/${item.mata_kuliah_kode}/${item.id}`;
                                   }
-                                  
+
                                   return (
                                     <button
                                       onClick={() => navigate(routePath)}
@@ -2625,179 +2627,176 @@ export default function DashboardDosen() {
                               {/* Untuk jadwal lain (bukan bimbingan akhir), tampilkan button konfirmasi jika belum konfirmasi */}
                               {/* CSR tidak memiliki is_active_dosen, jadi cek dosen_id atau langsung tampilkan */}
                               {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") &&
-                                (jadwalType === "csr" ? 
+                                (jadwalType === "csr" ?
                                   (item.dosen_id && Number(item.dosen_id) === Number(getUser()?.id)) :
                                   item.is_active_dosen
                                 ) &&
                                 item.status_konfirmasi ===
-                                  "belum_konfirmasi" && (
-                                <button
-                                  onClick={() => openKonfirmasiModal(item)}
-                                  className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                                  title="Konfirmasi Ketersediaan"
-                                >
-                                  Konfirmasi
-                                </button>
-                              )}
+                                "belum_konfirmasi" && (
+                                  <button
+                                    onClick={() => openKonfirmasiModal(item)}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                    title="Konfirmasi Ketersediaan"
+                                  >
+                                    Konfirmasi
+                                  </button>
+                                )}
                               {/* Tampilkan button aksi jika status sudah "bisa" */}
                               {/* CSR tidak memiliki is_active_dosen, jadi cek dosen_id atau langsung tampilkan */}
-                              {((jadwalType === "csr" ? 
-                                  (item.dosen_id && Number(item.dosen_id) === Number(getUser()?.id)) :
-                                  item.is_active_dosen
-                                ) &&
+                              {((jadwalType === "csr" ?
+                                (item.dosen_id && Number(item.dosen_id) === Number(getUser()?.id)) :
+                                item.is_active_dosen
+                              ) &&
                                 item.status_konfirmasi === "bisa") && (
-                                <>
-                                  {jadwalType === "csr" ? (
-                                    <button
-                                      onClick={() =>
-                                        navigate(
-                                          `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
-                                        )
-                                      }
-                                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                                      title="Absensi CSR"
-                                    >
-                                      Absensi
-                                    </button>
-                                  ) : jadwalType === "kuliah_besar" ? (
-                                <>
-                                  {/* Cek apakah kuliah besar antara berdasarkan semester_type atau semester */}
-                                  {(() => {
+                                  <>
+                                    {jadwalType === "csr" ? (
+                                      <button
+                                        onClick={() =>
+                                          navigate(
+                                            `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
+                                          )
+                                        }
+                                        className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                        title="Absensi CSR"
+                                      >
+                                        Absensi
+                                      </button>
+                                    ) : jadwalType === "kuliah_besar" ? (
+                                      <>
+                                        {/* Cek apakah kuliah besar antara berdasarkan semester_type atau semester */}
+                                        {(() => {
                                           const isAntara =
                                             item.semester_type === "antara" ||
                                             (item.mata_kuliah &&
                                               item.mata_kuliah.semester ===
-                                                "Antara");
-                                    if (isAntara) {
-                                      return (
-                                        <button
-                                          onClick={() =>
-                                            navigate(
-                                              `/absensi-kuliah-besar-antara/${item.mata_kuliah_kode}/${item.id}`
-                                            )
+                                              "Antara");
+                                          if (isAntara) {
+                                            return (
+                                              <button
+                                                onClick={() =>
+                                                  navigate(
+                                                    `/absensi-kuliah-besar-antara/${item.mata_kuliah_kode}/${item.id}`
+                                                  )
+                                                }
+                                                className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                                title="Absensi Kuliah Besar Antara"
+                                              >
+                                                Absensi
+                                              </button>
+                                            );
+                                          } else {
+                                            // Untuk kuliah besar reguler, langsung ke halaman absensi
+                                            return (
+                                              <button
+                                                onClick={() =>
+                                                  navigate(
+                                                    `/absensi-kuliah-besar/${item.mata_kuliah_kode}/${item.id}`
+                                                  )
+                                                }
+                                                className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                                title="Absensi Kuliah Besar"
+                                              >
+                                                Absensi
+                                              </button>
+                                            );
                                           }
-                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                          title="Absensi Kuliah Besar Antara"
-                                        >
-                                          Absensi
-                                        </button>
-                                      );
-                                    } else {
-                                      // Untuk kuliah besar reguler, langsung ke halaman absensi
-                                      return (
+                                        })()}
+                                      </>
+                                    ) : jadwalType === "non_blok_non_csr" ? (
+                                      <>
                                         <button
-                                          onClick={() =>
-                                            navigate(
-                                              `/absensi-kuliah-besar/${item.mata_kuliah_kode}/${item.id}`
-                                            )
-                                          }
-                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                          title="Absensi Kuliah Besar"
-                                        >
-                                          Absensi
-                                        </button>
-                                      );
-                                    }
-                                  })()}
-                                </>
-                              ) : jadwalType === "non_blok_non_csr" ? (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      // Cek apakah non-blok non-CSR antara berdasarkan semester_type atau semester
+                                          onClick={() => {
+                                            // Cek apakah non-blok non-CSR antara berdasarkan semester_type atau semester
                                             const isAntara =
                                               item.semester_type === "antara" ||
                                               (item.mata_kuliah &&
                                                 item.mata_kuliah.semester ===
-                                                  "Antara");
-                                      const routePath = isAntara 
-                                        ? `/absensi-non-blok-non-csr-antara/${item.mata_kuliah_kode}/${item.id}`
-                                        : `/absensi-non-blok-non-csr/${item.mata_kuliah_kode}/${item.id}`;
-                                      navigate(routePath);
-                                    }}
-                                    className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                    title="Absensi Non-Blok Non-CSR"
-                                  >
-                                    Absensi
-                                  </button>
-                                  <button
-                                    onClick={() =>
+                                                "Antara");
+                                            const routePath = isAntara
+                                              ? `/absensi-non-blok-non-csr-antara/${item.mata_kuliah_kode}/${item.id}`
+                                              : `/absensi-non-blok-non-csr/${item.mata_kuliah_kode}/${item.id}`;
+                                            navigate(routePath);
+                                          }}
+                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                          title="Absensi Non-Blok Non-CSR"
+                                        >
+                                          Absensi
+                                        </button>
+                                        <button
+                                          onClick={() =>
                                             handlePenilaianClick(
                                               item,
                                               jadwalType
                                             )
-                                    }
-                                    className={`px-3 py-1 rounded text-xs transition-colors ${
-                                      item.penilaian_submitted
-                                        ? "bg-gray-500 text-white hover:bg-gray-600"
-                                        : "bg-green-500 text-white hover:bg-green-600"
-                                    }`}
-                                    title={
-                                      item.penilaian_submitted
-                                        ? "Lihat Penilaian"
-                                        : "Penilaian"
-                                    }
-                                  >
-                                    {item.penilaian_submitted
-                                      ? "Lihat Penilaian"
-                                      : "Penilaian"}
-                                  </button>
-                                </>
-                              ) : jadwalType === "praktikum" ? (
-                                  <button
-                                    onClick={() => {
+                                          }
+                                          className={`px-3 py-1 rounded text-xs transition-colors ${item.penilaian_submitted
+                                            ? "bg-gray-500 text-white hover:bg-gray-600"
+                                            : "bg-green-500 text-white hover:bg-green-600"
+                                            }`}
+                                          title={
+                                            item.penilaian_submitted
+                                              ? "Lihat Penilaian"
+                                              : "Penilaian"
+                                          }
+                                        >
+                                          {item.penilaian_submitted
+                                            ? "Lihat Penilaian"
+                                            : "Penilaian"}
+                                        </button>
+                                      </>
+                                    ) : jadwalType === "praktikum" ? (
+                                      <button
+                                        onClick={() => {
                                           navigate(
                                             `/absensi-praktikum/${item.mata_kuliah_kode}/${item.id}`
                                           );
-                                    }}
+                                        }}
                                         className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors"
-                                    title="Absensi Praktikum"
-                                  >
-                                    Absensi
-                                  </button>
-                              ) : jadwalType === "jurnal" ? (
-                                <button
-                                  onClick={() =>
-                                    handlePenilaianClick(item, jadwalType)
-                                  }
-                                  className={`px-3 py-1 rounded text-xs transition-colors ${
-                                    item.penilaian_submitted
-                                      ? "bg-gray-500 text-white hover:bg-gray-600"
-                                      : "bg-green-500 text-white hover:bg-green-600"
-                                  }`}
-                                  title={
-                                    item.penilaian_submitted
-                                      ? "Lihat Penilaian"
-                                      : "Penilaian"
-                                  }
-                                >
-                                  {item.penilaian_submitted
-                                    ? "Lihat Penilaian"
-                                    : "Penilaian"}
-                                </button>
-                              ) : jadwalType === "pbl" ? (
-                                <button
-                                  onClick={() =>
-                                    handlePenilaianClick(item, jadwalType)
-                                  }
-                                  className={`px-3 py-1 rounded text-xs transition-colors ${
-                                    item.penilaian_submitted
-                                      ? "bg-gray-500 text-white hover:bg-gray-600"
-                                      : "bg-green-500 text-white hover:bg-green-600"
-                                  }`}
-                                  title={
-                                    item.penilaian_submitted
-                                      ? "Lihat Penilaian"
-                                      : "Penilaian"
-                                  }
-                                >
-                                  {item.penilaian_submitted
-                                    ? "Lihat Penilaian"
-                                    : "Penilaian"}
-                                </button>
-                              ) : null}
-                                </>
-                              )}
+                                        title="Absensi Praktikum"
+                                      >
+                                        Absensi
+                                      </button>
+                                    ) : jadwalType === "jurnal" ? (
+                                      <button
+                                        onClick={() =>
+                                          handlePenilaianClick(item, jadwalType)
+                                        }
+                                        className={`px-3 py-1 rounded text-xs transition-colors ${item.penilaian_submitted
+                                          ? "bg-gray-500 text-white hover:bg-gray-600"
+                                          : "bg-green-500 text-white hover:bg-green-600"
+                                          }`}
+                                        title={
+                                          item.penilaian_submitted
+                                            ? "Lihat Penilaian"
+                                            : "Penilaian"
+                                        }
+                                      >
+                                        {item.penilaian_submitted
+                                          ? "Lihat Penilaian"
+                                          : "Penilaian"}
+                                      </button>
+                                    ) : jadwalType === "pbl" ? (
+                                      <button
+                                        onClick={() =>
+                                          handlePenilaianClick(item, jadwalType)
+                                        }
+                                        className={`px-3 py-1 rounded text-xs transition-colors ${item.penilaian_submitted
+                                          ? "bg-gray-500 text-white hover:bg-gray-600"
+                                          : "bg-green-500 text-white hover:bg-green-600"
+                                          }`}
+                                        title={
+                                          item.penilaian_submitted
+                                            ? "Lihat Penilaian"
+                                            : "Penilaian"
+                                        }
+                                      >
+                                        {item.penilaian_submitted
+                                          ? "Lihat Penilaian"
+                                          : "Penilaian"}
+                                      </button>
+                                    ) : null}
+                                  </>
+                                )}
                               {/* Persamaan Persepsi dan Seminar Pleno tidak ada button reschedule (langsung bisa) */}
                               {/* Praktikum tidak ada button reschedule */}
                               {/* Bimbingan Akhir (seminar proposal dan sidang skripsi) sudah ditangani di atas, jangan tampilkan lagi di sini */}
@@ -2807,23 +2806,23 @@ export default function DashboardDosen() {
                                 jadwalType === "agenda_khusus" ||
                                 jadwalType === "jurnal" ||
                                 jadwalType === "csr" ||
-                                (jadwalType === "non_blok_non_csr" && 
-                                 item.jenis_baris !== "seminar_proposal" && 
-                                 item.jenis_baris !== "sidang_skripsi")) &&
-                                (jadwalType === "csr" ? 
+                                (jadwalType === "non_blok_non_csr" &&
+                                  item.jenis_baris !== "seminar_proposal" &&
+                                  item.jenis_baris !== "sidang_skripsi")) &&
+                                (jadwalType === "csr" ?
                                   (item.dosen_id && Number(item.dosen_id) === Number(getUser()?.id)) :
                                   item.is_active_dosen
                                 ) &&
                                 item.status_konfirmasi ===
-                                  "belum_konfirmasi" && (
-                                <button
-                                  onClick={() => openRescheduleModal(item)}
-                                  className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
-                                  title="Ajukan Reschedule"
-                                >
-                                  Reschedule
-                                </button>
-                              )}
+                                "belum_konfirmasi" && (
+                                  <button
+                                    onClick={() => openRescheduleModal(item)}
+                                    className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
+                                    title="Ajukan Reschedule"
+                                  >
+                                    Reschedule
+                                  </button>
+                                )}
                             </>
                           )}
                         </div>
@@ -3309,65 +3308,65 @@ export default function DashboardDosen() {
             {/* Notifikasi Koordinator Blok yang belum tanda tangan */}
             {praktikumKoordinator.filter((p) => !p.koordinator_signature)
               .length > 0 && (
-              <div
-                onClick={() => {
-                  // Scroll ke section koordinator blok
-                  const koordinatorSection = document.getElementById(
-                    "koordinator-blok-section"
-                  );
-                  if (koordinatorSection) {
-                    koordinatorSection.scrollIntoView({
-                      behavior: "smooth",
-                      block: "start",
-                    });
-                  }
-                }}
-                className="mb-4 p-4 rounded-xl border border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all duration-300 hover:shadow-md"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100 dark:bg-orange-900/30">
-                    <FontAwesomeIcon
-                      icon={faFlask}
-                      className="w-5 h-5 text-orange-600 dark:text-orange-400"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium text-gray-900 dark:text-white">
-                        Tanda Tangan Koordinator Blok Diperlukan
-                      </h4>
-                      <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></span>
+                <div
+                  onClick={() => {
+                    // Scroll ke section koordinator blok
+                    const koordinatorSection = document.getElementById(
+                      "koordinator-blok-section"
+                    );
+                    if (koordinatorSection) {
+                      koordinatorSection.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
+                    }
+                  }}
+                  className="mb-4 p-4 rounded-xl border border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all duration-300 hover:shadow-md"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100 dark:bg-orange-900/30">
+                      <FontAwesomeIcon
+                        icon={faFlask}
+                        className="w-5 h-5 text-orange-600 dark:text-orange-400"
+                      />
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      Anda memiliki{" "}
-                      {
-                        praktikumKoordinator.filter(
-                          (p) => !p.koordinator_signature
-                        ).length
-                      }{" "}
-                      praktikum yang memerlukan tanda tangan koordinator blok.
-                      Silakan lengkapi tanda tangan Anda.
-                    </p>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
-                        <FontAwesomeIcon
-                          icon={faFlask}
-                          className="w-3 h-3 mr-1"
-                        />
-                        Koordinator Blok
-                      </span>
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
-                        <FontAwesomeIcon
-                          icon={faCalendar}
-                          className="w-3 h-3 mr-1"
-                        />
-                        Klik untuk lihat detail
-                      </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-gray-900 dark:text-white">
+                          Tanda Tangan Koordinator Blok Diperlukan
+                        </h4>
+                        <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></span>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Anda memiliki{" "}
+                        {
+                          praktikumKoordinator.filter(
+                            (p) => !p.koordinator_signature
+                          ).length
+                        }{" "}
+                        praktikum yang memerlukan tanda tangan koordinator blok.
+                        Silakan lengkapi tanda tangan Anda.
+                      </p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
+                          <FontAwesomeIcon
+                            icon={faFlask}
+                            className="w-3 h-3 mr-1"
+                          />
+                          Koordinator Blok
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                          <FontAwesomeIcon
+                            icon={faCalendar}
+                            className="w-3 h-3 mr-1"
+                          />
+                          Klik untuk lihat detail
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {safeNotifications.length > 0 ? (
               <div className="space-y-4">
@@ -3375,39 +3374,35 @@ export default function DashboardDosen() {
                   <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
-                    className={`p-4 rounded-xl border transition-all duration-300 hover:shadow-md cursor-pointer ${
-                      notification.is_read
-                        ? "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
-                        : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
-                    } ${
-                      notification.data?.jadwal_type
+                    className={`p-4 rounded-xl border transition-all duration-300 hover:shadow-md cursor-pointer ${notification.is_read
+                      ? "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
+                      : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
+                      } ${notification.data?.jadwal_type
                         ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600"
                         : ""
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start gap-4">
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          notification.type === "success"
-                            ? "bg-green-100 dark:bg-green-900/30"
-                            : notification.type === "warning"
+                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${notification.type === "success"
+                          ? "bg-green-100 dark:bg-green-900/30"
+                          : notification.type === "warning"
                             ? "bg-yellow-100 dark:bg-yellow-900/30"
                             : notification.type === "error"
-                            ? "bg-red-100 dark:bg-red-900/30"
-                            : "bg-blue-100 dark:bg-blue-900/30"
-                        }`}
+                              ? "bg-red-100 dark:bg-red-900/30"
+                              : "bg-blue-100 dark:bg-blue-900/30"
+                          }`}
                       >
                         <FontAwesomeIcon
                           icon={getNotificationIcon(notification)}
-                          className={`w-5 h-5 ${
-                            notification.type === "success"
-                              ? "text-green-600 dark:text-green-400"
-                              : notification.type === "warning"
+                          className={`w-5 h-5 ${notification.type === "success"
+                            ? "text-green-600 dark:text-green-400"
+                            : notification.type === "warning"
                               ? "text-yellow-600 dark:text-yellow-400"
                               : notification.type === "error"
-                              ? "text-red-600 dark:text-red-400"
-                              : "text-blue-600 dark:text-blue-400"
-                          }`}
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-blue-600 dark:text-blue-400"
+                            }`}
                         />
                       </div>
 
@@ -3541,37 +3536,36 @@ export default function DashboardDosen() {
                       <div className="flex items-start space-x-4 flex-1">
                         <div className="flex-shrink-0">
                           <div
-                            className={`w-11 h-11 rounded-lg flex items-center justify-center shadow-sm ${
-                              schedule.type === "kuliah_besar"
-                                ? "bg-gradient-to-br from-blue-500 to-blue-600"
-                                : schedule.type === "pbl"
+                            className={`w-11 h-11 rounded-lg flex items-center justify-center shadow-sm ${schedule.type === "kuliah_besar"
+                              ? "bg-gradient-to-br from-blue-500 to-blue-600"
+                              : schedule.type === "pbl"
                                 ? "bg-gradient-to-br from-emerald-500 to-emerald-600"
                                 : schedule.type === "praktikum"
-                                ? "bg-gradient-to-br from-violet-500 to-violet-600"
-                                : schedule.type === "jurnal"
-                                ? "bg-gradient-to-br from-indigo-500 to-indigo-600"
-                                : schedule.type === "csr"
-                                ? "bg-gradient-to-br from-amber-500 to-amber-600"
-                                : schedule.type === "non_blok_non_csr"
-                                ? "bg-gradient-to-br from-rose-500 to-rose-600"
-                                : "bg-gradient-to-br from-gray-500 to-gray-600"
-                            }`}
+                                  ? "bg-gradient-to-br from-violet-500 to-violet-600"
+                                  : schedule.type === "jurnal"
+                                    ? "bg-gradient-to-br from-indigo-500 to-indigo-600"
+                                    : schedule.type === "csr"
+                                      ? "bg-gradient-to-br from-amber-500 to-amber-600"
+                                      : schedule.type === "non_blok_non_csr"
+                                        ? "bg-gradient-to-br from-rose-500 to-rose-600"
+                                        : "bg-gradient-to-br from-gray-500 to-gray-600"
+                              }`}
                           >
                             <FontAwesomeIcon
                               icon={
                                 schedule.type === "kuliah_besar"
                                   ? faGraduationCap
                                   : schedule.type === "pbl"
-                                  ? faBookOpen
-                                  : schedule.type === "praktikum"
-                                  ? faFlask
-                                  : schedule.type === "jurnal"
-                                  ? faNewspaper
-                                  : schedule.type === "csr"
-                                  ? faUsers
-                                  : schedule.type === "non_blok_non_csr"
-                                  ? faCalendar
-                                  : faCalendar
+                                    ? faBookOpen
+                                    : schedule.type === "praktikum"
+                                      ? faFlask
+                                      : schedule.type === "jurnal"
+                                        ? faNewspaper
+                                        : schedule.type === "csr"
+                                          ? faUsers
+                                          : schedule.type === "non_blok_non_csr"
+                                            ? faCalendar
+                                            : faCalendar
                               }
                               className="text-white text-sm"
                             />
@@ -3583,35 +3577,34 @@ export default function DashboardDosen() {
                               {schedule.mata_kuliah}
                             </h3>
                             <span
-                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                schedule.type === "kuliah_besar"
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
-                                  : schedule.type === "pbl"
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${schedule.type === "kuliah_besar"
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+                                : schedule.type === "pbl"
                                   ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
                                   : schedule.type === "praktikum"
-                                  ? "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200"
-                                  : schedule.type === "jurnal"
-                                  ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200"
-                                  : schedule.type === "csr"
-                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
-                                  : schedule.type === "non_blok_non_csr"
-                                  ? "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
-                                  : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200"
-                              }`}
+                                    ? "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200"
+                                    : schedule.type === "jurnal"
+                                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200"
+                                      : schedule.type === "csr"
+                                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+                                        : schedule.type === "non_blok_non_csr"
+                                          ? "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+                                          : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200"
+                                }`}
                             >
                               {schedule.type === "kuliah_besar"
                                 ? "Kuliah Besar"
                                 : schedule.type === "pbl"
-                                ? "PBL"
-                                : schedule.type === "praktikum"
-                                ? "Praktikum"
-                                : schedule.type === "jurnal"
-                                ? "Jurnal Reading"
-                                : schedule.type === "csr"
-                                ? "CSR"
-                                : schedule.type === "non_blok_non_csr"
-                                ? "Non Blok"
-                                : schedule.type}
+                                  ? "PBL"
+                                  : schedule.type === "praktikum"
+                                    ? "Praktikum"
+                                    : schedule.type === "jurnal"
+                                      ? "Jurnal Reading"
+                                      : schedule.type === "csr"
+                                        ? "CSR"
+                                        : schedule.type === "non_blok_non_csr"
+                                          ? "Non Blok"
+                                          : schedule.type}
                             </span>
                             {getStatusBadge(
                               schedule.status_konfirmasi,
@@ -3738,11 +3731,10 @@ export default function DashboardDosen() {
                       e.stopPropagation();
                       navigate(`${praktikum.action_url}?tab=dosen`);
                     }}
-                    className={`p-4 rounded-lg border cursor-pointer transition-all duration-300 hover:shadow-md ${
-                      praktikum.koordinator_signature
-                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                        : "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30"
-                    }`}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all duration-300 hover:shadow-md ${praktikum.koordinator_signature
+                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                      : "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30"
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -3751,11 +3743,10 @@ export default function DashboardDosen() {
                             {praktikum.mata_kuliah_nama}
                           </p>
                           <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              praktikum.koordinator_signature
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                            }`}
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${praktikum.koordinator_signature
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                              }`}
                           >
                             {praktikum.koordinator_signature
                               ? "✓ Sudah Ditandatangani"
@@ -3792,7 +3783,9 @@ export default function DashboardDosen() {
                           </p>
                           <p>
                             <span className="font-medium">Kelompok Kecil:</span>{" "}
-                            {praktikum.kelompok_kecil?.nama_kelompok || "-"}
+                            {Array.isArray(praktikum.kelompok_kecil)
+                              ? praktikum.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
+                              : praktikum.kelompok_kecil?.nama_kelompok ? `Kelompok ${praktikum.kelompok_kecil.nama_kelompok}` : "-"}
                           </p>
                           {praktikum.materi && (
                             <p>
@@ -3888,11 +3881,10 @@ export default function DashboardDosen() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => setActiveSemester("ganjil")}
-                      className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
-                        activeSemester === "ganjil"
-                          ? "bg-blue-500 text-white shadow-lg"
-                          : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-500"
-                      }`}
+                      className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemester === "ganjil"
+                        ? "bg-blue-500 text-white shadow-lg"
+                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-500"
+                        }`}
                     >
                       <FontAwesomeIcon
                         icon={faGraduationCap}
@@ -3902,11 +3894,10 @@ export default function DashboardDosen() {
                     </button>
                     <button
                       onClick={() => setActiveSemester("genap")}
-                      className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
-                        activeSemester === "genap"
-                          ? "bg-green-500 text-white shadow-lg"
-                          : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-500"
-                      }`}
+                      className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemester === "genap"
+                        ? "bg-green-500 text-white shadow-lg"
+                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-500"
+                        }`}
                     >
                       <FontAwesomeIcon
                         icon={faGraduationCap}
@@ -3916,11 +3907,10 @@ export default function DashboardDosen() {
                     </button>
                     <button
                       onClick={() => setActiveSemester("all")}
-                      className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
-                        activeSemester === "all"
-                          ? "bg-purple-500 text-white shadow-lg"
-                          : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-500"
-                      }`}
+                      className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemester === "all"
+                        ? "bg-purple-500 text-white shadow-lg"
+                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-500"
+                        }`}
                     >
                       <FontAwesomeIcon icon={faEye} className="mr-2" />
                       Semua Semester
@@ -3943,11 +3933,10 @@ export default function DashboardDosen() {
                         <div key={semesterType} className="mb-6">
                           <div className="flex items-center gap-3 mb-4">
                             <div
-                              className={`w-6 h-6 rounded-lg ${
-                                semesterType === "ganjil"
-                                  ? "bg-blue-500"
-                                  : "bg-green-500"
-                              } flex items-center justify-center`}
+                              className={`w-6 h-6 rounded-lg ${semesterType === "ganjil"
+                                ? "bg-blue-500"
+                                : "bg-green-500"
+                                } flex items-center justify-center`}
                             >
                               <FontAwesomeIcon
                                 icon={faGraduationCap}
@@ -4192,7 +4181,7 @@ export default function DashboardDosen() {
 
                         <div className="grid gap-4">
                           {blokData.pbl_assignments &&
-                          blokData.pbl_assignments.length > 0 ? (
+                            blokData.pbl_assignments.length > 0 ? (
                             blokData.pbl_assignments.map(
                               (assignment, index) => (
                                 <div
@@ -4337,33 +4326,30 @@ export default function DashboardDosen() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setActiveSemesterType("reguler")}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                      activeSemesterType === "reguler"
-                        ? "bg-blue-500 text-white shadow-lg"
-                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-500"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemesterType === "reguler"
+                      ? "bg-blue-500 text-white shadow-lg"
+                      : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-500"
+                      }`}
                   >
                     <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
                     Reguler
                   </button>
                   <button
                     onClick={() => setActiveSemesterType("antara")}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                      activeSemesterType === "antara"
-                        ? "bg-green-500 text-white shadow-lg"
-                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-500"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemesterType === "antara"
+                      ? "bg-green-500 text-white shadow-lg"
+                      : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-500"
+                      }`}
                   >
                     <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
                     Antara
                   </button>
                   <button
                     onClick={() => setActiveSemesterType("all")}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                      activeSemesterType === "all"
-                        ? "bg-purple-500 text-white shadow-lg"
-                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-500"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemesterType === "all"
+                      ? "bg-purple-500 text-white shadow-lg"
+                      : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-500"
+                      }`}
                   >
                     <FontAwesomeIcon icon={faEye} className="mr-2" />
                     Semua
@@ -4616,10 +4602,10 @@ export default function DashboardDosen() {
                       {renderJadwalTable(
                         "Seminar Proposal",
                         faGraduationCap,
-                        Array.isArray(jadwalBimbinganAkhir) 
+                        Array.isArray(jadwalBimbinganAkhir)
                           ? jadwalBimbinganAkhir.filter(
-                              (item: any) => item?.jenis_baris === "seminar_proposal"
-                            )
+                            (item: any) => item?.jenis_baris === "seminar_proposal"
+                          )
                           : [],
                         [
                           "NO",
@@ -4643,8 +4629,8 @@ export default function DashboardDosen() {
                         faGraduationCap,
                         Array.isArray(jadwalBimbinganAkhir)
                           ? jadwalBimbinganAkhir.filter(
-                              (item: any) => item?.jenis_baris === "sidang_skripsi"
-                            )
+                            (item: any) => item?.jenis_baris === "sidang_skripsi"
+                          )
                           : [],
                         [
                           "NO",
@@ -4837,19 +4823,17 @@ export default function DashboardDosen() {
 
                   <div className="space-y-3">
                     <label
-                      className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                        selectedStatus === "bisa"
-                          ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600"
-                          : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      }`}
+                      className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${selectedStatus === "bisa"
+                        ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600"
+                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        }`}
                       onClick={() => setSelectedStatus("bisa")}
                     >
                       <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
-                          selectedStatus === "bisa"
-                            ? "bg-green-500 border-green-500"
-                            : "border-gray-300 dark:border-gray-600"
-                        }`}
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${selectedStatus === "bisa"
+                          ? "bg-green-500 border-green-500"
+                          : "border-gray-300 dark:border-gray-600"
+                          }`}
                       >
                         {selectedStatus === "bisa" && (
                           <svg
@@ -4894,19 +4878,17 @@ export default function DashboardDosen() {
                     </label>
 
                     <label
-                      className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                        selectedStatus === "tidak_bisa"
-                          ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600"
-                          : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      }`}
+                      className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${selectedStatus === "tidak_bisa"
+                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600"
+                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        }`}
                       onClick={() => setSelectedStatus("tidak_bisa")}
                     >
                       <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
-                          selectedStatus === "tidak_bisa"
-                            ? "bg-red-500 border-red-500"
-                            : "border-gray-300 dark:border-gray-600"
-                        }`}
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${selectedStatus === "tidak_bisa"
+                          ? "bg-red-500 border-red-500"
+                          : "border-gray-300 dark:border-gray-600"
+                          }`}
                       >
                         {selectedStatus === "tidak_bisa" && (
                           <svg
@@ -4989,18 +4971,16 @@ export default function DashboardDosen() {
                       ].map((option) => (
                         <label
                           key={option.value}
-                          className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedAlasan === option.value
-                              ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
-                              : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                          }`}
+                          className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${selectedAlasan === option.value
+                            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                            }`}
                         >
                           <div
-                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
-                              selectedAlasan === option.value
-                                ? "bg-blue-500 border-blue-500"
-                                : "border-gray-300 dark:border-gray-600"
-                            }`}
+                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${selectedAlasan === option.value
+                              ? "bg-blue-500 border-blue-500"
+                              : "border-gray-300 dark:border-gray-600"
+                              }`}
                           >
                             {selectedAlasan === option.value && (
                               <svg
@@ -5295,13 +5275,13 @@ export default function DashboardDosen() {
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                   {localStorage.getItem("last_success_action") ===
-                  "whatsapp_sync"
+                    "whatsapp_sync"
                     ? "Data WhatsApp Berhasil Disinkronkan!"
                     : "Email Berhasil Diaktifkan!"}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
                   {localStorage.getItem("last_success_action") ===
-                  "whatsapp_sync"
+                    "whatsapp_sync"
                     ? "Data WhatsApp Anda telah berhasil disinkronkan ke Wablas. Anda akan menerima notifikasi jadwal melalui WhatsApp dan melalui Email."
                     : "Email Anda telah berhasil diaktifkan. Anda akan menerima notifikasi pengingat jadwal melalui Email."}
                 </p>

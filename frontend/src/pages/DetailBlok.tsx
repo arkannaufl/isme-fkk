@@ -144,7 +144,7 @@ type JadwalPraktikumType = {
 
   topik: string;
 
-  kelompok_kecil?: { id: number; nama_kelompok: string } | null;
+  kelompok_kecil?: { id: number; nama_kelompok: string }[] | null;
 
   dosen_id: number;
 
@@ -357,13 +357,13 @@ export default function DetailBlok() {
     lokasi: number | null;
 
     jenisBaris:
-      | "materi"
-      | "agenda"
-      | "praktikum"
-      | "pbl"
-      | "jurnal"
-      | "persamaan-persepsi"
-      | "seminar-pleno";
+    | "materi"
+    | "agenda"
+    | "praktikum"
+    | "pbl"
+    | "jurnal"
+    | "persamaan-persepsi"
+    | "seminar-pleno";
 
     agenda: string;
 
@@ -371,7 +371,7 @@ export default function DetailBlok() {
 
     modul: number | null;
 
-    kelompok: string;
+    kelompok: string | string[]; // Updated for multiple groups
 
     kelompokBesar: number | null;
 
@@ -404,7 +404,7 @@ export default function DetailBlok() {
 
     modul: null,
 
-    kelompok: "",
+    kelompok: [], // Default value as array for multi-select
 
     kelompokBesar: null,
 
@@ -440,8 +440,8 @@ export default function DetailBlok() {
         dosenIds = Array.isArray(row.dosen_ids)
           ? row.dosen_ids
           : typeof row.dosen_ids === "string"
-          ? JSON.parse(row.dosen_ids || "[]")
-          : [];
+            ? JSON.parse(row.dosen_ids || "[]")
+            : [];
       }
 
       // PRIORITAS UTAMA: Jika ada dosen_ids, ambil dosen pengampu awal (elemen pertama)
@@ -529,8 +529,8 @@ export default function DetailBlok() {
       const dosenIds = Array.isArray(row.dosen_ids)
         ? row.dosen_ids
         : typeof row.dosen_ids === "string"
-        ? JSON.parse(row.dosen_ids || "[]")
-        : [];
+          ? JSON.parse(row.dosen_ids || "[]")
+          : [];
 
       // Jika dosen_ids memiliki lebih dari 1 elemen, berarti ada penggantian
       if (dosenIds.length > 1) {
@@ -583,8 +583,8 @@ export default function DetailBlok() {
         dosenIds = Array.isArray(row.dosen_ids)
           ? row.dosen_ids
           : typeof row.dosen_ids === "string"
-          ? JSON.parse(row.dosen_ids || "[]")
-          : [];
+            ? JSON.parse(row.dosen_ids || "[]")
+            : [];
       }
 
       // Jika ada dosen_ids, ambil semua dosen (bukan hanya yang pertama)
@@ -989,9 +989,9 @@ export default function DetailBlok() {
     useState<{ row: number; field: string; message: string }[]>([]);
   const [persamaanPersepsiEditingCell, setPersamaanPersepsiEditingCell] =
     useState<{
-    row: number;
-    key: string;
-  } | null>(null);
+      row: number;
+      key: string;
+    } | null>(null);
   const [isPersamaanPersepsiImporting, setIsPersamaanPersepsiImporting] =
     useState(false);
   const [persamaanPersepsiImportedCount, setPersamaanPersepsiImportedCount] =
@@ -1167,12 +1167,12 @@ export default function DetailBlok() {
       // Try to fetch with keahlian filter first
       let dosenList: any[] = [];
       try {
-      const res = await api.get(
+        const res = await api.get(
           `/users?role=dosen&keahlian=${encodeURIComponent(materi)}&per_page=1000`
-      );
+        );
         // Handle pagination response
-        dosenList = Array.isArray(res.data) 
-          ? res.data 
+        dosenList = Array.isArray(res.data)
+          ? res.data
           : (res.data?.data || []);
       } catch (error) {
         // If query with keahlian fails, fetch all dosen and filter in frontend
@@ -1182,8 +1182,8 @@ export default function DetailBlok() {
       // If no results from filtered query, fetch all dosen and filter manually
       if (dosenList.length === 0) {
         const allRes = await api.get(`/users?role=dosen&per_page=1000`);
-        const allDosenData = Array.isArray(allRes.data) 
-          ? allRes.data 
+        const allDosenData = Array.isArray(allRes.data)
+          ? allRes.data
           : (allRes.data?.data || []);
         dosenList = allDosenData;
       }
@@ -1207,7 +1207,7 @@ export default function DetailBlok() {
         }
 
         // Case-insensitive comparison
-        return keahlian.some((k: string) => 
+        return keahlian.some((k: string) =>
           k.toLowerCase().trim() === materiLower
         );
       });
@@ -1215,8 +1215,8 @@ export default function DetailBlok() {
       // Ambil dosen standby (case insensitive)
       const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
       // Handle pagination response
-      const allDosenData = Array.isArray(standbyRes.data) 
-        ? standbyRes.data 
+      const allDosenData = Array.isArray(standbyRes.data)
+        ? standbyRes.data
         : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen: any) => {
         const keahlian = Array.isArray(dosen.keahlian)
@@ -1288,13 +1288,13 @@ export default function DetailBlok() {
     try {
       // Try to fetch with keahlian filter first
       let dosenList: any[] = [];
-    try {
-      const res = await api.get(
+      try {
+        const res = await api.get(
           `/users?role=dosen&keahlian=${encodeURIComponent(materi)}&per_page=1000`
-      );
+        );
         // Handle pagination response
-        dosenList = Array.isArray(res.data) 
-          ? res.data 
+        dosenList = Array.isArray(res.data)
+          ? res.data
           : (res.data?.data || []);
       } catch (error) {
         // If query with keahlian fails, fetch all dosen and filter in frontend
@@ -1304,8 +1304,8 @@ export default function DetailBlok() {
       // If no results from filtered query, fetch all dosen and filter manually
       if (dosenList.length === 0) {
         const allRes = await api.get(`/users?role=dosen&per_page=1000`);
-        const allDosenData = Array.isArray(allRes.data) 
-          ? allRes.data 
+        const allDosenData = Array.isArray(allRes.data)
+          ? allRes.data
           : (allRes.data?.data || []);
         dosenList = allDosenData;
       }
@@ -1329,7 +1329,7 @@ export default function DetailBlok() {
         }
 
         // Case-insensitive comparison
-        return keahlian.some((k: string) => 
+        return keahlian.some((k: string) =>
           k.toLowerCase().trim() === materiLower
         );
       });
@@ -1337,8 +1337,8 @@ export default function DetailBlok() {
       // Ambil dosen standby (case insensitive)
       const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
       // Handle pagination response
-      const allDosenData = Array.isArray(standbyRes.data) 
-        ? standbyRes.data 
+      const allDosenData = Array.isArray(standbyRes.data)
+        ? standbyRes.data
         : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen: any) => {
         const keahlian = Array.isArray(dosen.keahlian)
@@ -1483,6 +1483,20 @@ export default function DetailBlok() {
     return `${jamAkhir}:${menitAkhir}`;
   }
 
+  const normalizeKelompokName = (name: string) => {
+    if (!name) return "";
+    return String(name).toLowerCase().replace(/\s+/g, "").replace(/^kelompok/i, "");
+  };
+
+  const findKelompokKecilByName = (name: string, list: any[]) => {
+    const normalizedSearch = normalizeKelompokName(name);
+    if (!normalizedSearch) return null;
+    return list.find((k) => {
+      const normalizedDb = normalizeKelompokName(k.nama_kelompok);
+      return normalizedDb === normalizedSearch;
+    });
+  };
+
   function formatJamTanpaDetik(jam: string) {
     if (!jam) return "";
 
@@ -1569,7 +1583,7 @@ export default function DetailBlok() {
 
       modul: null,
 
-      kelompok: "",
+      kelompok: [],
 
       kelompokBesar: null,
 
@@ -1604,8 +1618,8 @@ export default function DetailBlok() {
         form.jenisBaris === "jurnal"
           ? 2
           : name === "jumlahKali"
-          ? Number(value)
-          : Number(newForm.jumlahKali);
+            ? Number(value)
+            : Number(newForm.jumlahKali);
 
       newForm.jamSelesai = hitungJamSelesai(
         name === "jamMulai" ? value : newForm.jamMulai,
@@ -1898,7 +1912,7 @@ export default function DetailBlok() {
 
         modul: 0,
 
-        kelompok: "",
+        kelompok: [],
 
         kelompokBesar: null,
 
@@ -1934,7 +1948,7 @@ export default function DetailBlok() {
 
         modul: 0,
 
-        kelompok: "",
+        kelompok: [],
 
         kelompokBesar: null,
 
@@ -3240,7 +3254,7 @@ export default function DetailBlok() {
       // Setelah sukses hapus di backend, refresh data dari backend
 
       await fetchBatchData();
-    } catch (err) {}
+    } catch (err) { }
 
     setIsSaving(false);
   }
@@ -3292,7 +3306,7 @@ export default function DetailBlok() {
     try {
       await api.delete(`/persamaan-persepsi/jadwal/${kode}/${jadwal.id}`);
       await fetchBatchData();
-    } catch (err) {}
+    } catch (err) { }
     setIsSaving(false);
   }
 
@@ -3343,7 +3357,7 @@ export default function DetailBlok() {
     try {
       await api.delete(`/seminar-pleno/jadwal/${kode}/${jadwal.id}`);
       await fetchBatchData();
-    } catch (err) {}
+    } catch (err) { }
     setIsSaving(false);
   }
 
@@ -3408,8 +3422,7 @@ export default function DetailBlok() {
         // Edit mode
 
         await api.put(
-          `/kuliah-besar/jadwal/${data!.kode}/${
-            jadwalKuliahBesar[editIndex].id
+          `/kuliah-besar/jadwal/${data!.kode}/${jadwalKuliahBesar[editIndex].id
           }`,
           payload
         );
@@ -3437,7 +3450,7 @@ export default function DetailBlok() {
         agenda: "",
         pblTipe: "",
         modul: null,
-        kelompok: "",
+        kelompok: [],
         kelompokBesar: null,
         useRuangan: true,
         fileJurnal: null,
@@ -3489,10 +3502,10 @@ export default function DetailBlok() {
       agenda: "",
       pblTipe: "",
       modul: null,
-      kelompok: "",
+      kelompok: [],
       kelompokBesar:
         actualRow.kelompok_besar_id !== undefined &&
-        actualRow.kelompok_besar_id !== null
+          actualRow.kelompok_besar_id !== null
           ? Number(actualRow.kelompok_besar_id)
           : null,
       useRuangan: true,
@@ -3520,7 +3533,7 @@ export default function DetailBlok() {
       await api.delete(`/kuliah-besar/jadwal/${data!.kode}/${row.id}`);
 
       await fetchBatchData();
-    } catch {}
+    } catch { }
 
     setIsSaving(false);
   }
@@ -3578,8 +3591,7 @@ export default function DetailBlok() {
         // Edit mode
 
         await api.put(
-          `/agenda-khusus/jadwal/${data!.kode}/${
-            jadwalAgendaKhusus[editIndex].id
+          `/agenda-khusus/jadwal/${data!.kode}/${jadwalAgendaKhusus[editIndex].id
           }`,
           payload
         );
@@ -3607,7 +3619,7 @@ export default function DetailBlok() {
         agenda: "",
         pblTipe: "",
         modul: null,
-        kelompok: "",
+        kelompok: [],
         kelompokBesar: null,
         useRuangan: true,
         fileJurnal: null,
@@ -3659,10 +3671,10 @@ export default function DetailBlok() {
       agenda: actualRow.agenda || "",
       pblTipe: "",
       modul: null,
-      kelompok: "",
+      kelompok: [],
       kelompokBesar:
         actualRow.kelompok_besar_id !== undefined &&
-        actualRow.kelompok_besar_id !== null
+          actualRow.kelompok_besar_id !== null
           ? Number(actualRow.kelompok_besar_id)
           : null,
       useRuangan:
@@ -3701,7 +3713,7 @@ export default function DetailBlok() {
       await api.delete(`/agenda-khusus/jadwal/${data!.kode}/${row.id}`);
 
       await fetchBatchData();
-    } catch {}
+    } catch { }
 
     setIsSaving(false);
 
@@ -3711,7 +3723,6 @@ export default function DetailBlok() {
   }
 
   // Handler tambah jadwal praktikum
-
   async function handleTambahJadwalPraktikum() {
     setErrorForm("");
 
@@ -3725,6 +3736,7 @@ export default function DetailBlok() {
       !form.jamSelesai ||
       !form.materi ||
       !form.kelompok ||
+      (Array.isArray(form.kelompok) && form.kelompok.length === 0) ||
       !form.lokasi ||
       !form.pengampu ||
       (Array.isArray(form.pengampu) && form.pengampu.length === 0)
@@ -3737,12 +3749,25 @@ export default function DetailBlok() {
     // Validasi bentrok frontend
 
     // Ambil ID kelompok kecil dari form.kelompok
-    const kelompokObj = kelompokKecilList.find(
-      (k) => k.nama_kelompok === form.kelompok
-    );
-    const kelompok_kecil_id = kelompokObj ? kelompokObj.id : null;
+    let kelompok_kecil_ids: number[] = [];
 
-    if (!kelompok_kecil_id) {
+    if (Array.isArray(form.kelompok)) {
+      // Jika array (multi-select)
+      form.kelompok.forEach(nama => {
+        const kelompokObj = kelompokKecilList.find(
+          (k) => k.nama_kelompok === nama
+        );
+        if (kelompokObj) kelompok_kecil_ids.push(kelompokObj.id);
+      });
+    } else if (typeof form.kelompok === 'string' && form.kelompok) {
+      // Single select fallback
+      const kelompokObj = kelompokKecilList.find(
+        (k) => k.nama_kelompok === form.kelompok
+      );
+      if (kelompokObj) kelompok_kecil_ids.push(kelompokObj.id);
+    }
+
+    if (kelompok_kecil_ids.length === 0) {
       setErrorForm("Kelompok kecil tidak valid!");
       throw new Error("Kelompok kecil tidak valid!");
     }
@@ -3758,7 +3783,7 @@ export default function DetailBlok() {
 
       topik: form.topik,
 
-      kelompok_kecil_id: kelompok_kecil_id,
+      kelompok_kecil_ids: kelompok_kecil_ids,
 
       ruangan_id: Number(form.lokasi),
 
@@ -3799,7 +3824,7 @@ export default function DetailBlok() {
         agenda: "",
         pblTipe: "",
         modul: null,
-        kelompok: "",
+        kelompok: [],
         kelompokBesar: null,
         useRuangan: true,
         fileJurnal: null,
@@ -3857,6 +3882,16 @@ export default function DetailBlok() {
       pengampuValue = actualRow.dosen.id || actualRow.dosen;
     }
 
+    // Handle kelompok - expect array of objects from API now
+    let kelompokValue: string | string[] = "";
+    if (actualRow.kelompok_kecil && Array.isArray(actualRow.kelompok_kecil)) {
+      // If backend return collection
+      kelompokValue = actualRow.kelompok_kecil.map(k => k.nama_kelompok);
+    } else if (actualRow.kelompok_kecil && typeof actualRow.kelompok_kecil === 'object') {
+      // Should not happen with new backend, but for safety if single object
+      kelompokValue = (actualRow.kelompok_kecil as any).nama_kelompok || "";
+    }
+
     setForm({
       hariTanggal: actualRow.tanggal || "",
       jamMulai: actualRow.jam_mulai || "",
@@ -3869,7 +3904,7 @@ export default function DetailBlok() {
       lokasi: actualRow.ruangan_id || null,
       jenisBaris: "praktikum",
       agenda: "",
-      kelompok: actualRow.kelompok_kecil?.nama_kelompok || "",
+      kelompok: kelompokValue,
       pblTipe: "",
       modul: null,
       kelompokBesar: null,
@@ -3908,7 +3943,7 @@ export default function DetailBlok() {
       await api.delete(`/praktikum/jadwal/${data!.kode}/${row.id}`);
 
       await fetchBatchData();
-    } catch {}
+    } catch { }
 
     setIsSaving(false);
 
@@ -4030,8 +4065,7 @@ export default function DetailBlok() {
           editFormData.append("file_jurnal", form.fileJurnal);
 
           await api.post(
-            `/jurnal-reading/jadwal/${data!.kode}/${
-              jadwalJurnalReading[editIndex].id
+            `/jurnal-reading/jadwal/${data!.kode}/${jadwalJurnalReading[editIndex].id
             }`,
             editFormData,
             {
@@ -4062,8 +4096,7 @@ export default function DetailBlok() {
           };
 
           await api.put(
-            `/jurnal-reading/jadwal/${data!.kode}/${
-              jadwalJurnalReading[editIndex].id
+            `/jurnal-reading/jadwal/${data!.kode}/${jadwalJurnalReading[editIndex].id
             }`,
             jsonPayload
           );
@@ -4096,7 +4129,7 @@ export default function DetailBlok() {
         agenda: "",
         pblTipe: "",
         modul: null,
-        kelompok: "",
+        kelompok: [],
         kelompokBesar: null,
         useRuangan: true,
         fileJurnal: null,
@@ -4606,9 +4639,8 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Kuliah_Besar_Aplikasi_${
-        data?.kode || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Export_Kuliah_Besar_Aplikasi_${data?.kode || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error exporting Kuliah Besar (Aplikasi):", error);
@@ -4821,9 +4853,9 @@ export default function DetailBlok() {
     } else {
       infoSheet.addRow([
         "  - Nama Kelas ← " +
-          (jadwalType === "kuliah besar"
-            ? "siakad_nama_kelas"
-            : "kelompok_kecil.nama_kelompok"),
+        (jadwalType === "kuliah besar"
+          ? "siakad_nama_kelas"
+          : "kelompok_kecil.nama_kelompok"),
       ]);
       infoSheet.addRow(["  - Substansi ← materi"]);
       infoSheet.addRow(["  - Ruang ← id_ruangan (kode ruangan)"]);
@@ -4832,6 +4864,11 @@ export default function DetailBlok() {
       infoSheet.addRow(["  - Waktu Mulai ← jam_mulai"]);
       infoSheet.addRow(["  - Waktu Selesai ← jam_selesai"]);
     }
+    infoSheet.addRow([]);
+    infoSheet.addRow(["INFORMASI KELOMPOK KECIL:"]);
+    infoSheet.addRow(["• Kolom 'Nama Kelas' (di SIAKAD) / 'Kelompok Kecil' mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"]);
+    infoSheet.addRow(["• Penulisan fleksibel: \"Kelompok1\" (tanpa spasi), \"Kelompok 1\", atau hanya angka \"1\" akan terbaca sama sebagai Kelompok 1"]);
+    infoSheet.addRow(["• Sistem akan otomatis memvalidasi meskipun Anda memasukkan banyak kelompok sekaligus"]);
     infoSheet.addRow([]);
     infoSheet.addRow(["• Format tanggal: YYYY-MM-DD"]);
     infoSheet.addRow(["• Format jam: HH:MM"]);
@@ -4887,12 +4924,12 @@ export default function DetailBlok() {
       jadwalKuliahBesar.forEach((row) => {
         const dosen = allDosenList.find((d) => d.id === row.dosen_id);
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
-        
+
         // Cari kelompok besar dari database berdasarkan kelompok_besar_id
         const kelompokBesar = kelompokBesarOptions.find(
           (kb) => kb.id === row.kelompok_besar_id
         );
-        const kelompokBesarLabel = kelompokBesar?.label || 
+        const kelompokBesarLabel = kelompokBesar?.label ||
           (row.kelompok_besar_id ? String(row.kelompok_besar_id) : "") ||
           row.siakad_kelompok || "";
 
@@ -4921,9 +4958,8 @@ export default function DetailBlok() {
         "kuliah besar",
         jadwalKuliahBesar.length
       );
-      const filename = `Export_KuliahBesar_SIAKAD_${data?.kode}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const filename = `Export_KuliahBesar_SIAKAD_${data?.kode}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
       await downloadExcelFile(workbook, filename);
     } catch (error) {
       console.error("Error exporting Kuliah Besar (SIAKAD):", error);
@@ -4963,7 +4999,9 @@ export default function DetailBlok() {
           "Jam Mulai": row.jam_mulai,
           Materi: row.materi || "",
           Topik: row.topik || "",
-          "Kelompok Kecil": row.kelompok_kecil?.nama_kelompok || "",
+          "Kelompok Kecil": Array.isArray(row.kelompok_kecil)
+            ? row.kelompok_kecil.map((k) => `Kelompok ${k.nama_kelompok}`).join(", ")
+            : row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` : "",
           Dosen: dosenNames,
           Ruangan: ruangan?.nama || "",
           Sesi: row.jumlah_sesi,
@@ -5040,9 +5078,8 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Praktikum_Aplikasi_${
-        data?.kode || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Export_Praktikum_Aplikasi_${data?.kode || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error exporting Praktikum (Aplikasi):", error);
@@ -5077,7 +5114,7 @@ export default function DetailBlok() {
 
       // Add headers
       worksheet.addRow(SIAKAD_HEADERS_PRAKTIKUM);
-      
+
       // Apply styling dengan column widths khusus untuk praktikum (tanpa kolom "Kelompok Kecil")
       const SIAKAD_COLUMN_WIDTHS_PRAKTIKUM = [
         { width: 12 }, // Kurikulum
@@ -5094,7 +5131,7 @@ export default function DetailBlok() {
         { width: 28 }, // Waktu Mulai
         { width: 28 }, // Waktu Selesai
       ];
-      
+
       // Apply styling to header row
       const headerRow = worksheet.getRow(1);
       headerRow.eachCell((cell: any, colNumber: number) => {
@@ -5118,7 +5155,7 @@ export default function DetailBlok() {
           cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
         }
       });
-      
+
       // Set column widths
       worksheet.columns = SIAKAD_COLUMN_WIDTHS_PRAKTIKUM;
 
@@ -5129,11 +5166,13 @@ export default function DetailBlok() {
           ? row.dosen.map((d: any) => d.nid).join(", ")
           : "";
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
-        
+
         // Mapping kelompok kecil ke kolom "Kelompok"
-        const kelompokKecilName = row.kelompok_kecil?.nama_kelompok || 
-          (row as any).kelompok_kecil_name || 
-          row.siakad_kelompok || "";
+        const kelompokKecilName = Array.isArray(row.kelompok_kecil)
+          ? row.kelompok_kecil.map((k) => `Kelompok ${k.nama_kelompok}`).join(", ")
+          : row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` :
+            (row as any).kelompok_kecil_name ||
+            row.siakad_kelompok || "";
 
         worksheet.addRow([
           row.siakad_kurikulum || "",
@@ -5159,9 +5198,8 @@ export default function DetailBlok() {
         "praktikum",
         jadwalPraktikum.length
       );
-      const filename = `Export_Praktikum_SIAKAD_${data?.kode}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const filename = `Export_Praktikum_SIAKAD_${data?.kode}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
       await downloadExcelFile(workbook, filename);
     } catch (error) {
       console.error("Error exporting Praktikum (SIAKAD):", error);
@@ -5266,9 +5304,8 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Agenda_Khusus_${data?.kode || "MataKuliah"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const fileName = `Export_Agenda_Khusus_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mengekspor data jadwal agenda khusus");
@@ -5370,9 +5407,8 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_PBL_Aplikasi_${data?.kode || "MataKuliah"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const fileName = `Export_PBL_Aplikasi_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error exporting PBL (Aplikasi):", error);
@@ -5407,7 +5443,7 @@ export default function DetailBlok() {
 
       // Add headers
       worksheet.addRow(SIAKAD_HEADERS_PBL);
-      
+
       // Apply styling dengan column widths khusus untuk PBL (tanpa kolom "Kelompok Kecil" dan "Nama Kelas")
       const SIAKAD_COLUMN_WIDTHS_PBL = [
         { width: 12 }, // Kurikulum
@@ -5424,7 +5460,7 @@ export default function DetailBlok() {
         { width: 28 }, // Waktu Mulai
         { width: 28 }, // Waktu Selesai
       ];
-      
+
       // Apply styling to header row
       const headerRow = worksheet.getRow(1);
       headerRow.eachCell((cell: any, colNumber: number) => {
@@ -5448,7 +5484,7 @@ export default function DetailBlok() {
           cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
         }
       });
-      
+
       // Set column widths
       worksheet.columns = SIAKAD_COLUMN_WIDTHS_PBL;
 
@@ -5459,7 +5495,7 @@ export default function DetailBlok() {
         const kelompok = kelompokKecilList.find(
           (k) => k.id === row.kelompok_kecil_id
         );
-        
+
         // Mapping kelompok kecil ke kolom "Kelompok"
         const kelompokKecilName = kelompok?.nama_kelompok || "";
 
@@ -5482,9 +5518,8 @@ export default function DetailBlok() {
 
       // Add info sheet and download
       createSIAKADInfoSheet(workbook, data, "pbl", jadwalPBL.length);
-      const filename = `Export_PBL_SIAKAD_${data?.kode}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const filename = `Export_PBL_SIAKAD_${data?.kode}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
       await downloadExcelFile(workbook, filename);
     } catch (error) {
       console.error("Error exporting PBL (SIAKAD):", error);
@@ -5598,9 +5633,8 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Jurnal_Reading_${data?.kode || "MataKuliah"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const fileName = `Export_Jurnal_Reading_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mengekspor data jadwal jurnal reading");
@@ -5856,9 +5890,11 @@ export default function DetailBlok() {
         ["• Nama modul harus ada di database"],
         ["• Gunakan nama modul yang tersedia di list di atas"],
         [""],
-        ["👥 VALIDASI KELOMPOK KECIL:"],
         ["• Nama kelompok kecil harus ada di database"],
         ["• Harus sesuai dengan semester mata kuliah"],
+        ["• Mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
+        ["• Penulisan fleksibel: \"Kelompok1\", \"Kelompok 1\", atau \"1\" akan terbaca sama sebagai kelompok yang sama"],
+        ["• Sistem akan memvalidasi banyak kelompok sekaligus secara otomatis"],
         [""],
         ["👨‍🏫 VALIDASI DOSEN:"],
         ["• Nama dosen harus ada di database"],
@@ -5893,9 +5929,8 @@ export default function DetailBlok() {
 
       // Download file
 
-      const fileName = `Template_Import_PBL_${data?.nama || "MataKuliah"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const fileName = `Template_Import_PBL_${data?.nama || "MataKuliah"}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
 
       XLSX.writeFile(wb, fileName);
     } catch (error) {
@@ -5914,8 +5949,8 @@ export default function DetailBlok() {
       // Ambil dosen standby untuk ditampilkan di template (case insensitive)
       const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
       // Handle pagination response
-      const allDosenData = Array.isArray(standbyRes.data) 
-        ? standbyRes.data 
+      const allDosenData = Array.isArray(standbyRes.data)
+        ? standbyRes.data
         : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen) => {
         const keahlian = Array.isArray(dosen.keahlian)
@@ -5993,7 +6028,9 @@ export default function DetailBlok() {
         "Jam Mulai": row.jam_mulai,
         Materi: row.materi,
         Topik: row.topik,
-        "Kelompok Kecil": kelompokKecilList.find((k) => k.id === row.kelompok_kecil_id)?.nama_kelompok || "",
+        "Kelompok Kecil": kelompokKecilList.find((k) => k.id === row.kelompok_kecil_id)
+          ? `Kelompok ${kelompokKecilList.find((k) => k.id === row.kelompok_kecil_id)?.nama_kelompok}`
+          : "",
         Dosen: dosenList.find((d) => d.id === row.dosen_id)?.name || "Dosen 1",
         Ruangan:
           ruanganList.find((r) => r.id === row.ruangan_id)?.nama || "Ruang 1",
@@ -6039,9 +6076,10 @@ export default function DetailBlok() {
         ["CARA UPLOAD/EDIT TEMPLATE:"],
         ["1. Download template ini dan isi dengan data jadwal praktikum"],
         ["2. Pastikan format data sesuai dengan ketentuan"],
-        ["3. Upload file yang sudah diisi"],
-        ["4. Periksa preview data"],
-        ['5. Klik "Import Data" untuk menyimpan'],
+        ["3. Kolom 'Kelompok Kecil' mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
+        ["4. Upload file yang sudah diisi"],
+        ["5. Periksa preview data"],
+        ['6. Klik "Import Data" untuk menyimpan'],
         [""],
         ["📊 KETERSEDIAAN DATA:"],
         [""],
@@ -6074,18 +6112,18 @@ export default function DetailBlok() {
           // Convert map to array and sort by nama_kelompok
           return kelompokMap.size > 0
             ? Array.from(kelompokMap.entries())
-                .sort(([a], [b]) => {
-                  // Sort numerically if both are numbers, otherwise alphabetically
-                  const numA = parseInt(a);
-                  const numB = parseInt(b);
-                  if (!isNaN(numA) && !isNaN(numB)) {
-                    return numA - numB;
-                  }
-                  return a.localeCompare(b);
-                })
-                .map(([namaKelompok, jumlahAnggota]) => [
-                  `• ${namaKelompok} (${jumlahAnggota} mahasiswa)`,
-                ])
+              .sort(([a], [b]) => {
+                // Sort numerically if both are numbers, otherwise alphabetically
+                const numA = parseInt(a);
+                const numB = parseInt(b);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                  return numA - numB;
+                }
+                return a.localeCompare(b);
+              })
+              .map(([namaKelompok, jumlahAnggota]) => [
+                `• ${namaKelompok} (${jumlahAnggota} mahasiswa)`,
+              ])
             : [["• Belum ada kelompok kecil yang dibuat untuk semester ini"]];
         })(),
         [""],
@@ -6113,6 +6151,9 @@ export default function DetailBlok() {
         ["• Materi wajib diisi dan harus sesuai dengan keahlian mata kuliah"],
         ["• Topik wajib diisi"],
         ["• Kelompok kecil harus dari daftar yang tersedia"],
+        ["  - Mendukung penulisan lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
+        ["  - Penulisan fleksibel: \"Kelompok1\" (tanpa spasi), \"Kelompok 1\", atau hanya angka \"1\" akan terbaca sama"],
+        ["  - Sistem akan otomatis memvalidasi meskipun Anda memasukkan banyak kelompok sekaligus"],
         ["• Dosen wajib diisi (minimal 1 dosen, bisa multiple)"],
         ["• Untuk multiple dosen, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
         ["• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma"],
@@ -6140,9 +6181,8 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_Praktikum_${
-        data?.nama || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_Praktikum_${data?.nama || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error downloading Praktikum template:", error);
@@ -6155,8 +6195,8 @@ export default function DetailBlok() {
       // Ambil dosen standby untuk ditampilkan di template (case insensitive)
       const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
       // Handle pagination response
-      const allDosenData = Array.isArray(standbyRes.data) 
-        ? standbyRes.data 
+      const allDosenData = Array.isArray(standbyRes.data)
+        ? standbyRes.data
         : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen) => {
         const keahlian = Array.isArray(dosen.keahlian)
@@ -6186,10 +6226,10 @@ export default function DetailBlok() {
         kelompokBesarOptions.length > 0
           ? kelompokBesarOptions.slice(0, 2)
           : [
-              { id: 1, label: "Kelompok Besar Semester 1" },
+            { id: 1, label: "Kelompok Besar Semester 1" },
 
-              { id: 3, label: "Kelompok Besar Semester 3" },
-            ];
+            { id: 3, label: "Kelompok Besar Semester 3" },
+          ];
 
       // Generate tanggal dalam rentang mata kuliah
 
@@ -6394,17 +6434,15 @@ export default function DetailBlok() {
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [
-          `  - Mulai: ${
-            tanggalMulai
-              ? new Date(tanggalMulai).toLocaleDateString("id-ID")
-              : "Tidak tersedia"
+          `  - Mulai: ${tanggalMulai
+            ? new Date(tanggalMulai).toLocaleDateString("id-ID")
+            : "Tidak tersedia"
           }`,
         ],
         [
-          `  - Akhir: ${
-            tanggalAkhir
-              ? new Date(tanggalAkhir).toLocaleDateString("id-ID")
-              : "Tidak tersedia"
+          `  - Akhir: ${tanggalAkhir
+            ? new Date(tanggalAkhir).toLocaleDateString("id-ID")
+            : "Tidak tersedia"
           }`,
         ],
         [""],
@@ -6650,9 +6688,8 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_AgendaKhusus_${
-        data?.nama || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_AgendaKhusus_${data?.nama || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error downloading Agenda Khusus template:", error);
@@ -7087,11 +7124,10 @@ export default function DetailBlok() {
           cellErrors.push({
             row: rowNumber,
             field: "materi",
-            message: `Materi "${
-              row.materi
-            }" tidak sesuai dengan keahlian mata kuliah. Materi yang tersedia: ${materiRelevan.join(
-              ", "
-            )} (Baris ${rowNumber}, Kolom MATERI)`,
+            message: `Materi "${row.materi
+              }" tidak sesuai dengan keahlian mata kuliah. Materi yang tersedia: ${materiRelevan.join(
+                ", "
+              )} (Baris ${rowNumber}, Kolom MATERI)`,
           });
         }
       }
@@ -7106,33 +7142,37 @@ export default function DetailBlok() {
       }
 
       // Validasi kelompok kecil - cek dari berbagai sumber
-      const kelompokKecilName = 
-        row.kelompok_kecil?.nama_kelompok || 
-        (row as any).kelompok_kecil_name || 
-        row.kelompok || 
+      const rawKelompokValue = Array.isArray(row.kelompok_kecil)
+        ? row.kelompok_kecil.map((k) => k.nama_kelompok).join(", ")
+        : (row as any).kelompok_kecil?.nama_kelompok ||
+        (row as any).kelompok_kecil_name ||
+        row.kelompok ||
         "";
-      const kelompokKecilNameNormalized = String(kelompokKecilName).trim();
-      
-      if (!kelompokKecilNameNormalized) {
+
+      const kelompokNamesSplit = String(rawKelompokValue)
+        .split(",")
+        .map((n) => n.trim())
+        .filter((n) => n !== "");
+
+      if (kelompokNamesSplit.length === 0) {
         cellErrors.push({
           row: rowNumber,
           field: "kelompok_kecil_id",
           message: `Kelompok kecil wajib diisi (Baris ${rowNumber}, Kolom Kelompok) (Baris ${rowNumber}, Kolom KELOMPOK_KECIL_ID)`,
         });
       } else {
-        // Normalize kelasOptions untuk perbandingan (case insensitive, handle number format)
-        const normalizedKelasOptions = kelasOptions.map(k => String(k).trim().toLowerCase());
-        const isFound = normalizedKelasOptions.some(
-          opt => opt === kelompokKecilNameNormalized.toLowerCase() || 
-                 opt === kelompokKecilNameNormalized
+        const invalidGroups = kelompokNamesSplit.filter(
+          (name) => !findKelompokKecilByName(name, kelompokKecilList)
         );
-        
-        if (!isFound) {
-        cellErrors.push({
-          row: rowNumber,
+
+        if (invalidGroups.length > 0) {
+          cellErrors.push({
+            row: rowNumber,
             field: "kelompok_kecil_id",
-            message: `Kelompok kecil "${kelompokKecilNameNormalized}" tidak ditemukan (Baris ${rowNumber}, Kolom Kelompok Kecil)`,
-        });
+            message: `Kelompok kecil "${invalidGroups.join(
+              ", "
+            )}" tidak ditemukan (Baris ${rowNumber}, Kolom Kelompok Kecil)`,
+          });
         }
       }
 
@@ -7155,7 +7195,7 @@ export default function DetailBlok() {
           .split("\\")
           .map((n: string) => n.trim())
           .filter((n: string) => n !== "");
-        
+
         if (dosenNames.length === 0) {
           cellErrors.push({
             row: rowNumber,
@@ -7165,7 +7205,7 @@ export default function DetailBlok() {
         } else {
           const invalidDosenNames: string[] = [];
           const validDosenIds: number[] = [];
-          
+
           dosenNames.forEach((namaDosenItem: string) => {
             // Cari dosen berdasarkan nama yang diketik user
             const dosen = allDosenList?.find(
@@ -7175,14 +7215,14 @@ export default function DetailBlok() {
               invalidDosenNames.push(namaDosenItem);
             } else {
               validDosenIds.push(dosen.id);
-              
+
               // Cek apakah dosen standby
               const isStandbyDosen =
                 dosen.name.toLowerCase().includes("standby") ||
                 (Array.isArray(dosen.keahlian)
                   ? dosen.keahlian.some((k: string) =>
-                      k.toLowerCase().includes("standby")
-                    )
+                    k.toLowerCase().includes("standby")
+                  )
                   : (dosen.keahlian || "").toLowerCase().includes("standby"));
 
               // Jika bukan dosen standby, validasi keahlian dengan materi
@@ -7200,19 +7240,17 @@ export default function DetailBlok() {
                   cellErrors.push({
                     row: rowNumber,
                     field: "materi",
-                    message: `Materi "${
-                      row.materi
-                    }" tidak sesuai dengan keahlian dosen "${
-                      dosen.name
-                    }". Keahlian dosen: ${keahlianDosen.join(
-                      ", "
-                    )} (Baris ${rowNumber}, Kolom MATERI)`,
+                    message: `Materi "${row.materi
+                      }" tidak sesuai dengan keahlian dosen "${dosen.name
+                      }". Keahlian dosen: ${keahlianDosen.join(
+                        ", "
+                      )} (Baris ${rowNumber}, Kolom MATERI)`,
                   });
                 }
               }
             }
           });
-          
+
           // Validasi minimal 1 dosen valid
           if (invalidDosenNames.length > 0) {
             cellErrors.push({
@@ -7223,7 +7261,7 @@ export default function DetailBlok() {
               )}". Pastikan semua nama dosen valid (Baris ${rowNumber}, Kolom DOSEN)`,
             });
           }
-          
+
           if (validDosenIds.length === 0) {
             cellErrors.push({
               row: rowNumber,
@@ -7450,11 +7488,10 @@ export default function DetailBlok() {
           cellErrors.push({
             row: index,
             field: "materi",
-            message: `Materi "${
-              row.materi
-            }" tidak valid. Materi yang tersedia: ${materiTersedia.join(
-              ", "
-            )} (Baris ${rowNumber}, Kolom MATERI)`,
+            message: `Materi "${row.materi
+              }" tidak valid. Materi yang tersedia: ${materiTersedia.join(
+                ", "
+              )} (Baris ${rowNumber}, Kolom MATERI)`,
           });
         }
       }
@@ -7554,8 +7591,8 @@ export default function DetailBlok() {
             dosen.name.toLowerCase().includes("standby") ||
             (Array.isArray(dosen.keahlian)
               ? dosen.keahlian.some((k: string) =>
-                  k.toLowerCase().includes("standby")
-                )
+                k.toLowerCase().includes("standby")
+              )
               : (dosen.keahlian || "").toLowerCase().includes("standby"));
 
           // Jika bukan dosen standby, validasi keahlian dengan materi
@@ -7568,8 +7605,8 @@ export default function DetailBlok() {
             const keahlianDosen = Array.isArray(dosen.keahlian)
               ? dosen.keahlian.map((k: string) => k.trim().toLowerCase())
               : (dosen.keahlian || "")
-                  .split(",")
-                  .map((k: string) => k.trim().toLowerCase());
+                .split(",")
+                .map((k: string) => k.trim().toLowerCase());
 
             const materiLower = row.materi.trim().toLowerCase();
 
@@ -7584,21 +7621,19 @@ export default function DetailBlok() {
             if (!isMateriValid) {
               // Format keahlian untuk ditampilkan (original case)
               const keahlianDisplay = Array.isArray(dosen.keahlian)
-              ? dosen.keahlian
+                ? dosen.keahlian
                 : (dosen.keahlian || "")
-                    .split(",")
-                    .map((k: string) => k.trim());
+                  .split(",")
+                  .map((k: string) => k.trim());
 
               cellErrors.push({
                 row: index,
                 field: "materi",
-                message: `Materi "${
-                  row.materi
-                }" tidak sesuai dengan keahlian dosen "${
-                  dosen.name
-                }". Keahlian dosen: ${keahlianDisplay.join(
-                  ", "
-                )} (Baris ${rowNumber}, Kolom MATERI)`,
+                message: `Materi "${row.materi
+                  }" tidak sesuai dengan keahlian dosen "${dosen.name
+                  }". Keahlian dosen: ${keahlianDisplay.join(
+                    ", "
+                  )} (Baris ${rowNumber}, Kolom MATERI)`,
               });
             }
           }
@@ -7652,14 +7687,10 @@ export default function DetailBlok() {
     setIsPraktikumImporting(true);
     setPraktikumImportErrors([]);
     setPraktikumCellErrors([]);
-    // setPraktikumImportData([]); // Jangan reset data, biarkan data yang sudah ada
 
     try {
-      // Hapus fetchKelasPraktikum, kelompok kecil sudah tersedia di kelompokKecilList
-      // Read Excel file
       const { data: rawData, headers } = await readExcelFile(targetFile);
 
-      // Validate headers
       const expectedHeaders = [
         "Tanggal",
         "Jam Mulai",
@@ -7675,9 +7706,6 @@ export default function DetailBlok() {
       );
 
       if (!headerMatch) {
-        const missingHeaders = expectedHeaders.filter(
-          (header) => !headers.includes(header)
-        );
         setPraktikumImportErrors([
           "Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.",
         ]);
@@ -7685,126 +7713,100 @@ export default function DetailBlok() {
         return;
       }
 
-      // Helper function untuk konversi format jam (menambahkan leading zero)
       const convertTimeFormat = (timeStr: string) => {
         if (!timeStr || timeStr.trim() === "") return "";
-
-        // Hapus spasi dan konversi ke string
         const time = timeStr.toString().trim();
-
-        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace(".", ":");
-        }
-
-        // Cek apakah format H:MM atau H.MM (1 digit jam)
-        if (time.match(/^\d{1}[:.]\d{2}$/)) {
-          return "0" + time.replace(".", ":");
-        }
-
-        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace(".", ":");
-        }
-
-        // Jika tidak sesuai format, return as is
+        if (time.match(/^\d{2}[:.]\d{2}$/)) return time.replace(".", ":");
+        if (time.match(/^\d{1}[:.]\d{2}$/)) return "0" + time.replace(".", ":");
         return time;
       };
 
-      // Konversi data Excel ke format yang diharapkan
-      const convertedData: JadwalPraktikumType[] = rawData.map(
-        (row: any[], index: number) => {
-          // Convert array row to object using headers
-          const rowObj: any = {};
-          headers.forEach((header, idx) => {
-            rowObj[header] = row[idx] || "";
-          });
+      const parseKelompokKecilNames = (namesStr: string) => {
+        if (!namesStr || namesStr.trim() === "") return [];
+        const names = namesStr
+          .split(",")
+          .map((n: string) => n.trim())
+          .filter((n: string) => n);
 
-          // Mapping untuk header baru (Title Case) dan fallback ke header lama (snake_case)
-          const tanggal = rowObj["Tanggal"] || rowObj.tanggal || "";
-          const jamMulaiRaw = rowObj["Jam Mulai"] || rowObj.jam_mulai || "";
-          const jamMulai = convertTimeFormat(jamMulaiRaw);
-          const materi = rowObj["Materi"] || rowObj.materi || "";
-          const topik = rowObj["Topik"] || rowObj.topik || "";
-          // Normalize kelompok kecil name: convert to string, trim, handle number format
-          const kelompokKecilNameRaw =
-            rowObj["Kelompok Kecil"] || rowObj.kelompok_kecil || "";
-          const kelompokKecilName = String(kelompokKecilNameRaw).trim();
-          const dosen = rowObj["Dosen"] || rowObj.dosen || "";
-          const ruangan = rowObj["Ruangan"] || rowObj.ruangan || "";
-          const sesi = rowObj["Sesi"] || rowObj.jumlah_sesi || 1;
-
-          // Find kelompok kecil data - case insensitive dan handle number format
-          const kelompokKecilData = kelompokKecilList.find(
-            (k) =>
-              k.nama_kelompok.toLowerCase().trim() ===
-                kelompokKecilName.toLowerCase().trim() ||
-              String(k.nama_kelompok).trim() === kelompokKecilName
-          );
-
-          // Parse dosen names dengan backslash separator untuk support multiple dosen
-          // Gunakan backslash karena beberapa dosen memiliki gelar dengan koma (contoh: Gustiwanan spd, mpd, spg)
-          const parseDosenNames = (dosenStr: string) => {
-            if (!dosenStr || dosenStr.trim() === "") return [];
-            const dosenNames = dosenStr
-              .split("\\")
-              .map((n: string) => n.trim())
-              .filter((n: string) => n);
-            const dosenIds: number[] = [];
-            dosenNames.forEach((namaDosen: string) => {
-              const dosen = allDosenList?.find(
-                (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
-              );
-              if (dosen) {
-                dosenIds.push(dosen.id);
-              }
+        const matchedGroups: { id: number; nama_kelompok: string }[] = [];
+        names.forEach((name: string) => {
+          const matched = findKelompokKecilByName(name, kelompokKecilList);
+          if (matched) {
+            matchedGroups.push({
+              id: matched.id,
+              nama_kelompok: matched.nama_kelompok,
             });
-            return dosenIds;
-          };
+          }
+        });
+        return matchedGroups;
+      };
 
-          const dosenIds = parseDosenNames(dosen);
-          // Untuk backward compatibility, gunakan dosen pertama sebagai dosen_id
-          const dosenData = dosenIds.length > 0 ? allDosenList?.find((d) => d.id === dosenIds[0]) : null;
-
-          // Find ruangan data
-          const ruanganData = allRuanganList?.find(
-            (r) => r.nama.toLowerCase() === ruangan.toLowerCase()
+      const parseDosenNames = (dosenStr: string) => {
+        if (!dosenStr || dosenStr.trim() === "") return [];
+        const dosenNames = dosenStr
+          .split("\\")
+          .map((n: string) => n.trim())
+          .filter((n: string) => n);
+        const dosenIds: number[] = [];
+        dosenNames.forEach((namaDosen: string) => {
+          const dosen = allDosenList?.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
+          if (dosen) dosenIds.push(dosen.id);
+        });
+        return dosenIds;
+      };
 
-          // Calculate jam selesai based on sesi
-          const calculatedJamSelesai = hitungJamSelesai(
-            jamMulai,
-            parseInt(sesi.toString())
-          );
+      const convertedData: JadwalPraktikumType[] = rawData.map((row: any[]) => {
+        const rowObj: any = {};
+        headers.forEach((header, idx) => {
+          rowObj[header] = row[idx] || "";
+        });
 
-          return {
-            tanggal: tanggal,
-            jam_mulai: jamMulai,
-            jam_selesai: calculatedJamSelesai,
-            materi: materi,
-            topik: topik,
-            kelompok_kecil_id: kelompokKecilData?.id || null,
-            kelompok_kecil_name: kelompokKecilName,
-            kelompok_kecil: kelompokKecilData ? {
-              id: kelompokKecilData.id,
-              nama_kelompok: kelompokKecilData.nama_kelompok,
-            } : null,
-            dosen_id: dosenData?.id || 0,
-            dosen_ids: dosenIds,
-            nama_dosen: dosen || dosenData?.name || "",
-            ruangan_id: ruanganData?.id || 0,
-            nama_ruangan: ruangan || ruanganData?.nama || "",
-            jumlah_sesi: parseInt(sesi.toString()),
-          };
-        }
-      );
+        const jamMulai = convertTimeFormat(
+          rowObj["Jam Mulai"] || rowObj.jam_mulai || ""
+        );
+        const kelompokKecilNameRaw =
+          rowObj["Kelompok Kecil"] || rowObj.kelompok_kecil || "";
+        const matchedGroups = parseKelompokKecilNames(
+          String(kelompokKecilNameRaw)
+        );
+        const dosenIds = parseDosenNames(rowObj["Dosen"] || rowObj.dosen || "");
+        const dosenData =
+          dosenIds.length > 0
+            ? allDosenList?.find((d) => d.id === dosenIds[0])
+            : null;
+        const ruangan = rowObj["Ruangan"] || rowObj.ruangan || "";
+        const ruanganData = allRuanganList?.find(
+          (r) => r.nama.toLowerCase() === ruangan.toLowerCase()
+        );
+        const sesi = rowObj["Sesi"] || rowObj.jumlah_sesi || 1;
 
-      // Set data terlebih dahulu
+        return {
+          tanggal: rowObj["Tanggal"] || rowObj.tanggal || "",
+          jam_mulai: jamMulai,
+          jam_selesai: hitungJamSelesai(jamMulai, parseInt(sesi.toString())),
+          materi: rowObj["Materi"] || rowObj.materi || "",
+          topik: rowObj["Topik"] || rowObj.topik || "",
+          kelompok_kecil_id: matchedGroups.length > 0 ? matchedGroups[0].id : null,
+          kelompok_kecil_name: String(kelompokKecilNameRaw).trim(),
+          kelompok_kecil: matchedGroups,
+          dosen_id: dosenData?.id || 0,
+          dosen_ids: dosenIds,
+          nama_dosen:
+            (rowObj["Dosen"] || rowObj.dosen || "") || dosenData?.name || "",
+          ruangan_id: ruanganData?.id || 0,
+          nama_ruangan: ruangan || ruanganData?.nama || "",
+          jumlah_sesi: parseInt(sesi.toString()),
+        };
+      });
+
       setPraktikumImportData(convertedData);
       setPraktikumImportFile(targetFile);
 
-      // Validate data menggunakan kelompok kecil yang tersedia
-      const kelompokKecilNamesForValidation = kelompokKecilList.map((k) => k.nama_kelompok);
+      const kelompokKecilNamesForValidation = kelompokKecilList.map(
+        (k) => k.nama_kelompok
+      );
       const { cellErrors } = validatePraktikumExcelData(
         convertedData,
         kelompokKecilNamesForValidation
@@ -7819,7 +7821,6 @@ export default function DetailBlok() {
       setShowPraktikumImportModal(true);
     } finally {
       setIsPraktikumImporting(false);
-      // Reset file input
       if (praktikumFileInputRef.current) {
         praktikumFileInputRef.current.value = "";
       }
@@ -7834,24 +7835,16 @@ export default function DetailBlok() {
     setIsPraktikumImporting(true);
     setPraktikumSiakadImportErrors([]);
     setPraktikumSiakadCellErrors([]);
-    // setPraktikumSiakadImportData([]); // Jangan reset data, biarkan data yang sudah ada
 
     try {
-      // Hapus fetchKelasPraktikum, kelompok kecil sudah tersedia di kelompokKecilList
-
-      // Read Excel file
       const { data: rawData, headers } = await readExcelFile(targetFile);
 
-      // Validate template format
       const isValidTemplate = await validateTemplateFormat(
         targetFile,
         "SIAKAD",
         "praktikum"
       );
       if (!isValidTemplate) {
-        // Debug: Tampilkan headers yang sebenarnya ada di file
-        const { headers } = await readExcelFile(targetFile);
-
         setPraktikumSiakadImportErrors([
           "Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang didownload.",
           `Headers found: ${headers.join(", ")}`,
@@ -7860,164 +7853,122 @@ export default function DetailBlok() {
         return;
       }
 
-      // Konversi data Excel SIAKAD ke format yang diharapkan
-      const convertedData: JadwalPraktikumType[] = rawData.map(
-        (row: any[], index: number) => {
-          // Convert array row to object using headers
-          const rowObj: any = {};
-          headers.forEach((header, idx) => {
-            rowObj[header] = row[idx] || "";
-          });
+      const getValueFromMultipleFormats = (baseKey: string, rowObj: any) => {
+        if (rowObj[baseKey]) return rowObj[baseKey];
+        const withWindowsLineBreak = baseKey.replace(/\n/g, "\r\n");
+        if (rowObj[withWindowsLineBreak]) return rowObj[withWindowsLineBreak];
+        const withoutLineBreak = baseKey.replace(/\n.*/, "");
+        if (rowObj[withoutLineBreak]) return rowObj[withoutLineBreak];
+        return "";
+      };
 
-          // Helper function untuk mendapatkan nilai dari berbagai format header
-          const getValueFromMultipleFormats = (
-            baseKey: string,
-            rowObj: any
-          ) => {
-            // Coba format asli dengan \n
-            if (rowObj[baseKey]) return rowObj[baseKey];
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === "") return "";
+        const time = timeStr.toString().trim();
+        if (time.match(/^\d{2}[:.]\d{2}$/)) return time.replace(".", ":");
+        if (time.match(/^\d{1}[:.]\d{2}$/)) return "0" + time.replace(".", ":");
+        return time;
+      };
 
-            // Coba format dengan \r\n
-            const withWindowsLineBreak = baseKey.replace(/\n/g, "\r\n");
-            if (rowObj[withWindowsLineBreak])
-              return rowObj[withWindowsLineBreak];
+      const parseKelompokKecilNamesSiakad = (namesStr: string) => {
+        if (!namesStr || namesStr.trim() === "") return [];
+        const names = namesStr
+          .split(",")
+          .map((n: string) => n.trim())
+          .filter((n: string) => n);
 
-            // Coba format tanpa line break
-            const withoutLineBreak = baseKey.replace(/\n.*/, "");
-            if (rowObj[withoutLineBreak]) return rowObj[withoutLineBreak];
+        const matchedGroups: { id: number; nama_kelompok: string }[] = [];
+        names.forEach((name: string) => {
+          const matched = findKelompokKecilByName(name, kelompokKecilList);
+          if (matched) {
+            matchedGroups.push({
+              id: matched.id,
+              nama_kelompok: matched.nama_kelompok,
+            });
+          }
+        });
+        return matchedGroups;
+      };
 
-            return "";
-          };
+      const convertedData: JadwalPraktikumType[] = rawData.map((row: any[]) => {
+        const rowObj: any = {};
+        headers.forEach((header, idx) => {
+          rowObj[header] = row[idx] || "";
+        });
 
-          // Helper function untuk konversi format jam (menambahkan leading zero)
-          const convertTimeFormat = (timeStr: string) => {
-            if (!timeStr || timeStr.trim() === "") return "";
+        const tanggal = getValueFromMultipleFormats(
+          "Tanggal\n(YYYY-MM-DD)",
+          rowObj
+        );
+        const jamMulaiRaw = getValueFromMultipleFormats(
+          "Waktu Mulai\n(Lihat Daftar Waktu Mulai)",
+          rowObj
+        );
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+        const topik = rowObj["Topik"] || "";
+        const kelompokValue = getValueFromMultipleFormats(
+          "Kelompok\n(Contoh: 1)",
+          rowObj
+        );
+        const matchedGroupsSiakad = parseKelompokKecilNamesSiakad(
+          String(kelompokValue).trim()
+        );
+        const ruanganName = getValueFromMultipleFormats(
+          "Ruang\n(Lihat Daftar Ruang)",
+          rowObj
+        );
+        const ruanganData = allRuanganList?.find(
+          (r) =>
+            r.nama.toLowerCase() === ruanganName.toLowerCase() ||
+            (r.id_ruangan &&
+              r.id_ruangan.toLowerCase() === ruanganName.toLowerCase())
+        );
+        const kelompokBesarData = kelompokBesarOptions?.find(
+          (kb) =>
+            kb.label.toLowerCase() === String(kelompokValue).trim().toLowerCase()
+        );
+        const jumlahSesi = 2; // Default untuk praktikum
 
-            // Hapus spasi dan konversi ke string
-            const time = timeStr.toString().trim();
-
-            // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-            if (time.match(/^\d{2}[:.]\d{2}$/)) {
-              return time.replace(".", ":");
-            }
-
-            // Cek apakah format H:MM atau H.MM (1 digit jam)
-            if (time.match(/^\d{1}[:.]\d{2}$/)) {
-              return "0" + time.replace(".", ":");
-            }
-
-            // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-            if (time.match(/^\d{2}[:.]\d{2}$/)) {
-              return time.replace(".", ":");
-            }
-
-            // Jika tidak sesuai format, return as is
-            return time;
-          };
-
-          // Mapping untuk template SIAKAD (menggunakan format header yang sebenarnya ada di file Excel)
-          const tanggal = getValueFromMultipleFormats(
-            "Tanggal\n(YYYY-MM-DD)",
-            rowObj
-          );
-          const jamMulaiRaw = getValueFromMultipleFormats(
-            "Waktu Mulai\n(Lihat Daftar Waktu Mulai)",
-            rowObj
-          );
-          const jamMulai = convertTimeFormat(jamMulaiRaw);
-          const topik = rowObj["Topik"] || "";
-          const kelompok = getValueFromMultipleFormats(
-            "Kelompok\n(Contoh: 1)",
-            rowObj
-          );
-          const ruangan = getValueFromMultipleFormats(
-            "Ruang\n(Lihat Daftar Ruang)",
-            rowObj
-          );
-
-          // SIAKAD fields
-          const siakadKurikulum = rowObj["Kurikulum"] || "";
-          const siakadKodeMk = rowObj["Kode MK"] || "";
-          const siakadKelompok = getValueFromMultipleFormats(
-            "Kelompok\n(Contoh: 1)",
-            rowObj
-          );
-          const siakadJenisPertemuan = getValueFromMultipleFormats(
+        return {
+          tanggal: tanggal,
+          jam_mulai: jamMulai,
+          jam_selesai: hitungJamSelesai(jamMulai, jumlahSesi),
+          materi: "Kosong (isi manual)",
+          topik: topik,
+          kelompok_kecil_id:
+            matchedGroupsSiakad.length > 0 ? matchedGroupsSiakad[0].id : null,
+          kelompok_kecil_name: String(kelompokValue).trim(),
+          kelompok_kecil: matchedGroupsSiakad,
+          dosen_id: null,
+          nama_dosen: "Kosong (isi manual)",
+          ruangan_id: ruanganData?.id || 0,
+          nama_ruangan: ruanganData?.nama || ruanganName || "Kosong (isi manual)",
+          jumlah_sesi: jumlahSesi,
+          kelompok_besar_id: kelompokBesarData?.id || null,
+          siakad_kurikulum: rowObj["Kurikulum"] || "",
+          siakad_kode_mk: rowObj["Kode MK"] || "",
+          siakad_kelompok: kelompokValue,
+          siakad_jenis_pertemuan: getValueFromMultipleFormats(
             "Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)",
             rowObj
-          );
-          const siakadMetode = getValueFromMultipleFormats(
+          ),
+          siakad_metode: getValueFromMultipleFormats(
             "Metode\n(Lihat Daftar Metode)",
             rowObj
-          );
-          const siakadDosenPengganti = getValueFromMultipleFormats(
+          ),
+          siakad_dosen_pengganti: getValueFromMultipleFormats(
             "Dosen Pengganti\n(Y jika Ya)",
             rowObj
-          );
+          ),
+        };
+      });
 
-          // Find ruangan data - cari berdasarkan nama atau kode ruangan (id_ruangan)
-          const ruanganData = allRuanganList?.find(
-            (r) =>
-              r.nama.toLowerCase() === ruangan.toLowerCase() ||
-              (r.id_ruangan &&
-                r.id_ruangan.toLowerCase() === ruangan.toLowerCase())
-          );
-
-          // Find kelompok besar data
-          const kelompokBesarData = kelompokBesarOptions?.find(
-            (kb) => kb.label.toLowerCase() === kelompok.toLowerCase()
-          );
-
-          // Normalize kelompok name: convert to string, trim, handle number format
-          const kelompokNormalized = String(kelompok).trim();
-
-          // Find kelompok kecil data berdasarkan nama kelompok - case insensitive dan handle number format
-          const kelompokKecilData = kelompokKecilList?.find(
-            (kk) =>
-              kk.nama_kelompok.toLowerCase().trim() ===
-                kelompokNormalized.toLowerCase().trim() ||
-              String(kk.nama_kelompok).trim() === kelompokNormalized
-          );
-
-          // Hitung jam selesai otomatis berdasarkan sistem
-          const jumlahSesi = 2; // Default untuk praktikum
-          const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
-
-          return {
-            tanggal: tanggal,
-            jam_mulai: jamMulai,
-            jam_selesai: jamSelesai,
-            materi: "Kosong (isi manual)", // User isi manual di preview
-            topik: topik,
-            kelompok_kecil_id: kelompokKecilData?.id || null,
-            kelompok_kecil_name: kelompokNormalized, // Simpan nama kelompok dari Excel
-            kelompok_kecil: kelompokKecilData ? {
-              id: kelompokKecilData.id,
-              nama_kelompok: kelompokKecilData.nama_kelompok,
-            } : null,
-            dosen_id: null, // User isi manual di preview
-            nama_dosen: "Kosong (isi manual)", // User isi manual di preview
-            ruangan_id: ruanganData?.id || 0,
-            nama_ruangan: ruanganData?.nama || ruangan || "Kosong (isi manual)",
-            jumlah_sesi: jumlahSesi,
-            kelompok_besar_id: kelompokBesarData?.id || null,
-            // SIAKAD fields
-            siakad_kurikulum: siakadKurikulum,
-            siakad_kode_mk: siakadKodeMk,
-            siakad_kelompok: siakadKelompok,
-            siakad_jenis_pertemuan: siakadJenisPertemuan,
-            siakad_metode: siakadMetode,
-            siakad_dosen_pengganti: siakadDosenPengganti,
-          };
-        }
-      );
-
-      // Set data terlebih dahulu
       setPraktikumSiakadImportData(convertedData);
       setPraktikumSiakadImportFile(targetFile);
 
-      // Validate data menggunakan kelompok kecil yang tersedia
-      const kelompokKecilNamesForValidationSiakad = kelompokKecilList.map((k) => k.nama_kelompok);
+      const kelompokKecilNamesForValidationSiakad = kelompokKecilList.map(
+        (k) => k.nama_kelompok
+      );
       const { cellErrors } = validatePraktikumExcelData(
         convertedData,
         kelompokKecilNamesForValidationSiakad
@@ -8032,7 +7983,6 @@ export default function DetailBlok() {
       setShowPraktikumSiakadImportModal(true);
     } finally {
       setIsPraktikumImporting(false);
-      // Reset file input
       if (praktikumFileInputRef.current) {
         praktikumFileInputRef.current.value = "";
       }
@@ -9268,7 +9218,7 @@ export default function DetailBlok() {
               .split("\\")
               .map((n: string) => n.trim())
               .filter((n: string) => n !== "");
-            
+
             dosenIds = [];
             dosenNames.forEach((namaDosen: string) => {
               const dosen = pengampuPraktikumOptions.find(
@@ -9284,14 +9234,30 @@ export default function DetailBlok() {
         }
 
         // Find kelompok kecil berdasarkan nama
-        let kelompokKecilId = null;
-        if (row.kelompok_kecil?.id) {
-          kelompokKecilId = row.kelompok_kecil.id;
-        } else if (row.kelompok_kecil?.nama_kelompok) {
+        let kelompokKecilIds: number[] = [];
+
+        if (row.kelompok_kecil && Array.isArray(row.kelompok_kecil)) {
+          // If already array of objects
+          row.kelompok_kecil.forEach((k: any) => {
+            if (k.id) kelompokKecilIds.push(k.id);
+            else if (k.nama_kelompok) {
+              const matched = kelompokKecilList.find(op => op.nama_kelompok === k.nama_kelompok);
+              if (matched) kelompokKecilIds.push(matched.id);
+            }
+          });
+        } else if ((row as any).kelompok_kecil?.id) {
+          kelompokKecilIds.push((row as any).kelompok_kecil.id);
+        } else if ((row as any).kelompok_kecil?.nama_kelompok) {
           const kelompokKecil = kelompokKecilList.find(
-            (k) => k.nama_kelompok === row.kelompok_kecil?.nama_kelompok
+            (k) => k.nama_kelompok === (row as any).kelompok_kecil?.nama_kelompok
           );
-          if (kelompokKecil) kelompokKecilId = kelompokKecil.id;
+          if (kelompokKecil) kelompokKecilIds.push(kelompokKecil.id);
+        } else if ((row as any).kelompok_kecil_name) {
+          // Fallback string name
+          const kelompokKecil = kelompokKecilList.find(
+            (k) => k.nama_kelompok === (row as any).kelompok_kecil_name
+          );
+          if (kelompokKecil) kelompokKecilIds.push(kelompokKecil.id);
         }
 
         const baseData = {
@@ -9301,7 +9267,7 @@ export default function DetailBlok() {
           sesi: row.jumlah_sesi, // Backend mengharapkan field 'sesi'
           materi: row.materi,
           topik: row.topik,
-          kelompok_kecil_id: kelompokKecilId,
+          kelompok_kecil_ids: kelompokKecilIds,
           dosen_ids: dosenIds, // Gunakan dosen_ids (array) untuk multiple dosen
           dosen_id: dosenIds.length > 0 ? dosenIds[0] : null, // Backward compatibility
           ruangan_id: ruanganId,
@@ -9400,12 +9366,12 @@ export default function DetailBlok() {
         if (selectedPraktikumTemplate === "LAMA") {
           setPraktikumImportErrors([
             error.response?.data?.message ||
-              "Terjadi kesalahan saat mengimport data",
+            "Terjadi kesalahan saat mengimport data",
           ]);
         } else {
           setPraktikumSiakadImportErrors([
             error.response?.data?.message ||
-              "Terjadi kesalahan saat mengimport data",
+            "Terjadi kesalahan saat mengimport data",
           ]);
         }
       }
@@ -9520,12 +9486,12 @@ export default function DetailBlok() {
         if (selectedPBLTemplate === "LAMA") {
           setPBLImportErrors([
             error.response?.data?.message ||
-              "Gagal mengimpor data. Silakan coba lagi.",
+            "Gagal mengimpor data. Silakan coba lagi.",
           ]);
         } else {
           setPBLSiakadImportErrors([
             error.response?.data?.message ||
-              "Gagal mengimpor data. Silakan coba lagi.",
+            "Gagal mengimpor data. Silakan coba lagi.",
           ]);
         }
       }
@@ -9575,9 +9541,9 @@ export default function DetailBlok() {
         kelompokKecilList.length > 0
           ? kelompokKecilList
           : [
-              { id: 1, nama_kelompok: "Kelompok A1" },
-              { id: 2, nama_kelompok: "Kelompok A2" },
-            ];
+            { id: 1, nama_kelompok: "Kelompok A1" },
+            { id: 2, nama_kelompok: "Kelompok A2" },
+          ];
 
       // Data template
       const rawTemplateData = [
@@ -9775,9 +9741,8 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_JurnalReading_${
-        data?.nama || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_JurnalReading_${data?.nama || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error downloading Jurnal Reading template:", error);
@@ -9837,11 +9802,10 @@ export default function DetailBlok() {
           cellErrors.push({
             row: rowNumber,
             field: "topik",
-            message: `Topik "${
-              row.topik
-            }" tidak ditemukan. Gunakan topik yang tersedia: ${topikJurnalReadingList.join(
-              ", "
-            )} (Baris ${rowNumber}, Kolom TOPIK)`,
+            message: `Topik "${row.topik
+              }" tidak ditemukan. Gunakan topik yang tersedia: ${topikJurnalReadingList.join(
+                ", "
+              )} (Baris ${rowNumber}, Kolom TOPIK)`,
           });
         }
       }
@@ -9872,8 +9836,8 @@ export default function DetailBlok() {
             dosen.name.toLowerCase().includes("standby") ||
             (Array.isArray(dosen.keahlian)
               ? dosen.keahlian.some((k: string) =>
-                  k.toLowerCase().includes("standby")
-                )
+                k.toLowerCase().includes("standby")
+              )
               : (dosen.keahlian || "").toLowerCase().includes("standby"));
           const isValidDosen = isAssignedDosen || isStandbyDosen;
           if (!isValidDosen) {
@@ -10220,7 +10184,7 @@ export default function DetailBlok() {
       } else {
         setJurnalReadingImportErrors([
           error.response?.data?.message ||
-            "Terjadi kesalahan saat mengimport data",
+          "Terjadi kesalahan saat mengimport data",
         ]);
       }
     } finally {
@@ -10252,7 +10216,7 @@ export default function DetailBlok() {
   };
 
   // ========== FUNGSI IMPORT/EXPORT EXCEL PERSAMAAN PERSEPSI ==========
-  
+
   // Download template Excel untuk Persamaan Persepsi
   const downloadPersamaanPersepsiTemplate = async () => {
     if (!data) return;
@@ -10496,9 +10460,8 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_PersamaanPersepsi_${
-        data?.nama || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_PersamaanPersepsi_${data?.nama || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error downloading Persamaan Persepsi template:", error);
@@ -10578,11 +10541,10 @@ export default function DetailBlok() {
           cellErrors.push({
             row: rowNumber,
             field: "koordinator_ids",
-            message: `Koordinator Dosen maksimal hanya boleh 1 orang. Ditemukan ${
-              koordinatorNames.length
-            } koordinator: "${koordinatorNames.join(
-              ", "
-            )}" (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
+            message: `Koordinator Dosen maksimal hanya boleh 1 orang. Ditemukan ${koordinatorNames.length
+              } koordinator: "${koordinatorNames.join(
+                ", "
+              )}" (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
           });
         } else if (koordinatorNames.length === 0) {
           // Jika setelah parsing menjadi kosong (misalnya hanya spasi/koma)
@@ -10887,7 +10849,7 @@ export default function DetailBlok() {
           .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const koordinatorIds: number[] = [];
         koordinatorNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
@@ -10911,7 +10873,7 @@ export default function DetailBlok() {
           .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const pengampuIds: number[] = [];
         pengampuNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
@@ -10979,7 +10941,7 @@ export default function DetailBlok() {
         } else {
           useRuangan = false;
         }
-        
+
         return {
           tanggal: row.tanggal,
           jam_mulai: row.jam_mulai,
@@ -10997,7 +10959,7 @@ export default function DetailBlok() {
       const response = await api.post(
         `/persamaan-persepsi/jadwal/${kode}/import`,
         {
-        data: apiData,
+          data: apiData,
         }
       );
 
@@ -11040,7 +11002,7 @@ export default function DetailBlok() {
       } else {
         setPersamaanPersepsiImportErrors([
           error.response?.data?.message ||
-            "Terjadi kesalahan saat mengimport data",
+          "Terjadi kesalahan saat mengimport data",
         ]);
       }
     } finally {
@@ -11105,8 +11067,8 @@ export default function DetailBlok() {
           row.use_ruangan !== undefined
             ? row.use_ruangan
             : row.ruangan_id
-            ? true
-            : false;
+              ? true
+              : false;
 
         return {
           Tanggal: row.tanggal,
@@ -11207,9 +11169,8 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Persamaan_Persepsi_${
-        data?.kode || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Export_Persamaan_Persepsi_${data?.kode || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error exporting Persamaan Persepsi:", error);
@@ -11261,17 +11222,17 @@ export default function DetailBlok() {
       const contohPengampu = contohDosen2
         ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}`
         : contohDosen2;
-      
+
       // Ambil contoh kelompok besar (gunakan format sederhana untuk kemudahan)
-      const contohKelompokBesar = kelompokBesarOptions[0] 
+      const contohKelompokBesar = kelompokBesarOptions[0]
         ? (() => {
-            const match = kelompokBesarOptions[0].label.match(
-              /(?:semester\s*)?(\d+)/i
-            );
-            return match
-              ? `Semester ${match[1]}`
-              : kelompokBesarOptions[0].label;
-          })()
+          const match = kelompokBesarOptions[0].label.match(
+            /(?:semester\s*)?(\d+)/i
+          );
+          return match
+            ? `Semester ${match[1]}`
+            : kelompokBesarOptions[0].label;
+        })()
         : "Semester 1";
 
       // Data template - 1 dengan ruangan, 1 tanpa ruangan (online)
@@ -11475,9 +11436,8 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_SeminarPleno_${
-        data?.nama || "MataKuliah"
-      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_SeminarPleno_${data?.nama || "MataKuliah"
+        }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error downloading Seminar Pleno template:", error);
@@ -11562,7 +11522,7 @@ export default function DetailBlok() {
           message: `Koordinator Dosen wajib diisi (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
         });
       } else {
-      // Validasi koordinator hanya boleh 1 orang untuk Seminar Pleno
+        // Validasi koordinator hanya boleh 1 orang untuk Seminar Pleno
         const koordinatorNames = row.koordinator
           .split(",")
           .map((n: string) => n.trim())
@@ -11584,7 +11544,7 @@ export default function DetailBlok() {
               invalidKoordinatorNames.push(namaDosen);
             }
           });
-          
+
           if (invalidKoordinatorNames.length > 0) {
             cellErrors.push({
               row: rowNumber,
@@ -11604,7 +11564,7 @@ export default function DetailBlok() {
           .map((n: string) => n.trim())
           .filter((n: string) => n !== "");
         const invalidPengampuNames: string[] = [];
-        
+
         pengampuNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
@@ -11613,7 +11573,7 @@ export default function DetailBlok() {
             invalidPengampuNames.push(namaDosen);
           }
         });
-        
+
         if (invalidPengampuNames.length > 0) {
           cellErrors.push({
             row: rowNumber,
@@ -11623,7 +11583,7 @@ export default function DetailBlok() {
             )}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini`,
           });
         }
-        
+
         // Validasi minimal 1 pengampu valid
         const validPengampuCount =
           pengampuNames.length - invalidPengampuNames.length;
@@ -11693,7 +11653,7 @@ export default function DetailBlok() {
         row.kelompok_besar_id = null;
       } else {
         const inputValue = row.kelompok_besar.trim();
-        
+
         // Helper untuk extract semester dari berbagai format
         const extractSemester = (value: string): number | null => {
           // Coba ekstrak angka dari berbagai format:
@@ -11704,24 +11664,24 @@ export default function DetailBlok() {
           const match = value.match(/(?:semester\s*)?(\d+)/i);
           return match ? parseInt(match[1]) : null;
         };
-        
+
         // Cari exact match di label (case-insensitive)
         let kelompokBesar = kelompokBesarOptions.find(
           (kb) => kb.label.toLowerCase() === inputValue.toLowerCase()
         );
-        
+
         // Jika tidak ditemukan exact match, coba cari berdasarkan semester
         if (!kelompokBesar) {
           const semester = extractSemester(inputValue);
           if (semester) {
             kelompokBesar = kelompokBesarOptions.find((kb) => {
-                // Cek apakah label mengandung semester yang sama
-                const kbSemester = extractSemester(kb.label);
-                return kbSemester === semester;
+              // Cek apakah label mengandung semester yang sama
+              const kbSemester = extractSemester(kb.label);
+              return kbSemester === semester;
             });
           }
         }
-        
+
         if (!kelompokBesar) {
           cellErrors.push({
             row: rowNumber,
@@ -11731,7 +11691,7 @@ export default function DetailBlok() {
           row.kelompok_besar_id = null;
         } else {
           row.kelompok_besar_id = Number(kelompokBesar.id);
-          
+
           // Validasi semester harus sesuai dengan semester mata kuliah
           const mataKuliahSemester = data?.semester;
           if (mataKuliahSemester) {
@@ -11774,19 +11734,19 @@ export default function DetailBlok() {
           row.use_ruangan !== undefined
             ? row.use_ruangan
             : row.ruangan_id
-            ? true
-            : false;
+              ? true
+              : false;
         const ruanganNama =
           useRuangan && ruangan?.nama ? ruangan.nama : "Online";
-        
+
         // Ambil nama kelompok besar
         let kelompokBesarName = "";
-        
+
         // Cek apakah ada kelompok_besar object dari backend
         if (row.kelompok_besar && row.kelompok_besar.id) {
           const kelompokBesarId = row.kelompok_besar.id;
           const semester = row.kelompok_besar.semester;
-          
+
           // Cari di kelompokBesarOptions berdasarkan ID
           if (kelompokBesarOptions.length > 0) {
             const kelompokBesar = kelompokBesarOptions.find(
@@ -11796,7 +11756,7 @@ export default function DetailBlok() {
               kelompokBesarName = kelompokBesar.label || "";
             }
           }
-          
+
           // Fallback: jika tidak ditemukan di options, buat dari semester
           if (!kelompokBesarName && semester) {
             kelompokBesarName = `Semester ${semester}`;
@@ -11813,7 +11773,7 @@ export default function DetailBlok() {
               kelompokBesarName = kelompokBesar.label || "";
             }
           }
-          
+
           // Fallback: jika tidak ditemukan, coba gunakan kelompok_besar_id sebagai semester
           if (!kelompokBesarName) {
             // Jika kelompok_besar_id adalah angka kecil (kemungkinan semester), gunakan sebagai semester
@@ -11936,9 +11896,8 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Seminar_Pleno_${data?.kode || "MataKuliah"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const fileName = `Export_Seminar_Pleno_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]
+        }.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error exporting Seminar Pleno:", error);
@@ -12004,33 +11963,33 @@ export default function DetailBlok() {
 
         // Parse kelompok besar dengan parsing yang lebih fleksibel
         const kelompokBesarStr = row[7]?.toString() || "";
-        
+
         // Helper untuk extract semester dari berbagai format
         const extractSemester = (value: string): number | null => {
           const match = value.match(/(?:semester\s*)?(\d+)/i);
           return match ? parseInt(match[1]) : null;
         };
-        
+
         let kelompokBesar = null;
         let kelompokBesarId = null;
-        
+
         if (kelompokBesarStr.trim() !== "") {
           // Cari exact match di label (case-insensitive)
           kelompokBesar = kelompokBesarOptions.find(
             (kb) => kb.label.toLowerCase() === kelompokBesarStr.toLowerCase()
           );
-          
+
           // Jika tidak ditemukan exact match, coba cari berdasarkan semester
           if (!kelompokBesar) {
             const semester = extractSemester(kelompokBesarStr);
             if (semester) {
               kelompokBesar = kelompokBesarOptions.find((kb) => {
-                  const kbSemester = extractSemester(kb.label);
-                  return kbSemester === semester;
+                const kbSemester = extractSemester(kb.label);
+                return kbSemester === semester;
               });
             }
           }
-          
+
           if (kelompokBesar) {
             kelompokBesarId = Number(kelompokBesar.id);
           }
@@ -12116,7 +12075,7 @@ export default function DetailBlok() {
             } else {
               useRuangan = false;
             }
-            
+
             return {
               tanggal: row.tanggal,
               jam_mulai: row.jam_mulai,
@@ -12139,7 +12098,7 @@ export default function DetailBlok() {
 
           if (validationResponse.data && !validationResponse.data.valid) {
             const backendErrors = validationResponse.data.errors || [];
-            
+
             // Convert backend errors ke format cellErrors
             const newCellErrors: {
               row: number;
@@ -12165,7 +12124,7 @@ export default function DetailBlok() {
                   field = "nama_ruangan";
                 else if (error.toLowerCase().includes("kelompok"))
                   field = "kelompok_besar";
-                
+
                 newCellErrors.push({
                   row: rowNum,
                   field: field,
@@ -12213,18 +12172,18 @@ export default function DetailBlok() {
                 return false;
               return true;
             });
-            
+
             const errorMessage = errorResponse?.message;
             const filteredMessage =
               errorMessage &&
-              !errorMessage.includes("Terjadi kesalahan saat memvalidasi data")
-              ? errorMessage
-              : null;
-            
+                !errorMessage.includes("Terjadi kesalahan saat memvalidasi data")
+                ? errorMessage
+                : null;
+
             // Hanya tampilkan error yang sudah di-filter
             if (filteredErrors.length > 0 || filteredMessage) {
               setSeminarPlenoImportErrors(
-                filteredMessage 
+                filteredMessage
                   ? [filteredMessage, ...filteredErrors]
                   : filteredErrors
               );
@@ -12260,10 +12219,10 @@ export default function DetailBlok() {
           .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const koordinatorIds: number[] = [];
         const invalidNames: string[] = [];
-        
+
         koordinatorNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
@@ -12277,7 +12236,7 @@ export default function DetailBlok() {
 
         row.koordinator_ids = koordinatorIds;
         row.koordinator = value;
-        
+
         // Error akan ditangani oleh validasi di bawah
       } else {
         row.koordinator_ids = [];
@@ -12290,10 +12249,10 @@ export default function DetailBlok() {
           .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const pengampuIds: number[] = [];
         const invalidNames: string[] = [];
-        
+
         pengampuNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
@@ -12307,7 +12266,7 @@ export default function DetailBlok() {
 
         row.dosen_ids = pengampuIds;
         row.pengampu = value;
-        
+
         // Error akan ditangani oleh validasi di bawah
       } else {
         row.dosen_ids = [];
@@ -12317,29 +12276,29 @@ export default function DetailBlok() {
       // Handle mapping untuk kelompok besar
       if (value && value.trim() !== "") {
         const inputValue = value.toString().trim();
-        
+
         // Helper untuk extract semester dari berbagai format
         const extractSemester = (val: string): number | null => {
           const match = val.match(/(?:semester\s*)?(\d+)/i);
           return match ? parseInt(match[1]) : null;
         };
-        
+
         // Cari exact match di label (case-insensitive)
         let kelompokBesar = kelompokBesarOptions.find(
           (kb) => kb.label.toLowerCase() === inputValue.toLowerCase()
         );
-        
+
         // Jika tidak ditemukan exact match, coba cari berdasarkan semester
         if (!kelompokBesar) {
           const semester = extractSemester(inputValue);
           if (semester) {
             kelompokBesar = kelompokBesarOptions.find((kb) => {
-                const kbSemester = extractSemester(kb.label);
-                return kbSemester === semester;
+              const kbSemester = extractSemester(kb.label);
+              return kbSemester === semester;
             });
           }
         }
-        
+
         if (kelompokBesar) {
           row.kelompok_besar_id = Number(kelompokBesar.id);
           row.kelompok_besar = kelompokBesar.label;
@@ -12368,7 +12327,7 @@ export default function DetailBlok() {
     // Re-validasi data frontend secara real-time
     const { cellErrors } = validateSeminarPlenoExcelData(updatedData);
     setSeminarPlenoCellErrors(cellErrors);
-    
+
     // Validasi backend secara real-time (cek bentrok jadwal) dengan debounce
     if (kode && updatedData.length > 0) {
       // Clear timeout sebelumnya jika ada
@@ -12391,7 +12350,7 @@ export default function DetailBlok() {
             } else {
               useRuangan = false;
             }
-            
+
             return {
               tanggal: row.tanggal,
               jam_mulai: row.jam_mulai,
@@ -12414,7 +12373,7 @@ export default function DetailBlok() {
 
           if (validationResponse.data && !validationResponse.data.valid) {
             const backendErrors = validationResponse.data.errors || [];
-            
+
             // Convert backend errors ke format cellErrors
             const newCellErrors: {
               row: number;
@@ -12440,7 +12399,7 @@ export default function DetailBlok() {
                   field = "nama_ruangan";
                 else if (error.toLowerCase().includes("kelompok"))
                   field = "kelompok_besar";
-                
+
                 newCellErrors.push({
                   row: rowNum,
                   field: field,
@@ -12480,10 +12439,10 @@ export default function DetailBlok() {
                 // Hapus error yang mengandung kata-kata kunci error backend
                 return (
                   !message.includes("bentrok") &&
-                       !message.includes("jadwal bentrok") &&
-                       !message.includes("jurnal reading") &&
-                       !message.includes("kuliah besar") &&
-                       !message.includes("agenda khusus") &&
+                  !message.includes("jadwal bentrok") &&
+                  !message.includes("jurnal reading") &&
+                  !message.includes("kuliah besar") &&
+                  !message.includes("agenda khusus") &&
                   !message.includes("seminar pleno lain")
                 );
               });
@@ -12510,7 +12469,7 @@ export default function DetailBlok() {
 
     // Clear error backend terlebih dahulu (akan di-update setelah API call)
     setSeminarPlenoImportErrors([]);
-    
+
     setIsSeminarPlenoImporting(true);
 
     try {
@@ -12542,7 +12501,7 @@ export default function DetailBlok() {
         } else {
           useRuangan = false;
         }
-        
+
         return {
           tanggal: row.tanggal,
           jam_mulai: row.jam_mulai,
@@ -12595,11 +12554,11 @@ export default function DetailBlok() {
         // Gabungkan semua error (hanya yang sudah di-filter)
         const allErrors =
           backendMessage &&
-          !backendMessage.includes("Terjadi kesalahan saat memvalidasi data")
-          ? [backendMessage, ...filteredBackendErrors]
-          : filteredBackendErrors;
+            !backendMessage.includes("Terjadi kesalahan saat memvalidasi data")
+            ? [backendMessage, ...filteredBackendErrors]
+            : filteredBackendErrors;
         setSeminarPlenoImportErrors(allErrors);
-        
+
         // Jika ada error per baris, convert ke cellErrors untuk ditampilkan di tabel
         if (Array.isArray(backendErrors) && backendErrors.length > 0) {
           const newCellErrors: {
@@ -12627,7 +12586,7 @@ export default function DetailBlok() {
                 field = "ruangan";
               else if (error.toLowerCase().includes("kelompok"))
                 field = "kelompok_besar";
-              
+
               newCellErrors.push({
                 row: rowNum,
                 field: field,
@@ -12635,7 +12594,7 @@ export default function DetailBlok() {
               });
             }
           });
-          
+
           if (newCellErrors.length > 0) {
             setSeminarPlenoCellErrors(newCellErrors);
           }
@@ -12648,7 +12607,7 @@ export default function DetailBlok() {
         errorResponse?.message ||
         "Gagal mengimport data seminar pleno. Silakan coba lagi.";
       const errorDetails = errorResponse?.errors || [];
-      
+
       // Filter error generic yang tidak perlu ditampilkan
       const filteredErrorDetails = errorDetails.filter((error: string) => {
         // Skip error generic Laravel validation
@@ -12658,13 +12617,13 @@ export default function DetailBlok() {
           return false;
         return true;
       });
-      
+
       const filteredErrorMessage = errorMessage.includes(
         "Terjadi kesalahan saat memvalidasi data"
       )
-        ? null 
+        ? null
         : errorMessage;
-      
+
       // Gabungkan semua error (hanya yang sudah di-filter)
       const allErrors = filteredErrorMessage
         ? [filteredErrorMessage, ...filteredErrorDetails]
@@ -12673,10 +12632,10 @@ export default function DetailBlok() {
         allErrors.length > 0
           ? allErrors
           : filteredErrorMessage
-          ? [filteredErrorMessage]
-          : []
+            ? [filteredErrorMessage]
+            : []
       );
-      
+
       // Jika ada error per baris, convert ke cellErrors
       if (Array.isArray(errorDetails) && errorDetails.length > 0) {
         const newCellErrors: { row: number; field: string; message: string }[] =
@@ -12698,7 +12657,7 @@ export default function DetailBlok() {
             else if (error.toLowerCase().includes("ruangan")) field = "ruangan";
             else if (error.toLowerCase().includes("kelompok"))
               field = "kelompok_besar";
-            
+
             newCellErrors.push({
               row: rowNum,
               field: field,
@@ -12706,7 +12665,7 @@ export default function DetailBlok() {
             });
           }
         });
-        
+
         if (newCellErrors.length > 0) {
           setSeminarPlenoCellErrors(newCellErrors);
         }
@@ -12967,7 +12926,7 @@ export default function DetailBlok() {
       } else {
         setAgendaKhususImportErrors([
           error.response?.data?.message ||
-            "Terjadi kesalahan saat mengimport data",
+          "Terjadi kesalahan saat mengimport data",
         ]);
       }
     } finally {
@@ -13189,25 +13148,21 @@ export default function DetailBlok() {
       updatedData[rowIdx].ruangan_id = ruangan?.id || 0;
     } else if (key === "kelompok_kecil_id") {
       // Handle kelompok kecil edit - user bisa ketik nama kelompok
-      const kelompokKecilName = String(value).trim();
+      const kelompokKecilName = String(value);
       updatedData[rowIdx] = {
         ...updatedData[rowIdx],
         kelompok_kecil_name: kelompokKecilName,
       };
-      // Find kelompok kecil berdasarkan nama (case insensitive dan handle number format)
-      const kelompokKecil = kelompokKecilList.find(
-        (k) =>
-          k.nama_kelompok.toLowerCase().trim() ===
-            kelompokKecilName.toLowerCase().trim() ||
-          String(k.nama_kelompok).trim() === kelompokKecilName
-      );
+      // Find kelompok kecil berdasarkan nama menggunakan helper robust
+      const kelompokKecil = findKelompokKecilByName(kelompokKecilName, kelompokKecilList);
+
       updatedData[rowIdx].kelompok_kecil_id = kelompokKecil?.id || null;
       // Update kelompok_kecil object untuk display
       if (kelompokKecil) {
-        updatedData[rowIdx].kelompok_kecil = {
+        updatedData[rowIdx].kelompok_kecil = [{
           id: kelompokKecil.id,
           nama_kelompok: kelompokKecil.nama_kelompok,
-        };
+        }];
       } else {
         updatedData[rowIdx].kelompok_kecil = null;
       }
@@ -13271,33 +13226,29 @@ export default function DetailBlok() {
     value: string | number
   ) => {
     const updatedData = [...praktikumSiakadImportData];
-    
+
     // Handle kelompok kecil edit - user bisa ketik nama kelompok
     if (key === "kelompok_kecil_id") {
-      const kelompokKecilName = String(value).trim();
+      const kelompokKecilName = String(value);
       updatedData[rowIdx] = {
         ...updatedData[rowIdx],
         kelompok_kecil_name: kelompokKecilName,
       };
-      // Find kelompok kecil berdasarkan nama (case insensitive dan handle number format)
-      const kelompokKecil = kelompokKecilList.find(
-        (k) =>
-          k.nama_kelompok.toLowerCase().trim() ===
-            kelompokKecilName.toLowerCase().trim() ||
-          String(k.nama_kelompok).trim() === kelompokKecilName
-      );
+      // Find kelompok kecil berdasarkan nama menggunakan helper robust
+      const kelompokKecil = findKelompokKecilByName(kelompokKecilName, kelompokKecilList);
+
       updatedData[rowIdx].kelompok_kecil_id = kelompokKecil?.id || null;
       // Update kelompok_kecil object untuk display
       if (kelompokKecil) {
-        updatedData[rowIdx].kelompok_kecil = {
+        updatedData[rowIdx].kelompok_kecil = [{
           id: kelompokKecil.id,
           nama_kelompok: kelompokKecil.nama_kelompok,
-        };
+        }];
       } else {
         updatedData[rowIdx].kelompok_kecil = null;
       }
     } else {
-    updatedData[rowIdx] = { ...updatedData[rowIdx], [key]: value };
+      updatedData[rowIdx] = { ...updatedData[rowIdx], [key]: value };
     }
 
     // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
@@ -13882,11 +13833,10 @@ export default function DetailBlok() {
             {
               row: rowIndex,
               field: "materi",
-              message: `Materi "${
-                row.materi
-              }" tidak valid. Materi yang tersedia: ${materiTersedia.join(
-                ", "
-              )} (Baris ${rowNumber}, Kolom MATERI)`,
+              message: `Materi "${row.materi
+                }" tidak valid. Materi yang tersedia: ${materiTersedia.join(
+                  ", "
+                )} (Baris ${rowNumber}, Kolom MATERI)`,
             },
           ]);
         } else if (row.nama_dosen && row.nama_dosen.trim() !== "") {
@@ -13905,13 +13855,11 @@ export default function DetailBlok() {
                 {
                   row: rowIndex,
                   field: "materi",
-                  message: `Materi "${
-                    row.materi
-                  }" tidak sesuai dengan keahlian dosen "${
-                    dosen.name
-                  }". Keahlian dosen: ${keahlianDosen.join(
-                    ", "
-                  )} (Baris ${rowNumber}, Kolom MATERI)`,
+                  message: `Materi "${row.materi
+                    }" tidak sesuai dengan keahlian dosen "${dosen.name
+                    }". Keahlian dosen: ${keahlianDosen.join(
+                      ", "
+                    )} (Baris ${rowNumber}, Kolom MATERI)`,
                 },
               ]);
             }
@@ -14104,11 +14052,10 @@ export default function DetailBlok() {
             {
               row: rowIndex,
               field: "dosen_id",
-              message: `Dosen "${namaDosen}" tidak memiliki keahlian "${
-                row.materi
-              }". Keahlian dosen: ${keahlianDosen.join(
-                ", "
-              )} (Baris ${rowNumber}, Kolom Dosen)`,
+              message: `Dosen "${namaDosen}" tidak memiliki keahlian "${row.materi
+                }". Keahlian dosen: ${keahlianDosen.join(
+                  ", "
+                )} (Baris ${rowNumber}, Kolom Dosen)`,
             },
           ]);
         }
@@ -14528,11 +14475,10 @@ export default function DetailBlok() {
             <button
               onClick={() => setShowKuliahBesarExportModal(true)}
               disabled={jadwalKuliahBesar.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalKuliahBesar.length === 0
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalKuliahBesar.length === 0
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
               title={
                 jadwalKuliahBesar.length === 0
                   ? "Tidak ada data kuliah besar. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
@@ -14572,7 +14518,7 @@ export default function DetailBlok() {
 
                   modul: null,
 
-                  kelompok: "",
+                  kelompok: [],
 
                   kelompokBesar: null,
 
@@ -14645,14 +14591,13 @@ export default function DetailBlok() {
                       onClick={() =>
                         handleSelectAll("kuliah-besar", jadwalKuliahBesar)
                       }
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                        jadwalKuliahBesar.length > 0 &&
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalKuliahBesar.length > 0 &&
                         jadwalKuliahBesar.every((item) =>
                           selectedKuliahBesarItems.includes(item.id!)
                         )
-                          ? "bg-brand-500 border-brand-500"
-                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                      } cursor-pointer`}
+                        ? "bg-brand-500 border-brand-500"
+                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                        } cursor-pointer`}
                     >
                       {jadwalKuliahBesar.length > 0 &&
                         jadwalKuliahBesar.every((item) =>
@@ -14751,11 +14696,10 @@ export default function DetailBlok() {
                             onClick={() =>
                               handleSelectItem("kuliah-besar", row.id!)
                             }
-                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                              selectedKuliahBesarItems.includes(row.id!)
-                                ? "bg-brand-500 border-brand-500"
-                                : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                            } cursor-pointer`}
+                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedKuliahBesarItems.includes(row.id!)
+                              ? "bg-brand-500 border-brand-500"
+                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                              } cursor-pointer`}
                           >
                             {selectedKuliahBesarItems.includes(row.id!) && (
                               <svg
@@ -14802,10 +14746,10 @@ export default function DetailBlok() {
                           {row.kelompok_besar?.semester
                             ? `Kelompok Besar Semester ${row.kelompok_besar.semester}`
                             : row.kelompok_besar?.nama_kelompok
-                            ? row.kelompok_besar.nama_kelompok
-                            : row.kelompok_besar_antara?.nama_kelompok
-                            ? row.kelompok_besar_antara.nama_kelompok
-                            : "-"}
+                              ? row.kelompok_besar.nama_kelompok
+                              : row.kelompok_besar_antara?.nama_kelompok
+                                ? row.kelompok_besar_antara.nama_kelompok
+                                : "-"}
                         </td>
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -14843,8 +14787,8 @@ export default function DetailBlok() {
                                 // Cari index berdasarkan ID untuk memastikan data yang benar
                                 const correctIndex =
                                   jadwalKuliahBesar.findIndex(
-                                  (j) => j.id === row.id
-                                );
+                                    (j) => j.id === row.id
+                                  );
                                 handleEditJadwalKuliahBesar(
                                   correctIndex >= 0 ? correctIndex : actualIndex
                                 );
@@ -14897,11 +14841,10 @@ export default function DetailBlok() {
             <button
               disabled={isBulkDeleting}
               onClick={() => handleBulkDelete("kuliah-besar")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                isBulkDeleting
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+                }`}
             >
               {isBulkDeleting
                 ? "Menghapus..."
@@ -14981,17 +14924,16 @@ export default function DetailBlok() {
               {/* Always show first page if it's not the current page */}
               {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) >
                 1 && (
-                <button
-                  onClick={() => setKuliahBesarPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    kuliahBesarPage === 1
+                  <button
+                    onClick={() => setKuliahBesarPage(1)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${kuliahBesarPage === 1
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  1
-                </button>
-              )}
+                      }`}
+                  >
+                    1
+                  </button>
+                )}
 
               {/* Show pages around current page */}
               {Array.from(
@@ -15007,10 +14949,10 @@ export default function DetailBlok() {
                   const shouldShow =
                     pageNum > 1 &&
                     pageNum <
-                      getTotalPages(
-                        jadwalKuliahBesar.length,
-                        kuliahBesarPageSize
-                      ) &&
+                    getTotalPages(
+                      jadwalKuliahBesar.length,
+                      kuliahBesarPageSize
+                    ) &&
                     pageNum >= kuliahBesarPage - 2 &&
                     pageNum <= kuliahBesarPage + 2;
 
@@ -15020,11 +14962,10 @@ export default function DetailBlok() {
                     <button
                       key={pageNum}
                       onClick={() => setKuliahBesarPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        kuliahBesarPage === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${kuliahBesarPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -15035,34 +14976,33 @@ export default function DetailBlok() {
               {/* Show ellipsis if current page is far from end */}
               {kuliahBesarPage <
                 getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) -
-                  3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">
-                  ...
-                </span>
-              )}
+                3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">
+                    ...
+                  </span>
+                )}
 
               {/* Always show last page if it's not the first page */}
               {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) >
                 1 && (
-                <button
-                  onClick={() =>
-                    setKuliahBesarPage(
-                      getTotalPages(
-                        jadwalKuliahBesar.length,
-                        kuliahBesarPageSize
+                  <button
+                    onClick={() =>
+                      setKuliahBesarPage(
+                        getTotalPages(
+                          jadwalKuliahBesar.length,
+                          kuliahBesarPageSize
+                        )
                       )
-                    )
-                  }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    kuliahBesarPage ===
-                    getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)
+                    }
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${kuliahBesarPage ===
+                      getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)}
-                </button>
-              )}
+                      }`}
+                  >
+                    {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)}
+                  </button>
+                )}
 
               <button
                 onClick={() =>
@@ -15119,11 +15059,10 @@ export default function DetailBlok() {
             <button
               onClick={handleExportSeminarPleno}
               disabled={jadwalSeminarPleno.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalSeminarPleno.length === 0
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalSeminarPleno.length === 0
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
               title={
                 jadwalSeminarPleno.length === 0
                   ? "Tidak ada data seminar pleno. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
@@ -15150,7 +15089,7 @@ export default function DetailBlok() {
                   agenda: "",
                   pblTipe: "",
                   modul: null,
-                  kelompok: "",
+                  kelompok: [],
                   kelompokBesar: null,
                   useRuangan: true,
                   fileJurnal: null,
@@ -15199,14 +15138,13 @@ export default function DetailBlok() {
                       onClick={() =>
                         handleSelectAll("seminar-pleno", jadwalSeminarPleno)
                       }
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                        jadwalSeminarPleno.length > 0 &&
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalSeminarPleno.length > 0 &&
                         jadwalSeminarPleno.every((item) =>
                           selectedSeminarPlenoItems.includes(item.id!)
                         )
-                          ? "bg-brand-500 border-brand-500"
-                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                      } cursor-pointer`}
+                        ? "bg-brand-500 border-brand-500"
+                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                        } cursor-pointer`}
                     >
                       {jadwalSeminarPleno.length > 0 &&
                         jadwalSeminarPleno.every((item) =>
@@ -15295,11 +15233,10 @@ export default function DetailBlok() {
                           onClick={() =>
                             handleSelectItem("seminar-pleno", row.id!)
                           }
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                            selectedSeminarPlenoItems.includes(row.id!)
-                              ? "bg-brand-500 border-brand-500"
-                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                          } cursor-pointer`}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedSeminarPlenoItems.includes(row.id!)
+                            ? "bg-brand-500 border-brand-500"
+                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            } cursor-pointer`}
                         >
                           {selectedSeminarPlenoItems.includes(row.id!) && (
                             <svg
@@ -15481,15 +15418,15 @@ export default function DetailBlok() {
                                   agenda: "",
                                   pblTipe: "",
                                   modul: null,
-                                  kelompok: "",
+                                  kelompok: [],
                                   kelompokBesar:
                                     actualRow.kelompok_besar_id || null,
                                   useRuangan:
                                     actualRow.use_ruangan !== undefined
                                       ? actualRow.use_ruangan
                                       : actualRow.ruangan_id
-                                      ? true
-                                      : false,
+                                        ? true
+                                        : false,
                                   fileJurnal: null,
                                 });
                                 setEditIndex(idx);
@@ -15542,11 +15479,10 @@ export default function DetailBlok() {
             <button
               disabled={isBulkDeleting}
               onClick={() => handleBulkDelete("seminar-pleno")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                isBulkDeleting
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+                }`}
             >
               {isBulkDeleting
                 ? "Menghapus..."
@@ -15593,17 +15529,16 @@ export default function DetailBlok() {
               </button>
               {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) >
                 1 && (
-                <button
-                  onClick={() => setSeminarPlenoPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    seminarPlenoPage === 1
+                  <button
+                    onClick={() => setSeminarPlenoPage(1)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${seminarPlenoPage === 1
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  1
-                </button>
-              )}
+                      }`}
+                  >
+                    1
+                  </button>
+                )}
               {Array.from(
                 {
                   length: getTotalPages(
@@ -15616,10 +15551,10 @@ export default function DetailBlok() {
                   const shouldShow =
                     pageNum > 1 &&
                     pageNum <
-                      getTotalPages(
-                        jadwalSeminarPleno.length,
-                        seminarPlenoPageSize
-                      ) &&
+                    getTotalPages(
+                      jadwalSeminarPleno.length,
+                      seminarPlenoPageSize
+                    ) &&
                     pageNum >= seminarPlenoPage - 2 &&
                     pageNum <= seminarPlenoPage + 2;
                   if (!shouldShow) return null;
@@ -15627,11 +15562,10 @@ export default function DetailBlok() {
                     <button
                       key={pageNum}
                       onClick={() => setSeminarPlenoPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        seminarPlenoPage === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${seminarPlenoPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -15640,38 +15574,37 @@ export default function DetailBlok() {
               )}
               {seminarPlenoPage <
                 getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) -
-                  3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">
-                  ...
-                </span>
-              )}
+                3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">
+                    ...
+                  </span>
+                )}
               {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) >
                 1 && (
-                <button
-                  onClick={() =>
-                    setSeminarPlenoPage(
+                  <button
+                    onClick={() =>
+                      setSeminarPlenoPage(
+                        getTotalPages(
+                          jadwalSeminarPleno.length,
+                          seminarPlenoPageSize
+                        )
+                      )
+                    }
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${seminarPlenoPage ===
                       getTotalPages(
                         jadwalSeminarPleno.length,
                         seminarPlenoPageSize
                       )
-                    )
-                  }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    seminarPlenoPage ===
-                    getTotalPages(
-                      jadwalSeminarPleno.length,
-                      seminarPlenoPageSize
-                    )
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {getTotalPages(
-                    jadwalSeminarPleno.length,
-                    seminarPlenoPageSize
-                  )}
-                </button>
-              )}
+                      }`}
+                  >
+                    {getTotalPages(
+                      jadwalSeminarPleno.length,
+                      seminarPlenoPageSize
+                    )}
+                  </button>
+                )}
               <button
                 onClick={() =>
                   setSeminarPlenoPage((p) =>
@@ -15758,11 +15691,10 @@ export default function DetailBlok() {
             <button
               onClick={() => setShowPraktikumExportModal(true)}
               disabled={jadwalPraktikum.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalPraktikum.length === 0
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalPraktikum.length === 0
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
               title={
                 jadwalPraktikum.length === 0
                   ? "Tidak ada data praktikum. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
@@ -15801,7 +15733,7 @@ export default function DetailBlok() {
 
                   modul: null,
 
-                  kelompok: "",
+                  kelompok: [],
 
                   kelompokBesar: null,
 
@@ -15878,14 +15810,13 @@ export default function DetailBlok() {
                       onClick={() =>
                         handleSelectAll("praktikum", jadwalPraktikum)
                       }
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                        jadwalPraktikum.length > 0 &&
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalPraktikum.length > 0 &&
                         jadwalPraktikum.every((item) =>
                           selectedPraktikumItems.includes(item.id!)
                         )
-                          ? "bg-brand-500 border-brand-500"
-                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                      } cursor-pointer`}
+                        ? "bg-brand-500 border-brand-500"
+                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                        } cursor-pointer`}
                     >
                       {jadwalPraktikum.length > 0 &&
                         jadwalPraktikum.every((item) =>
@@ -15977,11 +15908,10 @@ export default function DetailBlok() {
                           )}
                           role="checkbox"
                           onClick={() => handleSelectItem("praktikum", row.id!)}
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                            selectedPraktikumItems.includes(row.id!)
-                              ? "bg-brand-500 border-brand-500"
-                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                          } cursor-pointer`}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedPraktikumItems.includes(row.id!)
+                            ? "bg-brand-500 border-brand-500"
+                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            } cursor-pointer`}
                         >
                           {selectedPraktikumItems.includes(row.id!) && (
                             <svg
@@ -16006,7 +15936,9 @@ export default function DetailBlok() {
                       </td>
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {row.kelompok_kecil?.nama_kelompok || "-"}
+                        {Array.isArray(row.kelompok_kecil)
+                          ? row.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
+                          : row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` : "-"}
                       </td>
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -16096,22 +16028,22 @@ export default function DetailBlok() {
                           {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
                           {(row.dosen_id ||
                             (row.dosen && row.dosen.length > 0)) && (
-                            <button
-                              onClick={() =>
-                                navigate(`/absensi-praktikum/${kode}/${row.id}`)
-                              }
-                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
-                              title="Buka Absensi"
-                            >
-                              <FontAwesomeIcon
-                                icon={faCheckCircle}
-                                className="w-3.5 h-3.5 shrink-0"
-                              />
-                              <span className="hidden xl:inline whitespace-nowrap">
-                                Absensi
-                              </span>
-                            </button>
-                          )}
+                              <button
+                                onClick={() =>
+                                  navigate(`/absensi-praktikum/${kode}/${row.id}`)
+                                }
+                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
+                                title="Buka Absensi"
+                              >
+                                <FontAwesomeIcon
+                                  icon={faCheckCircle}
+                                  className="w-3.5 h-3.5 shrink-0"
+                                />
+                                <span className="hidden xl:inline whitespace-nowrap">
+                                  Absensi
+                                </span>
+                              </button>
+                            )}
                           <button
                             onClick={() => {
                               // Cari index berdasarkan ID untuk memastikan data yang benar
@@ -16167,11 +16099,10 @@ export default function DetailBlok() {
             <button
               disabled={isBulkDeleting}
               onClick={() => handleBulkDelete("praktikum")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                isBulkDeleting
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+                }`}
             >
               {isBulkDeleting
                 ? "Menghapus..."
@@ -16252,11 +16183,10 @@ export default function DetailBlok() {
               {getTotalPages(jadwalPraktikum.length, praktikumPageSize) > 1 && (
                 <button
                   onClick={() => setPraktikumPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    praktikumPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${praktikumPage === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
@@ -16276,10 +16206,10 @@ export default function DetailBlok() {
                   const shouldShow =
                     pageNum > 1 &&
                     pageNum <
-                      getTotalPages(
-                        jadwalPraktikum.length,
-                        praktikumPageSize
-                      ) &&
+                    getTotalPages(
+                      jadwalPraktikum.length,
+                      praktikumPageSize
+                    ) &&
                     pageNum >= praktikumPage - 2 &&
                     pageNum <= praktikumPage + 2;
 
@@ -16289,11 +16219,10 @@ export default function DetailBlok() {
                     <button
                       key={pageNum}
                       onClick={() => setPraktikumPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        praktikumPage === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${praktikumPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -16304,11 +16233,11 @@ export default function DetailBlok() {
               {/* Show ellipsis if current page is far from end */}
               {praktikumPage <
                 getTotalPages(jadwalPraktikum.length, praktikumPageSize) -
-                  3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">
-                  ...
-                </span>
-              )}
+                3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">
+                    ...
+                  </span>
+                )}
 
               {/* Always show last page if it's not the first page */}
               {getTotalPages(jadwalPraktikum.length, praktikumPageSize) > 1 && (
@@ -16318,12 +16247,11 @@ export default function DetailBlok() {
                       getTotalPages(jadwalPraktikum.length, praktikumPageSize)
                     )
                   }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    praktikumPage ===
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${praktikumPage ===
                     getTotalPages(jadwalPraktikum.length, praktikumPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {getTotalPages(jadwalPraktikum.length, praktikumPageSize)}
                 </button>
@@ -16385,11 +16313,10 @@ export default function DetailBlok() {
             <button
               onClick={exportAgendaKhususExcel}
               disabled={jadwalAgendaKhusus.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalAgendaKhusus.length === 0
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalAgendaKhusus.length === 0
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
               title={
                 jadwalAgendaKhusus.length === 0
                   ? "Tidak ada data agenda khusus. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
@@ -16430,7 +16357,7 @@ export default function DetailBlok() {
 
                   modul: null,
 
-                  kelompok: "",
+                  kelompok: [],
 
                   kelompokBesar: null,
 
@@ -16511,14 +16438,13 @@ export default function DetailBlok() {
                       onClick={() =>
                         handleSelectAll("agenda-khusus", jadwalAgendaKhusus)
                       }
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                        jadwalAgendaKhusus.length > 0 &&
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalAgendaKhusus.length > 0 &&
                         jadwalAgendaKhusus.every((item) =>
                           selectedAgendaKhususItems.includes(item.id!)
                         )
-                          ? "bg-brand-500 border-brand-500"
-                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                      } cursor-pointer`}
+                        ? "bg-brand-500 border-brand-500"
+                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                        } cursor-pointer`}
                     >
                       {jadwalAgendaKhusus.length > 0 &&
                         jadwalAgendaKhusus.every((item) =>
@@ -16600,11 +16526,10 @@ export default function DetailBlok() {
                           onClick={() =>
                             handleSelectItem("agenda-khusus", row.id!)
                           }
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                            selectedAgendaKhususItems.includes(row.id!)
-                              ? "bg-brand-500 border-brand-500"
-                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                          } cursor-pointer`}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedAgendaKhususItems.includes(row.id!)
+                            ? "bg-brand-500 border-brand-500"
+                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            } cursor-pointer`}
                         >
                           {selectedAgendaKhususItems.includes(row.id!) && (
                             <svg
@@ -16650,7 +16575,7 @@ export default function DetailBlok() {
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.use_ruangan
                           ? allRuanganList.find((r) => r.id === row.ruangan_id)
-                              ?.nama || `Ruangan ${row.ruangan_id}`
+                            ?.nama || `Ruangan ${row.ruangan_id}`
                           : "-"}
                       </td>
 
@@ -16707,11 +16632,10 @@ export default function DetailBlok() {
             <button
               disabled={isBulkDeleting}
               onClick={() => handleBulkDelete("agenda-khusus")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                isBulkDeleting
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+                }`}
             >
               {isBulkDeleting
                 ? "Menghapus..."
@@ -16792,17 +16716,16 @@ export default function DetailBlok() {
               {/* Always show first page if it's not the current page */}
               {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) >
                 1 && (
-                <button
-                  onClick={() => setAgendaKhususPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    agendaKhususPage === 1
+                  <button
+                    onClick={() => setAgendaKhususPage(1)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${agendaKhususPage === 1
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  1
-                </button>
-              )}
+                      }`}
+                  >
+                    1
+                  </button>
+                )}
 
               {/* Show pages around current page */}
               {Array.from(
@@ -16818,10 +16741,10 @@ export default function DetailBlok() {
                   const shouldShow =
                     pageNum > 1 &&
                     pageNum <
-                      getTotalPages(
-                        jadwalAgendaKhusus.length,
-                        agendaKhususPageSize
-                      ) &&
+                    getTotalPages(
+                      jadwalAgendaKhusus.length,
+                      agendaKhususPageSize
+                    ) &&
                     pageNum >= agendaKhususPage - 2 &&
                     pageNum <= agendaKhususPage + 2;
 
@@ -16831,11 +16754,10 @@ export default function DetailBlok() {
                     <button
                       key={pageNum}
                       onClick={() => setAgendaKhususPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        agendaKhususPage === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${agendaKhususPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -16846,40 +16768,39 @@ export default function DetailBlok() {
               {/* Show ellipsis if current page is far from end */}
               {agendaKhususPage <
                 getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) -
-                  3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">
-                  ...
-                </span>
-              )}
+                3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">
+                    ...
+                  </span>
+                )}
 
               {/* Always show last page if it's not the first page */}
               {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) >
                 1 && (
-                <button
-                  onClick={() =>
-                    setAgendaKhususPage(
+                  <button
+                    onClick={() =>
+                      setAgendaKhususPage(
+                        getTotalPages(
+                          jadwalAgendaKhusus.length,
+                          agendaKhususPageSize
+                        )
+                      )
+                    }
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${agendaKhususPage ===
                       getTotalPages(
                         jadwalAgendaKhusus.length,
                         agendaKhususPageSize
                       )
-                    )
-                  }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    agendaKhususPage ===
-                    getTotalPages(
-                      jadwalAgendaKhusus.length,
-                      agendaKhususPageSize
-                    )
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {getTotalPages(
-                    jadwalAgendaKhusus.length,
-                    agendaKhususPageSize
-                  )}
-                </button>
-              )}
+                      }`}
+                  >
+                    {getTotalPages(
+                      jadwalAgendaKhusus.length,
+                      agendaKhususPageSize
+                    )}
+                  </button>
+                )}
 
               <button
                 onClick={() =>
@@ -17049,10 +16970,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -17106,24 +17027,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -17294,10 +17215,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -17351,24 +17272,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -17504,10 +17425,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -17561,24 +17482,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -17722,11 +17643,11 @@ export default function DetailBlok() {
                                 (k) => Number(k.id) === form.kelompokBesar
                               )
                                 ? {
-                                    value: form.kelompokBesar,
-                                    label: kelompokBesarOptions.find(
-                                      (k) => Number(k.id) === form.kelompokBesar
-                                    )?.label,
-                                  }
+                                  value: form.kelompokBesar,
+                                  label: kelompokBesarOptions.find(
+                                    (k) => Number(k.id) === form.kelompokBesar
+                                  )?.label,
+                                }
                                 : null
                             }
                             onChange={(opt) => {
@@ -17756,10 +17677,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -17813,24 +17734,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -17956,10 +17877,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -18013,24 +17934,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -18148,20 +18069,23 @@ export default function DetailBlok() {
                         ) : (
                           <Select
                             options={uniqueKelompok}
+                            isMulti
                             value={
-                              uniqueKelompok.find(
-                                (k) => k.value === form.kelompok
-                              )
-                                ? {
-                                    value: form.kelompok,
-                                    label: form.kelompok,
-                                  }
-                                : null
+                              Array.isArray(form.kelompok)
+                                ? uniqueKelompok.filter((k) =>
+                                  form.kelompok.includes(k.value)
+                                )
+                                : uniqueKelompok.find(
+                                  (k) => k.value === form.kelompok
+                                ) || null
                             }
-                            onChange={(opt) => {
+                            onChange={(newValue) => {
+                              const selectedValues = newValue
+                                ? newValue.map((opt) => opt.value)
+                                : [];
                               setForm((f) => ({
                                 ...f,
-                                kelompok: opt?.value || "",
+                                kelompok: selectedValues,
                               }));
 
                               resetErrorForm();
@@ -18184,10 +18108,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -18241,24 +18165,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -18369,10 +18293,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -18426,24 +18350,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -18577,24 +18501,24 @@ export default function DetailBlok() {
                             options={
                               form.jenisBaris === "praktikum"
                                 ? materiPraktikumOptions.map((m) => ({
-                                    value: m,
-                                    label: m,
-                                  }))
+                                  value: m,
+                                  label: m,
+                                }))
                                 : materiOptions.map((m: string) => ({
-                                    value: m,
-                                    label: m,
-                                  }))
+                                  value: m,
+                                  label: m,
+                                }))
                             }
                             value={
                               (form.jenisBaris === "praktikum"
                                 ? materiPraktikumOptions.map((m) => ({
-                                    value: m,
-                                    label: m,
-                                  }))
+                                  value: m,
+                                  label: m,
+                                }))
                                 : materiOptions.map((m: string) => ({
-                                    value: m,
-                                    label: m,
-                                  }))
+                                  value: m,
+                                  label: m,
+                                }))
                               ).find((opt: any) => opt.value === form.materi) ||
                               null
                             }
@@ -18638,10 +18562,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -18695,24 +18619,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -18779,7 +18703,7 @@ export default function DetailBlok() {
                         </label>
 
                         {["pbl", "jurnal"].includes(form.jenisBaris) &&
-                        loadingAssignedPBL ? (
+                          loadingAssignedPBL ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -18893,18 +18817,18 @@ export default function DetailBlok() {
                               if (form.jenisBaris === "praktikum") {
                                 return Array.isArray(form.pengampu)
                                   ? pengampuPraktikumOptions
-                                      .filter((d) =>
-                                        (form.pengampu as number[]).includes(
-                                          d.id
-                                        )
+                                    .filter((d) =>
+                                      (form.pengampu as number[]).includes(
+                                        d.id
                                       )
-                                      .map((d) => ({
-                                        value: d.id,
+                                    )
+                                    .map((d) => ({
+                                      value: d.id,
 
-                                        label: d.name,
+                                      label: d.name,
 
-                                        data: d,
-                                      }))
+                                      data: d,
+                                    }))
                                   : null;
                               } else if (
                                 ["pbl", "jurnal"].includes(form.jenisBaris)
@@ -18940,11 +18864,11 @@ export default function DetailBlok() {
                                   ...f,
                                   pengampu: opt
                                     ? (
-                                        opt as {
-                                          value: number;
-                                          label: string;
-                                        }[]
-                                      ).map((o) => o.value)
+                                      opt as {
+                                        value: number;
+                                        label: string;
+                                      }[]
+                                    ).map((o) => o.value)
                                     : [],
                                 }));
                               } else {
@@ -18952,13 +18876,13 @@ export default function DetailBlok() {
                                   ...f,
                                   pengampu: opt
                                     ? Number(
-                                        (
-                                          opt as {
-                                            value: number;
-                                            label: string;
-                                          }
-                                        ).value
-                                      )
+                                      (
+                                        opt as {
+                                          value: number;
+                                          label: string;
+                                        }
+                                      ).value
+                                    )
                                     : null,
                                 }));
                               }
@@ -18999,20 +18923,19 @@ export default function DetailBlok() {
 
                                 const isStandby = Array.isArray(dosen.keahlian)
                                   ? dosen.keahlian.some((k: string) =>
-                                      k.toLowerCase().includes("standby")
-                                    )
+                                    k.toLowerCase().includes("standby")
+                                  )
                                   : (dosen.keahlian || "")
-                                      .toLowerCase()
-                                      .includes("standby");
+                                    .toLowerCase()
+                                    .includes("standby");
 
                                 return (
                                   <div className="flex items-center gap-2 p-2">
                                     <div
-                                      className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                        isStandby
-                                          ? "bg-yellow-400"
-                                          : "bg-green-500"
-                                      }`}
+                                      className={`w-6 h-6 rounded-full flex items-center justify-center ${isStandby
+                                        ? "bg-yellow-400"
+                                        : "bg-green-500"
+                                        }`}
                                     >
                                       <span className="text-white text-xs font-bold">
                                         {dosen.name.charAt(0)}
@@ -19020,11 +18943,10 @@ export default function DetailBlok() {
                                     </div>
 
                                     <span
-                                      className={`text-xs font-medium ${
-                                        isStandby
-                                          ? "text-yellow-800 dark:text-yellow-200"
-                                          : "text-green-700 dark:text-green-200"
-                                      }`}
+                                      className={`text-xs font-medium ${isStandby
+                                        ? "text-yellow-800 dark:text-yellow-200"
+                                        : "text-green-700 dark:text-green-200"
+                                        }`}
                                     >
                                       {dosen.name}
                                     </span>
@@ -19059,10 +18981,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -19116,24 +19038,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
 
@@ -19268,26 +19190,24 @@ export default function DetailBlok() {
                                     dosen.keahlian
                                   )
                                     ? dosen.keahlian.some((k: string) =>
-                                        k.toLowerCase().includes("standby")
-                                      )
+                                      k.toLowerCase().includes("standby")
+                                    )
                                     : (dosen.keahlian || "")
-                                        .toLowerCase()
-                                        .includes("standby");
+                                      .toLowerCase()
+                                      .includes("standby");
 
                                   return (
                                     <div
-                                      className={`flex items-center gap-2 px-3 py-1 rounded-full ${
-                                        isStandby
-                                          ? "bg-yellow-100 dark:bg-yellow-900/40"
-                                          : "bg-green-100 dark:bg-green-900/40"
-                                      }`}
+                                      className={`flex items-center gap-2 px-3 py-1 rounded-full ${isStandby
+                                        ? "bg-yellow-100 dark:bg-yellow-900/40"
+                                        : "bg-green-100 dark:bg-green-900/40"
+                                        }`}
                                     >
                                       <div
-                                        className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                          isStandby
-                                            ? "bg-yellow-400"
-                                            : "bg-green-500"
-                                        }`}
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center ${isStandby
+                                          ? "bg-yellow-400"
+                                          : "bg-green-500"
+                                          }`}
                                       >
                                         <span className="text-white text-xs font-bold">
                                           {dosen.name.charAt(0)}
@@ -19295,11 +19215,10 @@ export default function DetailBlok() {
                                       </div>
 
                                       <span
-                                        className={`text-xs font-medium ${
-                                          isStandby
-                                            ? "text-yellow-800 dark:text-yellow-200"
-                                            : "text-green-700 dark:text-green-200"
-                                        }`}
+                                        className={`text-xs font-medium ${isStandby
+                                          ? "text-yellow-800 dark:text-yellow-200"
+                                          : "text-green-700 dark:text-green-200"
+                                          }`}
                                       >
                                         {dosen.name}
                                       </span>
@@ -19436,10 +19355,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -19493,24 +19412,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -19645,10 +19564,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -19702,24 +19621,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -19899,10 +19818,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -19956,24 +19875,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -20056,10 +19975,9 @@ export default function DetailBlok() {
 
                                 border-2
 
-                                ${
-                                  form.useRuangan
-                                    ? "border-brand-500 bg-brand-500"
-                                    : "border-brand-500 bg-transparent"
+                                ${form.useRuangan
+                                  ? "border-brand-500 bg-brand-500"
+                                  : "border-brand-500 bg-transparent"
                                 }
 
                                 transition-colors
@@ -20158,10 +20076,10 @@ export default function DetailBlok() {
                                   borderColor: state.isFocused
                                     ? "#3b82f6"
                                     : document.documentElement.classList.contains(
-                                        "dark"
-                                      )
-                                    ? "#334155"
-                                    : "#d1d5db",
+                                      "dark"
+                                    )
+                                      ? "#334155"
+                                      : "#d1d5db",
 
                                   color:
                                     document.documentElement.classList.contains(
@@ -20215,24 +20133,24 @@ export default function DetailBlok() {
                                   backgroundColor: state.isSelected
                                     ? "#3b82f6"
                                     : state.isFocused
-                                    ? document.documentElement.classList.contains(
+                                      ? document.documentElement.classList.contains(
                                         "dark"
                                       )
-                                      ? "#334155"
-                                      : "#e0e7ff"
-                                    : document.documentElement.classList.contains(
+                                        ? "#334155"
+                                        : "#e0e7ff"
+                                      : document.documentElement.classList.contains(
                                         "dark"
                                       )
-                                    ? "#1e293b"
-                                    : "#fff",
+                                        ? "#1e293b"
+                                        : "#fff",
 
                                   color: state.isSelected
                                     ? "#fff"
                                     : document.documentElement.classList.contains(
-                                        "dark"
-                                      )
-                                    ? "#fff"
-                                    : "#1f2937",
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
 
                                   fontSize: "1rem",
                                 }),
@@ -20403,10 +20321,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -20460,24 +20378,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -20607,11 +20525,11 @@ export default function DetailBlok() {
                                 (modul) => modul.id === form.modul
                               )
                                 ? {
-                                    value: form.modul,
-                                    label: modulPBLList.find(
-                                      (modul) => modul.id === form.modul
-                                    )!.nama_modul,
-                                  }
+                                  value: form.modul,
+                                  label: modulPBLList.find(
+                                    (modul) => modul.id === form.modul
+                                  )!.nama_modul,
+                                }
                                 : null
                             }
                             onChange={(opt) =>
@@ -20638,10 +20556,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -20695,24 +20613,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -20838,10 +20756,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -20895,24 +20813,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -21069,10 +20987,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -21126,24 +21044,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -21293,10 +21211,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -21350,24 +21268,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -21494,10 +21412,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
                                 color:
                                   document.documentElement.classList.contains(
                                     "dark"
@@ -21536,23 +21454,23 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
                                 fontSize: "1rem",
                               }),
                               singleValue: (base) => ({
@@ -21716,33 +21634,33 @@ export default function DetailBlok() {
                             })}
                             value={
                               Array.isArray(form.koordinator) &&
-                              form.koordinator.length > 0
+                                form.koordinator.length > 0
                                 ? assignedDosenPBL.find(
-                                    (d) =>
-                                      d.id === (form.koordinator as number[])[0]
-                                  )
+                                  (d) =>
+                                    d.id === (form.koordinator as number[])[0]
+                                )
                                   ? {
-                                      value: (form.koordinator as number[])[0],
-                                      label:
-                                        assignedDosenPBL.find(
-                                          (d) =>
-                                            d.id ===
-                                            (form.koordinator as number[])[0]
-                                        )?.name || "",
-                                      data: assignedDosenPBL.find(
+                                    value: (form.koordinator as number[])[0],
+                                    label:
+                                      assignedDosenPBL.find(
                                         (d) =>
                                           d.id ===
                                           (form.koordinator as number[])[0]
-                                      ),
-                                      isDisabled: false,
-                                    }
+                                      )?.name || "",
+                                    data: assignedDosenPBL.find(
+                                      (d) =>
+                                        d.id ===
+                                        (form.koordinator as number[])[0]
+                                    ),
+                                    isDisabled: false,
+                                  }
                                   : null
                                 : form.koordinator &&
                                   typeof form.koordinator === "number"
-                                ? assignedDosenPBL.find(
+                                  ? assignedDosenPBL.find(
                                     (d) => d.id === form.koordinator
                                   )
-                                  ? {
+                                    ? {
                                       value: form.koordinator,
                                       label:
                                         assignedDosenPBL.find(
@@ -21753,8 +21671,8 @@ export default function DetailBlok() {
                                       ),
                                       isDisabled: false,
                                     }
+                                    : null
                                   : null
-                                : null
                             }
                             onChange={(selected) => {
                               const selectedId = selected
@@ -21802,10 +21720,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
                                 color:
                                   document.documentElement.classList.contains(
                                     "dark"
@@ -21844,27 +21762,27 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                      ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#334155"
+                                        : "#e0e7ff"
+                                      : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#1e293b"
+                                        : "#fff",
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                    ? "#fff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                      ? "#fff"
+                                      : "#1f2937",
                                 cursor: state.isDisabled
                                   ? "not-allowed"
                                   : "default",
@@ -21988,17 +21906,17 @@ export default function DetailBlok() {
                             })}
                             value={
                               Array.isArray(form.pengampu) &&
-                              form.pengampu.length > 0
+                                form.pengampu.length > 0
                                 ? assignedDosenPBL
-                                    .filter((d) =>
-                                      (form.pengampu as number[]).includes(d.id)
-                                    )
-                                    .map((d) => ({
-                                      value: d.id,
-                                      label: d.name,
-                                      data: d,
-                                      isDisabled: false,
-                                    }))
+                                  .filter((d) =>
+                                    (form.pengampu as number[]).includes(d.id)
+                                  )
+                                  .map((d) => ({
+                                    value: d.id,
+                                    label: d.name,
+                                    data: d,
+                                    isDisabled: false,
+                                  }))
                                 : []
                             }
                             onChange={(selected) => {
@@ -22046,10 +21964,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
                                 color:
                                   document.documentElement.classList.contains(
                                     "dark"
@@ -22088,27 +22006,27 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                      ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#334155"
+                                        : "#e0e7ff"
+                                      : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#1e293b"
+                                        : "#fff",
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                    ? "#fff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                      ? "#fff"
+                                      : "#1f2937",
                                 fontSize: "1rem",
                                 padding: "0.5rem",
                               }),
@@ -22233,10 +22151,9 @@ export default function DetailBlok() {
                                 appearance-none
                                 rounded-md
                                 border-2
-                                ${
-                                  form.useRuangan
-                                    ? "border-brand-500 bg-brand-500"
-                                    : "border-brand-500 bg-transparent"
+                                ${form.useRuangan
+                                  ? "border-brand-500 bg-brand-500"
+                                  : "border-brand-500 bg-transparent"
                                 }
                                 transition-colors
                                 duration-150
@@ -22269,163 +22186,163 @@ export default function DetailBlok() {
                             Ruangan
                           </label>
                           {ruanganList.length === 0 ? (
-                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-5 h-5 text-orange-500"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada ruangan yang ditambahkan untuk mata
-                                kuliah ini
-                              </span>
+                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                              <div className="flex items-center gap-2">
+                                <svg
+                                  className="w-5 h-5 text-orange-500"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                  Belum ada ruangan yang ditambahkan untuk mata
+                                  kuliah ini
+                                </span>
+                              </div>
+                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                                Silakan tambahkan ruangan terlebih dahulu di
+                                halaman Ruangan Detail
+                              </p>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan tambahkan ruangan terlebih dahulu di
-                              halaman Ruangan Detail
-                            </p>
-                          </div>
-                        ) : (
-                          <Select
-                            options={ruanganOptions}
-                            value={
-                              ruanganOptions.find(
-                                (opt) => opt.value === form.lokasi
-                              ) || null
-                            }
-                            onChange={(opt) =>
-                              setForm((f) => ({
-                                ...f,
-                                lokasi: opt ? Number(opt.value) : null,
-                              }))
-                            }
-                            placeholder="Pilih Ruangan"
-                            isClearable
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e293b"
-                                    : "#f9fafb",
-                                borderColor: state.isFocused
-                                  ? "#3b82f6"
-                                  : document.documentElement.classList.contains(
+                          ) : (
+                            <Select
+                              options={ruanganOptions}
+                              value={
+                                ruanganOptions.find(
+                                  (opt) => opt.value === form.lokasi
+                                ) || null
+                              }
+                              onChange={(opt) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  lokasi: opt ? Number(opt.value) : null,
+                                }))
+                              }
+                              placeholder="Pilih Ruangan"
+                              isClearable
+                              classNamePrefix="react-select"
+                              className="react-select-container"
+                              styles={{
+                                control: (base, state) => ({
+                                  ...base,
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#334155"
-                                  : "#d1d5db",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                                boxShadow: state.isFocused
-                                  ? "0 0 0 2px #3b82f633"
-                                  : undefined,
-                                borderRadius: "0.75rem",
-                                minHeight: "2.5rem",
-                                fontSize: "1rem",
-                                paddingLeft: "0.75rem",
-                                paddingRight: "0.75rem",
-                                "&:hover": { borderColor: "#3b82f6" },
-                              }),
-                              menu: (base) => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: "1rem",
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e293b"
-                                    : "#fff",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                      ? "#1e293b"
+                                      : "#f9fafb",
+                                  borderColor: state.isFocused
+                                    ? "#3b82f6"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#d1d5db",
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
-                                color: state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#fff"
+                                      : "#1f2937",
+                                  boxShadow: state.isFocused
+                                    ? "0 0 0 2px #3b82f633"
+                                    : undefined,
+                                  borderRadius: "0.75rem",
+                                  minHeight: "2.5rem",
+                                  fontSize: "1rem",
+                                  paddingLeft: "0.75rem",
+                                  paddingRight: "0.75rem",
+                                  "&:hover": { borderColor: "#3b82f6" },
+                                }),
+                                menu: (base) => ({
+                                  ...base,
+                                  zIndex: 9999,
+                                  fontSize: "1rem",
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
-                                fontSize: "1rem",
-                              }),
-                              singleValue: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
+                                      ? "#1e293b"
+                                      : "#fff",
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                option: (base, state) => ({
+                                  ...base,
+                                  backgroundColor: state.isSelected
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                      ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#334155"
+                                        : "#e0e7ff"
+                                      : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#1e293b"
+                                        : "#fff",
+                                  color: state.isSelected
                                     ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              placeholder: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                              }),
-                              input: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              dropdownIndicator: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                                "&:hover": { color: "#3b82f6" },
-                              }),
-                              indicatorSeparator: (base) => ({
-                                ...base,
-                                backgroundColor: "transparent",
-                              }),
-                            }}
-                          />
+                                    : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                  fontSize: "1rem",
+                                }),
+                                singleValue: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                placeholder: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                }),
+                                input: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                dropdownIndicator: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                  "&:hover": { color: "#3b82f6" },
+                                }),
+                                indicatorSeparator: (base) => ({
+                                  ...base,
+                                  backgroundColor: "transparent",
+                                }),
+                              }}
+                            />
                           )}
                         </div>
                       )}
@@ -22504,10 +22421,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -22561,24 +22478,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -22711,23 +22628,163 @@ export default function DetailBlok() {
                             </p>
                           </div>
                         ) : (
-                          <select
-                            name="kelompok"
-                            value={form.kelompok}
-                            onChange={handleFormChange}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                          >
-                            <option value="">Pilih Kelompok</option>
+                          <Select
+                            options={uniqueKelompok}
+                            isMulti
+                            value={
+                              Array.isArray(form.kelompok)
+                                ? uniqueKelompok.filter((opt) =>
+                                  form.kelompok.includes(opt.value)
+                                )
+                                : uniqueKelompok.filter(
+                                  (opt) => opt.value === form.kelompok
+                                )
+                            }
+                            onChange={(newValue) => {
+                              const selectedValues = newValue
+                                ? newValue.map((opt) => opt.value)
+                                : [];
+                              setForm((f) => ({ ...f, kelompok: selectedValues }));
+                            }}
+                            placeholder="Pilih Kelompok"
+                            isClearable
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
 
-                            {uniqueKelompok.map((kelompok) => (
-                              <option
-                                key={kelompok.value}
-                                value={kelompok.value}
-                              >
-                                {kelompok.label}
-                              </option>
-                            ))}
-                          </select>
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#374151"
+                                    : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                    ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#1e293b"
+                                      : "#fff",
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                fontSize: "1rem",
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              multiValue: (base) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#374151"
+                                    : "#e5e7eb",
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
                         )}
                       </div>
 
@@ -22799,10 +22856,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -22856,24 +22913,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -23030,10 +23087,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -23087,24 +23144,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -23195,22 +23252,20 @@ export default function DetailBlok() {
                                 setForm((f) => ({ ...f, fileJurnal: null }));
                               }
                             }}
-                            className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 ${
-                              (form.fileJurnal &&
-                                form.fileJurnal instanceof File) ||
+                            className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 ${(form.fileJurnal &&
+                              form.fileJurnal instanceof File) ||
                               (existingFileJurnal && !form.fileJurnal)
-                                ? "pointer-events-none"
-                                : ""
-                            }`}
+                              ? "pointer-events-none"
+                              : ""
+                              }`}
                             id="file-upload-jurnal"
                           />
 
                           <div
-                            className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-in-out transform ${
-                              isDragOver
-                                ? "border-brand-500 dark:border-brand-400 bg-brand-50 dark:bg-brand-900/20 scale-105 shadow-lg"
-                                : "border-gray-300 dark:border-gray-600 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800 hover:scale-102"
-                            }`}
+                            className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-in-out transform ${isDragOver
+                              ? "border-brand-500 dark:border-brand-400 bg-brand-50 dark:bg-brand-900/20 scale-105 shadow-lg"
+                              : "border-gray-300 dark:border-gray-600 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800 hover:scale-102"
+                              }`}
                             onDragOver={(e) => {
                               e.preventDefault();
 
@@ -23268,7 +23323,7 @@ export default function DetailBlok() {
                           >
                             <div className="flex flex-col items-center space-y-2">
                               {form.fileJurnal &&
-                              form.fileJurnal instanceof File ? (
+                                form.fileJurnal instanceof File ? (
                                 <div className="w-full max-w-sm bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-3">
@@ -23406,11 +23461,10 @@ export default function DetailBlok() {
                               ) : (
                                 <>
                                   <svg
-                                    className={`w-8 h-8 transition-colors duration-200 ${
-                                      isDragOver
-                                        ? "text-brand-500 dark:text-brand-400"
-                                        : "text-gray-400 dark:text-gray-500"
-                                    }`}
+                                    className={`w-8 h-8 transition-colors duration-200 ${isDragOver
+                                      ? "text-brand-500 dark:text-brand-400"
+                                      : "text-gray-400 dark:text-gray-500"
+                                      }`}
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -23515,10 +23569,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -23572,24 +23626,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -23716,10 +23770,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
                                 color:
                                   document.documentElement.classList.contains(
                                     "dark"
@@ -23758,23 +23812,23 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
                                 fontSize: "1rem",
                               }),
                               singleValue: (base) => ({
@@ -23938,34 +23992,34 @@ export default function DetailBlok() {
                             })}
                             value={
                               Array.isArray(form.koordinator) &&
-                              form.koordinator.length > 0
+                                form.koordinator.length > 0
                                 ? assignedDosenPBL.find((d) =>
-                                    (form.koordinator as number[]).includes(
-                                      d.id
-                                    )
+                                  (form.koordinator as number[]).includes(
+                                    d.id
                                   )
+                                )
                                   ? {
-                                      value: (form.koordinator as number[])[0],
-                                      label:
-                                        assignedDosenPBL.find(
-                                          (d) =>
-                                            d.id ===
-                                            (form.koordinator as number[])[0]
-                                        )?.name || "",
-                                      data: assignedDosenPBL.find(
+                                    value: (form.koordinator as number[])[0],
+                                    label:
+                                      assignedDosenPBL.find(
                                         (d) =>
                                           d.id ===
                                           (form.koordinator as number[])[0]
-                                      ),
-                                      isDisabled: false,
-                                    }
+                                      )?.name || "",
+                                    data: assignedDosenPBL.find(
+                                      (d) =>
+                                        d.id ===
+                                        (form.koordinator as number[])[0]
+                                    ),
+                                    isDisabled: false,
+                                  }
                                   : null
                                 : form.koordinator &&
                                   typeof form.koordinator === "number"
-                                ? assignedDosenPBL.find(
+                                  ? assignedDosenPBL.find(
                                     (d) => d.id === form.koordinator
                                   )
-                                  ? {
+                                    ? {
                                       value: form.koordinator,
                                       label:
                                         assignedDosenPBL.find(
@@ -23976,8 +24030,8 @@ export default function DetailBlok() {
                                       ),
                                       isDisabled: false,
                                     }
+                                    : null
                                   : null
-                                : null
                             }
                             onChange={(selected) => {
                               const selectedId = selected
@@ -24025,10 +24079,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
                                 color:
                                   document.documentElement.classList.contains(
                                     "dark"
@@ -24067,27 +24121,27 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                      ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#334155"
+                                        : "#e0e7ff"
+                                      : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#1e293b"
+                                        : "#fff",
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                    ? "#fff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                      ? "#fff"
+                                      : "#1f2937",
                                 cursor: state.isDisabled
                                   ? "not-allowed"
                                   : "default",
@@ -24211,17 +24265,17 @@ export default function DetailBlok() {
                             })}
                             value={
                               Array.isArray(form.pengampu) &&
-                              form.pengampu.length > 0
+                                form.pengampu.length > 0
                                 ? assignedDosenPBL
-                                    .filter((d) =>
-                                      (form.pengampu as number[]).includes(d.id)
-                                    )
-                                    .map((d) => ({
-                                      value: d.id,
-                                      label: d.name,
-                                      data: d,
-                                      isDisabled: false,
-                                    }))
+                                  .filter((d) =>
+                                    (form.pengampu as number[]).includes(d.id)
+                                  )
+                                  .map((d) => ({
+                                    value: d.id,
+                                    label: d.name,
+                                    data: d,
+                                    isDisabled: false,
+                                  }))
                                 : []
                             }
                             onChange={(selected) => {
@@ -24269,10 +24323,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
                                 color:
                                   document.documentElement.classList.contains(
                                     "dark"
@@ -24311,27 +24365,27 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                      ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#334155"
+                                        : "#e0e7ff"
+                                      : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#1e293b"
+                                        : "#fff",
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                    ? "#fff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                      ? "#fff"
+                                      : "#1f2937",
                                 fontSize: "1rem",
                                 padding: "0.5rem",
                               }),
@@ -24439,7 +24493,7 @@ export default function DetailBlok() {
                         )}
                       </div>
 
-<div>
+                      <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Kelompok Besar
                         </label>
@@ -24481,11 +24535,11 @@ export default function DetailBlok() {
                                 (k) => Number(k.id) === form.kelompokBesar
                               )
                                 ? {
-                                    value: form.kelompokBesar,
-                                    label: kelompokBesarOptions.find(
-                                      (k) => Number(k.id) === form.kelompokBesar
-                                    )?.label,
-                                  }
+                                  value: form.kelompokBesar,
+                                  label: kelompokBesarOptions.find(
+                                    (k) => Number(k.id) === form.kelompokBesar
+                                  )?.label,
+                                }
                                 : null
                             }
                             onChange={(opt) => {
@@ -24515,10 +24569,10 @@ export default function DetailBlok() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
 
                                 color:
                                   document.documentElement.classList.contains(
@@ -24572,24 +24626,24 @@ export default function DetailBlok() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
 
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
 
                                 fontSize: "1rem",
                               }),
@@ -24667,10 +24721,9 @@ export default function DetailBlok() {
                                 appearance-none
                                 rounded-md
                                 border-2
-                                ${
-                                  form.useRuangan
-                                    ? "border-brand-500 bg-brand-500"
-                                    : "border-brand-500 bg-transparent"
+                                ${form.useRuangan
+                                  ? "border-brand-500 bg-brand-500"
+                                  : "border-brand-500 bg-transparent"
                                 }
                                 transition-colors
                                 duration-150
@@ -24703,163 +24756,163 @@ export default function DetailBlok() {
                             Ruangan
                           </label>
                           {ruanganList.length === 0 ? (
-                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-5 h-5 text-orange-500"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada ruangan yang ditambahkan untuk mata
-                                kuliah ini
-                              </span>
+                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                              <div className="flex items-center gap-2">
+                                <svg
+                                  className="w-5 h-5 text-orange-500"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                  Belum ada ruangan yang ditambahkan untuk mata
+                                  kuliah ini
+                                </span>
+                              </div>
+                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                                Silakan tambahkan ruangan terlebih dahulu di
+                                halaman Ruangan Detail
+                              </p>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan tambahkan ruangan terlebih dahulu di
-                              halaman Ruangan Detail
-                            </p>
-                          </div>
-                        ) : (
-                          <Select
-                            options={ruanganOptions}
-                            value={
-                              ruanganOptions.find(
-                                (opt) => opt.value === form.lokasi
-                              ) || null
-                            }
-                            onChange={(opt) =>
-                              setForm((f) => ({
-                                ...f,
-                                lokasi: opt ? Number(opt.value) : null,
-                              }))
-                            }
-                            placeholder="Pilih Ruangan"
-                            isClearable
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e293b"
-                                    : "#f9fafb",
-                                borderColor: state.isFocused
-                                  ? "#3b82f6"
-                                  : document.documentElement.classList.contains(
+                          ) : (
+                            <Select
+                              options={ruanganOptions}
+                              value={
+                                ruanganOptions.find(
+                                  (opt) => opt.value === form.lokasi
+                                ) || null
+                              }
+                              onChange={(opt) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  lokasi: opt ? Number(opt.value) : null,
+                                }))
+                              }
+                              placeholder="Pilih Ruangan"
+                              isClearable
+                              classNamePrefix="react-select"
+                              className="react-select-container"
+                              styles={{
+                                control: (base, state) => ({
+                                  ...base,
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#334155"
-                                  : "#d1d5db",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                                boxShadow: state.isFocused
-                                  ? "0 0 0 2px #3b82f633"
-                                  : undefined,
-                                borderRadius: "0.75rem",
-                                minHeight: "2.5rem",
-                                fontSize: "1rem",
-                                paddingLeft: "0.75rem",
-                                paddingRight: "0.75rem",
-                                "&:hover": { borderColor: "#3b82f6" },
-                              }),
-                              menu: (base) => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: "1rem",
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e293b"
-                                    : "#fff",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                      ? "#1e293b"
+                                      : "#f9fafb",
+                                  borderColor: state.isFocused
+                                    ? "#3b82f6"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#d1d5db",
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
-                                color: state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#fff"
+                                      : "#1f2937",
+                                  boxShadow: state.isFocused
+                                    ? "0 0 0 2px #3b82f633"
+                                    : undefined,
+                                  borderRadius: "0.75rem",
+                                  minHeight: "2.5rem",
+                                  fontSize: "1rem",
+                                  paddingLeft: "0.75rem",
+                                  paddingRight: "0.75rem",
+                                  "&:hover": { borderColor: "#3b82f6" },
+                                }),
+                                menu: (base) => ({
+                                  ...base,
+                                  zIndex: 9999,
+                                  fontSize: "1rem",
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
-                                fontSize: "1rem",
-                              }),
-                              singleValue: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
+                                      ? "#1e293b"
+                                      : "#fff",
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                option: (base, state) => ({
+                                  ...base,
+                                  backgroundColor: state.isSelected
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                      ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#334155"
+                                        : "#e0e7ff"
+                                      : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#1e293b"
+                                        : "#fff",
+                                  color: state.isSelected
                                     ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              placeholder: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                              }),
-                              input: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              dropdownIndicator: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                                "&:hover": { color: "#3b82f6" },
-                              }),
-                              indicatorSeparator: (base) => ({
-                                ...base,
-                                backgroundColor: "transparent",
-                              }),
-                            }}
-                          />
+                                    : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                  fontSize: "1rem",
+                                }),
+                                singleValue: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                placeholder: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                }),
+                                input: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                dropdownIndicator: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                  "&:hover": { color: "#3b82f6" },
+                                }),
+                                indicatorSeparator: (base) => ({
+                                  ...base,
+                                  backgroundColor: "transparent",
+                                }),
+                              }}
+                            />
                           )}
                         </div>
                       )}
@@ -25151,7 +25204,7 @@ export default function DetailBlok() {
 
                         setErrorBackend(
                           err?.response?.data?.message ||
-                            "Terjadi kesalahan saat menyimpan data"
+                          "Terjadi kesalahan saat menyimpan data"
                         );
                       }
 
@@ -25311,11 +25364,10 @@ export default function DetailBlok() {
             <button
               onClick={() => setShowPBLExportModal(true)}
               disabled={jadwalPBL.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalPBL.length === 0
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalPBL.length === 0
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
               title={
                 jadwalPBL.length === 0
                   ? "Tidak ada data PBL. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
@@ -25357,7 +25409,7 @@ export default function DetailBlok() {
 
                   modul: null,
 
-                  kelompok: "",
+                  kelompok: [],
 
                   kelompokBesar: null,
 
@@ -25607,41 +25659,41 @@ export default function DetailBlok() {
                     {/* Error Messages */}
                     {(siakadImportErrors.length > 0 ||
                       siakadCellErrors.length > 0) && (
-                      <div className="mb-6">
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <FontAwesomeIcon
-                              icon={faExclamationTriangle}
-                              className="w-5 h-5 text-red-500"
-                            />
-                            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                              Error Validasi (
-                              {siakadImportErrors.length +
-                                siakadCellErrors.length}{" "}
-                              error)
-                            </h3>
-                          </div>
-                          <div className="max-h-40 overflow-y-auto space-y-2">
-                            {siakadImportErrors.map((error, index) => (
-                              <p
-                                key={index}
-                                className="text-sm text-red-600 dark:text-red-400"
-                              >
-                                • {error}
-                              </p>
-                            ))}
-                            {siakadCellErrors.map((error, index) => (
-                              <p
-                                key={index}
-                                className="text-sm text-red-600 dark:text-red-400"
-                              >
-                                • {error.message}
-                              </p>
-                            ))}
+                        <div className="mb-6">
+                          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <FontAwesomeIcon
+                                icon={faExclamationTriangle}
+                                className="w-5 h-5 text-red-500"
+                              />
+                              <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                                Error Validasi (
+                                {siakadImportErrors.length +
+                                  siakadCellErrors.length}{" "}
+                                error)
+                              </h3>
+                            </div>
+                            <div className="max-h-40 overflow-y-auto space-y-2">
+                              {siakadImportErrors.map((error, index) => (
+                                <p
+                                  key={index}
+                                  className="text-sm text-red-600 dark:text-red-400"
+                                >
+                                  • {error}
+                                </p>
+                              ))}
+                              {siakadCellErrors.map((error, index) => (
+                                <p
+                                  key={index}
+                                  className="text-sm text-red-600 dark:text-red-400"
+                                >
+                                  • {error.message}
+                                </p>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Preview Table */}
                     {siakadImportData.length > 0 && (
@@ -25695,7 +25747,7 @@ export default function DetailBlok() {
                                 {siakadImportPaginatedData.map((row, index) => {
                                   const actualIndex =
                                     (siakadImportPage - 1) *
-                                      siakadImportPageSize +
+                                    siakadImportPageSize +
                                     index;
                                   const ruangan = allRuanganList.find(
                                     (r) => r.id === row.ruangan_id
@@ -25722,28 +25774,26 @@ export default function DetailBlok() {
 
                                     return (
                                       <td
-                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                          isEditing
-                                            ? "border-2 border-brand-500"
-                                            : ""
-                                        } ${
-                                          cellError ||
-                                          (field === "materi" &&
-                                            (!value || value.trim() === "")) ||
-                                          (field === "dosen_id" &&
-                                            (!value ||
-                                              value === 0 ||
-                                              value === null)) ||
-                                          (field === "jam_mulai" &&
-                                            (!value || value.trim() === "")) ||
-                                          (field === "jam_selesai" &&
-                                            (!value || value.trim() === "")) ||
-                                          (field === "tanggal" &&
-                                            (!value || value.trim() === "")) ||
-                                          value === "Wajib diisi"
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                          ? "border-2 border-brand-500"
+                                          : ""
+                                          } ${cellError ||
+                                            (field === "materi" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "dosen_id" &&
+                                              (!value ||
+                                                value === 0 ||
+                                                value === null)) ||
+                                            (field === "jam_mulai" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "jam_selesai" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "tanggal" &&
+                                              (!value || value.trim() === "")) ||
+                                            value === "Wajib diisi"
                                             ? "bg-red-100 dark:bg-red-900/30"
                                             : ""
-                                        }`}
+                                          }`}
                                         onClick={() =>
                                           setSiakadEditingCell({
                                             row: actualIndex,
@@ -25762,7 +25812,7 @@ export default function DetailBlok() {
                                               // Jika value adalah placeholder text, kosongkan input
                                               if (
                                                 value ===
-                                                  "Kosong (isi manual)" ||
+                                                "Kosong (isi manual)" ||
                                                 value === "Wajib diisi"
                                               ) {
                                                 return "";
@@ -25794,7 +25844,7 @@ export default function DetailBlok() {
                                                 field,
                                                 isNumeric
                                                   ? parseInt(e.target.value) ||
-                                                      0
+                                                  0
                                                   : e.target.value
                                               )
                                             }
@@ -25807,47 +25857,47 @@ export default function DetailBlok() {
                                           <span
                                             className={
                                               cellError ||
-                                              (field === "materi" &&
-                                                (value ===
-                                                  "Kosong (isi manual)" ||
-                                                  !value ||
-                                                  value.trim() === "")) ||
-                                              (field === "dosen_id" &&
-                                                (!value ||
-                                                  value === 0 ||
-                                                  value === null)) ||
-                                              (field === "jam_mulai" &&
-                                                (!value ||
-                                                  value.trim() === "")) ||
-                                              (field === "jam_selesai" &&
-                                                (!value ||
-                                                  value.trim() === "")) ||
-                                              (field === "tanggal" &&
-                                                (!value ||
-                                                  value.trim() === "")) ||
-                                              value === "Wajib diisi"
+                                                (field === "materi" &&
+                                                  (value ===
+                                                    "Kosong (isi manual)" ||
+                                                    !value ||
+                                                    value.trim() === "")) ||
+                                                (field === "dosen_id" &&
+                                                  (!value ||
+                                                    value === 0 ||
+                                                    value === null)) ||
+                                                (field === "jam_mulai" &&
+                                                  (!value ||
+                                                    value.trim() === "")) ||
+                                                (field === "jam_selesai" &&
+                                                  (!value ||
+                                                    value.trim() === "")) ||
+                                                (field === "tanggal" &&
+                                                  (!value ||
+                                                    value.trim() === "")) ||
+                                                value === "Wajib diisi"
                                                 ? "text-red-500"
                                                 : "text-gray-800 dark:text-gray-100"
                                             }
                                           >
                                             {field === "materi" &&
-                                            (!value || value.trim() === "")
+                                              (!value || value.trim() === "")
                                               ? "Kosong (isi manual)"
                                               : field === "dosen_id" &&
                                                 (!value ||
                                                   value === 0 ||
                                                   value === null)
-                                              ? "Kosong (isi manual)"
-                                              : field === "jam_mulai" &&
-                                                (!value || value.trim() === "")
-                                              ? "Wajib diisi"
-                                              : field === "jam_selesai" &&
-                                                (!value || value.trim() === "")
-                                              ? "Wajib diisi"
-                                              : field === "tanggal" &&
-                                                (!value || value.trim() === "")
-                                              ? "Wajib diisi"
-                                              : value || "-"}
+                                                ? "Kosong (isi manual)"
+                                                : field === "jam_mulai" &&
+                                                  (!value || value.trim() === "")
+                                                  ? "Wajib diisi"
+                                                  : field === "jam_selesai" &&
+                                                    (!value || value.trim() === "")
+                                                    ? "Wajib diisi"
+                                                    : field === "tanggal" &&
+                                                      (!value || value.trim() === "")
+                                                      ? "Wajib diisi"
+                                                      : value || "-"}
                                           </span>
                                         )}
                                       </td>
@@ -25857,11 +25907,10 @@ export default function DetailBlok() {
                                   return (
                                     <tr
                                       key={index}
-                                      className={`${
-                                        index % 2 === 1
-                                          ? "bg-gray-50 dark:bg-white/[0.02]"
-                                          : ""
-                                      }`}
+                                      className={`${index % 2 === 1
+                                        ? "bg-gray-50 dark:bg-white/[0.02]"
+                                        : ""
+                                        }`}
                                     >
                                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                                         {actualIndex + 1}
@@ -25882,7 +25931,7 @@ export default function DetailBlok() {
                                         const field = "nama_dosen";
                                         const isEditing =
                                           siakadEditingCell?.row ===
-                                            actualIndex &&
+                                          actualIndex &&
                                           siakadEditingCell?.key === field;
                                         const cellError = siakadCellErrors.find(
                                           (err) =>
@@ -25892,17 +25941,15 @@ export default function DetailBlok() {
 
                                         return (
                                           <td
-                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                              isEditing
-                                                ? "border-2 border-brand-500"
-                                                : ""
-                                            } ${
-                                              cellError ||
-                                              !row.nama_dosen ||
-                                              row.nama_dosen.trim() === ""
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                              ? "border-2 border-brand-500"
+                                              : ""
+                                              } ${cellError ||
+                                                !row.nama_dosen ||
+                                                row.nama_dosen.trim() === ""
                                                 ? "bg-red-100 dark:bg-red-900/30"
                                                 : ""
-                                            }`}
+                                              }`}
                                             onClick={() =>
                                               setSiakadEditingCell({
                                                 row: actualIndex,
@@ -25932,8 +25979,8 @@ export default function DetailBlok() {
                                               <span
                                                 className={
                                                   cellError ||
-                                                  !row.nama_dosen ||
-                                                  row.nama_dosen.trim() === ""
+                                                    !row.nama_dosen ||
+                                                    row.nama_dosen.trim() === ""
                                                     ? "text-red-500"
                                                     : "text-gray-800 dark:text-gray-100"
                                                 }
@@ -25951,7 +25998,7 @@ export default function DetailBlok() {
                                         const field = "nama_ruangan";
                                         const isEditing =
                                           siakadEditingCell?.row ===
-                                            actualIndex &&
+                                          actualIndex &&
                                           siakadEditingCell?.key === field;
                                         const cellError = siakadCellErrors.find(
                                           (err) =>
@@ -25961,17 +26008,15 @@ export default function DetailBlok() {
 
                                         return (
                                           <td
-                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                              isEditing
-                                                ? "border-2 border-brand-500"
-                                                : ""
-                                            } ${
-                                              cellError ||
-                                              !row.nama_ruangan ||
-                                              row.nama_ruangan.trim() === ""
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                              ? "border-2 border-brand-500"
+                                              : ""
+                                              } ${cellError ||
+                                                !row.nama_ruangan ||
+                                                row.nama_ruangan.trim() === ""
                                                 ? "bg-red-100 dark:bg-red-900/30"
                                                 : ""
-                                            }`}
+                                              }`}
                                             onClick={() =>
                                               setSiakadEditingCell({
                                                 row: actualIndex,
@@ -25987,7 +26032,7 @@ export default function DetailBlok() {
                                                 className="w-full px-1 border-none outline-none text-xs md:text-sm"
                                                 value={
                                                   row.nama_ruangan ===
-                                                  "Wajib diisi"
+                                                    "Wajib diisi"
                                                     ? ""
                                                     : row.nama_ruangan || ""
                                                 }
@@ -26006,8 +26051,8 @@ export default function DetailBlok() {
                                               <span
                                                 className={
                                                   cellError ||
-                                                  !row.nama_ruangan ||
-                                                  row.nama_ruangan.trim() === ""
+                                                    !row.nama_ruangan ||
+                                                    row.nama_ruangan.trim() === ""
                                                     ? "text-red-500"
                                                     : "text-gray-800 dark:text-gray-100"
                                                 }
@@ -26025,7 +26070,7 @@ export default function DetailBlok() {
                                         const field = "kelompok_besar_id";
                                         const isEditing =
                                           siakadEditingCell?.row ===
-                                            actualIndex &&
+                                          actualIndex &&
                                           siakadEditingCell?.key === field;
                                         const cellError = siakadCellErrors.find(
                                           (err) =>
@@ -26035,15 +26080,13 @@ export default function DetailBlok() {
 
                                         return (
                                           <td
-                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                              isEditing
-                                                ? "border-2 border-brand-500"
-                                                : ""
-                                            } ${
-                                              cellError
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                              ? "border-2 border-brand-500"
+                                              : ""
+                                              } ${cellError
                                                 ? "bg-red-100 dark:bg-red-900/30"
                                                 : ""
-                                            }`}
+                                              }`}
                                             onClick={() =>
                                               setSiakadEditingCell({
                                                 row: actualIndex,
@@ -26066,7 +26109,7 @@ export default function DetailBlok() {
                                                     actualIndex,
                                                     field,
                                                     parseInt(e.target.value) ||
-                                                      0
+                                                    0
                                                   )
                                                 }
                                                 onBlur={() =>
@@ -26157,11 +26200,10 @@ export default function DetailBlok() {
                             {siakadImportTotalPages > 1 && (
                               <button
                                 onClick={() => setSiakadImportPage(1)}
-                                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                  siakadImportPage === 1
-                                    ? "bg-brand-500 text-white"
-                                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                }`}
+                                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${siakadImportPage === 1
+                                  ? "bg-brand-500 text-white"
+                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                  }`}
                               >
                                 1
                               </button>
@@ -26192,11 +26234,10 @@ export default function DetailBlok() {
                                   <button
                                     key={pageNum}
                                     onClick={() => setSiakadImportPage(pageNum)}
-                                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                      siakadImportPage === pageNum
-                                        ? "bg-brand-500 text-white"
-                                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                    }`}
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${siakadImportPage === pageNum
+                                      ? "bg-brand-500 text-white"
+                                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                      }`}
                                   >
                                     {pageNum}
                                   </button>
@@ -26217,11 +26258,10 @@ export default function DetailBlok() {
                                 onClick={() =>
                                   setSiakadImportPage(siakadImportTotalPages)
                                 }
-                                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                  siakadImportPage === siakadImportTotalPages
-                                    ? "bg-brand-500 text-white"
-                                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                }`}
+                                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${siakadImportPage === siakadImportTotalPages
+                                  ? "bg-brand-500 text-white"
+                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                  }`}
                               >
                                 {siakadImportTotalPages}
                               </button>
@@ -26318,14 +26358,13 @@ export default function DetailBlok() {
                       }
                       role="checkbox"
                       onClick={() => handleSelectAll("pbl", jadwalPBL)}
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                        jadwalPBL.length > 0 &&
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalPBL.length > 0 &&
                         jadwalPBL.every((item) =>
                           selectedPBLItems.includes(item.id!)
                         )
-                          ? "bg-brand-500 border-brand-500"
-                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                      } cursor-pointer`}
+                        ? "bg-brand-500 border-brand-500"
+                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                        } cursor-pointer`}
                     >
                       {jadwalPBL.length > 0 &&
                         jadwalPBL.every((item) =>
@@ -26478,11 +26517,10 @@ export default function DetailBlok() {
                           aria-checked={selectedPBLItems.includes(row.id!)}
                           role="checkbox"
                           onClick={() => handleSelectItem("pbl", row.id!)}
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                            selectedPBLItems.includes(row.id!)
-                              ? "bg-brand-500 border-brand-500"
-                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                          } cursor-pointer`}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedPBLItems.includes(row.id!)
+                            ? "bg-brand-500 border-brand-500"
+                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            } cursor-pointer`}
                         >
                           {selectedPBLItems.includes(row.id!) && (
                             <svg
@@ -26554,10 +26592,8 @@ export default function DetailBlok() {
                           <button
                             onClick={() =>
                               navigate(
-                                `/penilaian-pbl/${kode}/${
-                                  row.kelompok_kecil?.nama_kelompok || ""
-                                }/${
-                                  row.pbl_tipe || ""
+                                `/penilaian-pbl/${kode}/${row.kelompok_kecil?.nama_kelompok || ""
+                                }/${row.pbl_tipe || ""
                                 }?rowIndex=${i}&jadwal_id=${row.id || ""}`
                               )
                             }
@@ -26629,11 +26665,10 @@ export default function DetailBlok() {
             <button
               disabled={isBulkDeleting}
               onClick={() => handleBulkDelete("pbl")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                isBulkDeleting
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+                }`}
             >
               {isBulkDeleting
                 ? "Menghapus..."
@@ -26711,11 +26746,10 @@ export default function DetailBlok() {
               {getTotalPages(jadwalPBL.length, pblPageSize) > 1 && (
                 <button
                   onClick={() => setPblPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    pblPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pblPage === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
@@ -26739,11 +26773,10 @@ export default function DetailBlok() {
                     <button
                       key={pageNum}
                       onClick={() => setPblPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        pblPage === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pblPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -26764,11 +26797,10 @@ export default function DetailBlok() {
                   onClick={() =>
                     setPblPage(getTotalPages(jadwalPBL.length, pblPageSize))
                   }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    pblPage === getTotalPages(jadwalPBL.length, pblPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pblPage === getTotalPages(jadwalPBL.length, pblPageSize)
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {getTotalPages(jadwalPBL.length, pblPageSize)}
                 </button>
@@ -26825,11 +26857,10 @@ export default function DetailBlok() {
             <button
               onClick={handleExportPersamaanPersepsi}
               disabled={jadwalPersamaanPersepsi.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalPersamaanPersepsi.length === 0
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalPersamaanPersepsi.length === 0
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
               title={
                 jadwalPersamaanPersepsi.length === 0
                   ? "Tidak ada data persamaan persepsi. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
@@ -26856,7 +26887,7 @@ export default function DetailBlok() {
                   agenda: "",
                   pblTipe: "",
                   modul: null,
-                  kelompok: "",
+                  kelompok: [],
                   kelompokBesar: null,
                   useRuangan: true,
                   fileJurnal: null,
@@ -26908,14 +26939,13 @@ export default function DetailBlok() {
                           jadwalPersamaanPersepsi
                         )
                       }
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                        jadwalPersamaanPersepsi.length > 0 &&
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalPersamaanPersepsi.length > 0 &&
                         jadwalPersamaanPersepsi.every((item) =>
                           selectedPersamaanPersepsiItems.includes(item.id!)
                         )
-                          ? "bg-brand-500 border-brand-500"
-                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                      } cursor-pointer`}
+                        ? "bg-brand-500 border-brand-500"
+                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                        } cursor-pointer`}
                     >
                       {jadwalPersamaanPersepsi.length > 0 &&
                         jadwalPersamaanPersepsi.every((item) =>
@@ -26978,9 +27008,9 @@ export default function DetailBlok() {
                           a: JadwalPersamaanPersepsiType,
                           b: JadwalPersamaanPersepsiType
                         ) => {
-                        const dateA = new Date(a.tanggal);
-                        const dateB = new Date(b.tanggal);
-                        return dateA.getTime() - dateB.getTime();
+                          const dateA = new Date(a.tanggal);
+                          const dateB = new Date(b.tanggal);
+                          return dateA.getTime() - dateB.getTime();
                         }
                       ),
                     persamaanPersepsiPage,
@@ -27001,11 +27031,10 @@ export default function DetailBlok() {
                           onClick={() =>
                             handleSelectItem("persamaan-persepsi", row.id!)
                           }
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                            selectedPersamaanPersepsiItems.includes(row.id!)
-                              ? "bg-brand-500 border-brand-500"
-                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                          } cursor-pointer`}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedPersamaanPersepsiItems.includes(row.id!)
+                            ? "bg-brand-500 border-brand-500"
+                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            } cursor-pointer`}
                         >
                           {selectedPersamaanPersepsiItems.includes(row.id!) && (
                             <svg
@@ -27134,7 +27163,7 @@ export default function DetailBlok() {
                               );
                               if (idx >= 0) {
                                 const actualRow = jadwalPersamaanPersepsi[idx];
-                                
+
                                 // Extract koordinator_ids from koordinator_ids or dosen_with_roles
                                 let koordinatorIds: number[] = [];
                                 if (
@@ -27155,7 +27184,7 @@ export default function DetailBlok() {
                                     )
                                     .map((d: any) => d.id);
                                 }
-                                
+
                                 // Extract pengampu_ids (non-koordinator) from dosen_ids
                                 const allDosenIds = Array.isArray(
                                   actualRow.dosen_ids
@@ -27165,7 +27194,7 @@ export default function DetailBlok() {
                                 const pengampuIds = allDosenIds.filter(
                                   (id: number) => !koordinatorIds.includes(id)
                                 );
-                                
+
                                 setForm({
                                   hariTanggal: actualRow.tanggal || "",
                                   jamMulai: actualRow.jam_mulai || "",
@@ -27182,14 +27211,14 @@ export default function DetailBlok() {
                                   agenda: "",
                                   pblTipe: "",
                                   modul: null,
-                                  kelompok: "",
+                                  kelompok: [],
                                   kelompokBesar: null,
                                   useRuangan:
                                     actualRow.use_ruangan !== undefined
                                       ? actualRow.use_ruangan
                                       : actualRow.ruangan_id
-                                      ? true
-                                      : false,
+                                        ? true
+                                        : false,
                                   fileJurnal: null,
                                 });
                                 setEditIndex(idx);
@@ -27242,11 +27271,10 @@ export default function DetailBlok() {
             <button
               disabled={isBulkDeleting}
               onClick={() => handleBulkDelete("persamaan-persepsi")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                isBulkDeleting
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+                }`}
             >
               {isBulkDeleting
                 ? "Menghapus..."
@@ -27297,17 +27325,16 @@ export default function DetailBlok() {
                 jadwalPersamaanPersepsi.length,
                 persamaanPersepsiPageSize
               ) > 1 && (
-                <button
-                  onClick={() => setPersamaanPersepsiPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    persamaanPersepsiPage === 1
+                  <button
+                    onClick={() => setPersamaanPersepsiPage(1)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${persamaanPersepsiPage === 1
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  1
-                </button>
-              )}
+                      }`}
+                  >
+                    1
+                  </button>
+                )}
               {Array.from(
                 {
                   length: getTotalPages(
@@ -27320,10 +27347,10 @@ export default function DetailBlok() {
                   const shouldShow =
                     pageNum > 1 &&
                     pageNum <
-                      getTotalPages(
-                        jadwalPersamaanPersepsi.length,
-                        persamaanPersepsiPageSize
-                      ) &&
+                    getTotalPages(
+                      jadwalPersamaanPersepsi.length,
+                      persamaanPersepsiPageSize
+                    ) &&
                     pageNum >= persamaanPersepsiPage - 2 &&
                     pageNum <= persamaanPersepsiPage + 2;
                   if (!shouldShow) return null;
@@ -27331,11 +27358,10 @@ export default function DetailBlok() {
                     <button
                       key={pageNum}
                       onClick={() => setPersamaanPersepsiPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        persamaanPersepsiPage === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${persamaanPersepsiPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -27347,40 +27373,39 @@ export default function DetailBlok() {
                   jadwalPersamaanPersepsi.length,
                   persamaanPersepsiPageSize
                 ) -
-                  3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">
-                  ...
-                </span>
-              )}
+                3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">
+                    ...
+                  </span>
+                )}
               {getTotalPages(
                 jadwalPersamaanPersepsi.length,
                 persamaanPersepsiPageSize
               ) > 1 && (
-                <button
-                  onClick={() =>
-                    setPersamaanPersepsiPage(
+                  <button
+                    onClick={() =>
+                      setPersamaanPersepsiPage(
+                        getTotalPages(
+                          jadwalPersamaanPersepsi.length,
+                          persamaanPersepsiPageSize
+                        )
+                      )
+                    }
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${persamaanPersepsiPage ===
                       getTotalPages(
                         jadwalPersamaanPersepsi.length,
                         persamaanPersepsiPageSize
                       )
-                    )
-                  }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    persamaanPersepsiPage ===
-                    getTotalPages(
-                      jadwalPersamaanPersepsi.length,
-                      persamaanPersepsiPageSize
-                    )
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {getTotalPages(
-                    jadwalPersamaanPersepsi.length,
-                    persamaanPersepsiPageSize
-                  )}
-                </button>
-              )}
+                      }`}
+                  >
+                    {getTotalPages(
+                      jadwalPersamaanPersepsi.length,
+                      persamaanPersepsiPageSize
+                    )}
+                  </button>
+                )}
               <button
                 onClick={() =>
                   setPersamaanPersepsiPage((p) =>
@@ -27440,11 +27465,10 @@ export default function DetailBlok() {
             <button
               onClick={exportJurnalReadingExcel}
               disabled={jadwalJurnalReading.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalJurnalReading.length === 0
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalJurnalReading.length === 0
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
               title={
                 jadwalJurnalReading.length === 0
                   ? "Tidak ada data jurnal reading. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
@@ -27471,7 +27495,7 @@ export default function DetailBlok() {
                   agenda: "",
                   pblTipe: "",
                   modul: null,
-                  kelompok: "",
+                  kelompok: [],
                   kelompokBesar: null,
                   useRuangan: true,
                   fileJurnal: null,
@@ -27541,14 +27565,13 @@ export default function DetailBlok() {
                       onClick={() =>
                         handleSelectAll("jurnal-reading", jadwalJurnalReading)
                       }
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                        jadwalJurnalReading.length > 0 &&
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalJurnalReading.length > 0 &&
                         jadwalJurnalReading.every((item) =>
                           selectedJurnalReadingItems.includes(item.id!)
                         )
-                          ? "bg-brand-500 border-brand-500"
-                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                      } cursor-pointer`}
+                        ? "bg-brand-500 border-brand-500"
+                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                        } cursor-pointer`}
                     >
                       {jadwalJurnalReading.length > 0 &&
                         jadwalJurnalReading.every((item) =>
@@ -27699,11 +27722,10 @@ export default function DetailBlok() {
                           onClick={() =>
                             handleSelectItem("jurnal-reading", row.id!)
                           }
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                            selectedJurnalReadingItems.includes(row.id!)
-                              ? "bg-brand-500 border-brand-500"
-                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                          } cursor-pointer`}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedJurnalReadingItems.includes(row.id!)
+                            ? "bg-brand-500 border-brand-500"
+                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            } cursor-pointer`}
                         >
                           {selectedJurnalReadingItems.includes(row.id!) && (
                             <svg
@@ -27779,7 +27801,7 @@ export default function DetailBlok() {
                               <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                 {truncateFileName(
                                   row.file_jurnal.split("/").pop() ||
-                                    "File Jurnal",
+                                  "File Jurnal",
                                   20
                                 )}
                               </p>
@@ -27791,9 +27813,8 @@ export default function DetailBlok() {
 
                             <div className="flex-shrink-0">
                               <a
-                                href={`${API_BASE_URL}/jurnal-reading/download/${
-                                  data!.kode
-                                }/${row.id}`}
+                                href={`${API_BASE_URL}/jurnal-reading/download/${data!.kode
+                                  }/${row.id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-md transition-colors duration-200"
@@ -27863,9 +27884,8 @@ export default function DetailBlok() {
                                 judulJurnal: (row as any).topik,
                               };
 
-                              const storageKey = `jurnalInfo_${data!.kode}_${
-                                (row as any).kelompok_kecil.nama_kelompok
-                              }_${row.id}`;
+                              const storageKey = `jurnalInfo_${data!.kode}_${(row as any).kelompok_kecil.nama_kelompok
+                                }_${row.id}`;
 
                               localStorage.setItem(
                                 storageKey,
@@ -27875,8 +27895,7 @@ export default function DetailBlok() {
                               // Navigasi ke halaman penilaian dengan jurnal_id
 
                               navigate(
-                                `/penilaian-jurnal/${data!.kode}/${
-                                  (row as any).kelompok_kecil.nama_kelompok
+                                `/penilaian-jurnal/${data!.kode}/${(row as any).kelompok_kecil.nama_kelompok
                                 }/${row.id}`
                               );
                             }}
@@ -27899,7 +27918,7 @@ export default function DetailBlok() {
                               // Cari index berdasarkan ID untuk memastikan data yang benar
                               const actualJurnalIndex =
                                 (jurnalReadingPage - 1) *
-                                  jurnalReadingPageSize +
+                                jurnalReadingPageSize +
                                 i;
                               const correctIndex =
                                 jadwalJurnalReading.findIndex(
@@ -27950,11 +27969,10 @@ export default function DetailBlok() {
             <button
               disabled={isBulkDeleting}
               onClick={() => handleBulkDelete("jurnal-reading")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                isBulkDeleting
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+                }`}
             >
               {isBulkDeleting
                 ? "Menghapus..."
@@ -28037,17 +28055,16 @@ export default function DetailBlok() {
                 jadwalJurnalReading.length,
                 jurnalReadingPageSize
               ) > 1 && (
-                <button
-                  onClick={() => setJurnalReadingPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    jurnalReadingPage === 1
+                  <button
+                    onClick={() => setJurnalReadingPage(1)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${jurnalReadingPage === 1
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  1
-                </button>
-              )}
+                      }`}
+                  >
+                    1
+                  </button>
+                )}
 
               {/* Show pages around current page */}
               {Array.from(
@@ -28063,10 +28080,10 @@ export default function DetailBlok() {
                   const shouldShow =
                     pageNum > 1 &&
                     pageNum <
-                      getTotalPages(
-                        jadwalJurnalReading.length,
-                        jurnalReadingPageSize
-                      ) &&
+                    getTotalPages(
+                      jadwalJurnalReading.length,
+                      jurnalReadingPageSize
+                    ) &&
                     pageNum >= jurnalReadingPage - 2 &&
                     pageNum <= jurnalReadingPage + 2;
 
@@ -28076,11 +28093,10 @@ export default function DetailBlok() {
                     <button
                       key={pageNum}
                       onClick={() => setJurnalReadingPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        jurnalReadingPage === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${jurnalReadingPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -28094,42 +28110,41 @@ export default function DetailBlok() {
                   jadwalJurnalReading.length,
                   jurnalReadingPageSize
                 ) -
-                  3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">
-                  ...
-                </span>
-              )}
+                3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">
+                    ...
+                  </span>
+                )}
 
               {/* Always show last page if it's not the first page */}
               {getTotalPages(
                 jadwalJurnalReading.length,
                 jurnalReadingPageSize
               ) > 1 && (
-                <button
-                  onClick={() =>
-                    setJurnalReadingPage(
+                  <button
+                    onClick={() =>
+                      setJurnalReadingPage(
+                        getTotalPages(
+                          jadwalJurnalReading.length,
+                          jurnalReadingPageSize
+                        )
+                      )
+                    }
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${jurnalReadingPage ===
                       getTotalPages(
                         jadwalJurnalReading.length,
                         jurnalReadingPageSize
                       )
-                    )
-                  }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    jurnalReadingPage ===
-                    getTotalPages(
-                      jadwalJurnalReading.length,
-                      jurnalReadingPageSize
-                    )
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {getTotalPages(
-                    jadwalJurnalReading.length,
-                    jurnalReadingPageSize
-                  )}
-                </button>
-              )}
+                      }`}
+                  >
+                    {getTotalPages(
+                      jadwalJurnalReading.length,
+                      jurnalReadingPageSize
+                    )}
+                  </button>
+                )}
 
               <button
                 onClick={() =>
@@ -28622,118 +28637,118 @@ export default function DetailBlok() {
               {!(selectedTemplate === "LAMA"
                 ? importFile
                 : siakadImportFile) && (
-                <div className="mb-6">
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
-                    <div className="space-y-4">
-                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                        <FontAwesomeIcon
-                          icon={faFileExcel}
-                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
-                        />
+                  <div className="mb-6">
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                          <FontAwesomeIcon
+                            icon={faFileExcel}
+                            className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                          />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                            Upload File Excel{" "}
+                            {selectedTemplate === "LAMA" ? "" : "SIAKAD"}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Pilih file Excel dengan format{" "}
+                            {selectedTemplate === "LAMA"
+                              ? "template aplikasi"
+                              : "SIAKAD"}{" "}
+                            (.xlsx, .xls)
+                          </p>
+                        </div>
+                        <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                          <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                          Pilih File
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={handleImportExcel}
+                            className="hidden"
+                          />
+                        </label>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                          Upload File Excel{" "}
-                          {selectedTemplate === "LAMA" ? "" : "SIAKAD"}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Pilih file Excel dengan format{" "}
-                          {selectedTemplate === "LAMA"
-                            ? "template aplikasi"
-                            : "SIAKAD"}{" "}
-                          (.xlsx, .xls)
-                        </p>
-                      </div>
-                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                        Pilih File
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".xlsx,.xls"
-                          onChange={handleImportExcel}
-                          className="hidden"
-                        />
-                      </label>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* File Info */}
 
               {(selectedTemplate === "LAMA"
                 ? importFile
                 : siakadImportFile) && (
-                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FontAwesomeIcon
-                      icon={faFileExcel}
-                      className="w-5 h-5 text-blue-500"
-                    />
+                  <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FontAwesomeIcon
+                        icon={faFileExcel}
+                        className="w-5 h-5 text-blue-500"
+                      />
 
-                    <div className="flex-1">
-                      <p className="font-medium text-blue-800 dark:text-blue-200">
-                        {
-                          (selectedTemplate === "LAMA"
-                            ? importFile
-                            : siakadImportFile
-                          )?.name
-                        }
-                      </p>
+                      <div className="flex-1">
+                        <p className="font-medium text-blue-800 dark:text-blue-200">
+                          {
+                            (selectedTemplate === "LAMA"
+                              ? importFile
+                              : siakadImportFile
+                            )?.name
+                          }
+                        </p>
 
-                      <p className="text-sm text-blue-600 dark:text-blue-300">
-                        {(
-                          ((selectedTemplate === "LAMA"
-                            ? importFile
-                            : siakadImportFile
-                          )?.size || 0) / 1024
-                        ).toFixed(1)}{" "}
-                        KB
-                      </p>
-                    </div>
+                        <p className="text-sm text-blue-600 dark:text-blue-300">
+                          {(
+                            ((selectedTemplate === "LAMA"
+                              ? importFile
+                              : siakadImportFile
+                            )?.size || 0) / 1024
+                          ).toFixed(1)}{" "}
+                          KB
+                        </p>
+                      </div>
 
-                    <button
-                      onClick={() => {
-                        if (selectedTemplate === "LAMA") {
-                          setImportFile(null);
-                          setImportData([]);
-                          setImportErrors([]);
-                          setCellErrors([]);
-                          setEditingCell(null);
-                          setImportPage(1);
-                        } else {
-                          setSiakadImportFile(null);
-                          setSiakadImportData([]);
-                          setSiakadImportErrors([]);
-                          setSiakadCellErrors([]);
-                          setSiakadEditingCell(null);
-                          setSiakadImportPage(1);
-                        }
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = "";
-                        }
-                      }}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
-                      title="Hapus file"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                      <button
+                        onClick={() => {
+                          if (selectedTemplate === "LAMA") {
+                            setImportFile(null);
+                            setImportData([]);
+                            setImportErrors([]);
+                            setCellErrors([]);
+                            setEditingCell(null);
+                            setImportPage(1);
+                          } else {
+                            setSiakadImportFile(null);
+                            setSiakadImportData([]);
+                            setSiakadImportErrors([]);
+                            setSiakadCellErrors([]);
+                            setSiakadEditingCell(null);
+                            setSiakadImportPage(1);
+                          }
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = "";
+                          }
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                        title="Hapus file"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Error Messages */}
 
@@ -28743,657 +28758,648 @@ export default function DetailBlok() {
               ).length > 0 ||
                 (selectedTemplate === "LAMA" ? cellErrors : siakadCellErrors)
                   .length > 0) && (
-                <div className="mb-6">
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FontAwesomeIcon
-                        icon={faExclamationTriangle}
-                        className="w-5 h-5 text-red-500"
-                      />
+                  <div className="mb-6">
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
 
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi (
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {(selectedTemplate === "LAMA"
+                            ? importErrors
+                            : siakadImportErrors
+                          ).length +
+                            (selectedTemplate === "LAMA"
+                              ? cellErrors
+                              : siakadCellErrors
+                            ).length}{" "}
+                          error)
+                        </h3>
+                      </div>
+
+                      <div className="max-h-40 overflow-y-auto">
+                        {/* Error dari API response */}
+
                         {(selectedTemplate === "LAMA"
                           ? importErrors
                           : siakadImportErrors
-                        ).length +
-                          (selectedTemplate === "LAMA"
-                            ? cellErrors
-                            : siakadCellErrors
-                          ).length}{" "}
-                        error)
-                      </h3>
-                    </div>
+                        ).map((err, idx) => (
+                          <p
+                            key={idx}
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
+                          >
+                            • {err}
+                          </p>
+                        ))}
 
-                    <div className="max-h-40 overflow-y-auto">
-                      {/* Error dari API response */}
+                        {/* Error cell/detail */}
 
-                      {(selectedTemplate === "LAMA"
-                        ? importErrors
-                        : siakadImportErrors
-                      ).map((err, idx) => (
-                        <p
-                          key={idx}
-                          className="text-sm text-red-600 dark:text-red-400 mb-1"
-                        >
-                          • {err}
-                        </p>
-                      ))}
-
-                      {/* Error cell/detail */}
-
-                      {(selectedTemplate === "LAMA"
-                        ? cellErrors
-                        : siakadCellErrors
-                      ).map((err, idx) => (
-                        <p
-                          key={idx}
-                          className="text-sm text-red-600 dark:text-red-400 mb-1"
-                        >
-                          • {err.message} (Baris {err.row + 1}, Kolom{" "}
-                          {err.field.toUpperCase()})
-                        </p>
-                      ))}
+                        {(selectedTemplate === "LAMA"
+                          ? cellErrors
+                          : siakadCellErrors
+                        ).map((err, idx) => (
+                          <p
+                            key={idx}
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
+                          >
+                            • {err.message} (Baris {err.row + 1}, Kolom{" "}
+                            {err.field.toUpperCase()})
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Data Table */}
 
               {(selectedTemplate === "LAMA" ? importData : siakadImportData)
                 .length > 0 && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Preview Data (
-                      {
-                        (selectedTemplate === "LAMA"
-                          ? importData
-                          : siakadImportData
-                        ).length
-                      }{" "}
-                      jadwal)
-                    </h3>
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        Preview Data (
+                        {
+                          (selectedTemplate === "LAMA"
+                            ? importData
+                            : siakadImportData
+                          ).length
+                        }{" "}
+                        jadwal)
+                      </h3>
 
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        File: {importFile?.name}
+                      <div className="flex items-center gap-3">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          File: {importFile?.name}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                    <div className="max-w-full overflow-x-auto hide-scroll">
-                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                          <tr>
-                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              No
-                            </th>
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                No
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Tanggal
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Tanggal
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Jam Mulai
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Jam Mulai
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Materi
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Materi
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Topik
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Topik
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Dosen
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Dosen
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Ruangan
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Ruangan
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Kelompok Besar
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Kelompok Besar
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Sesi
-                            </th>
-                          </tr>
-                        </thead>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Sesi
+                              </th>
+                            </tr>
+                          </thead>
 
-                        <tbody>
-                          {(selectedTemplate === "LAMA"
-                            ? importPaginatedData
-                            : siakadImportPaginatedData
-                          ).map((row, index) => {
-                            const actualIndex =
-                              ((selectedTemplate === "LAMA"
-                                ? importPage
-                                : siakadImportPage) -
-                                1) *
+                          <tbody>
+                            {(selectedTemplate === "LAMA"
+                              ? importPaginatedData
+                              : siakadImportPaginatedData
+                            ).map((row, index) => {
+                              const actualIndex =
+                                ((selectedTemplate === "LAMA"
+                                  ? importPage
+                                  : siakadImportPage) -
+                                  1) *
                                 (selectedTemplate === "LAMA"
                                   ? importPageSize
                                   : siakadImportPageSize) +
-                              index;
+                                index;
 
-                            const dosen = dosenList.find(
-                              (d) => d.id === row.dosen_id
-                            );
-
-                            const ruangan = ruanganList.find(
-                              (r) => r.id === row.ruangan_id
-                            );
-
-                            const kelompokBesar = kelompokBesarOptions.find(
-                              (k) => Number(k.id) === row.kelompok_besar_id
-                            );
-
-                            const renderEditableCell = (
-                              field: string,
-                              value: any,
-                              isNumeric = false
-                            ) => {
-                              const isEditing =
-                                (selectedTemplate === "LAMA"
-                                  ? editingCell
-                                  : siakadEditingCell
-                                )?.row === actualIndex &&
-                                (selectedTemplate === "LAMA"
-                                  ? editingCell
-                                  : siakadEditingCell
-                                )?.key === field;
-
-                              const cellError = (
-                                selectedTemplate === "LAMA"
-                                  ? cellErrors
-                                  : siakadCellErrors
-                              ).find(
-                                (err) =>
-                                  err.row === actualIndex && err.field === field
+                              const dosen = dosenList.find(
+                                (d) => d.id === row.dosen_id
                               );
+
+                              const ruangan = ruanganList.find(
+                                (r) => r.id === row.ruangan_id
+                              );
+
+                              const kelompokBesar = kelompokBesarOptions.find(
+                                (k) => Number(k.id) === row.kelompok_besar_id
+                              );
+
+                              const renderEditableCell = (
+                                field: string,
+                                value: any,
+                                isNumeric = false
+                              ) => {
+                                const isEditing =
+                                  (selectedTemplate === "LAMA"
+                                    ? editingCell
+                                    : siakadEditingCell
+                                  )?.row === actualIndex &&
+                                  (selectedTemplate === "LAMA"
+                                    ? editingCell
+                                    : siakadEditingCell
+                                  )?.key === field;
+
+                                const cellError = (
+                                  selectedTemplate === "LAMA"
+                                    ? cellErrors
+                                    : siakadCellErrors
+                                ).find(
+                                  (err) =>
+                                    err.row === actualIndex && err.field === field
+                                );
+
+                                return (
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? "border-2 border-brand-500" : ""
+                                      } ${cellError
+                                        ? "bg-red-100 dark:bg-red-900/30"
+                                        : ""
+                                      }`}
+                                    onClick={() =>
+                                      selectedTemplate === "LAMA"
+                                        ? setEditingCell({
+                                          row: actualIndex,
+                                          key: field,
+                                        })
+                                        : setSiakadEditingCell({
+                                          row: actualIndex,
+                                          key: field,
+                                        })
+                                    }
+                                    title={cellError ? cellError.message : ""}
+                                  >
+                                    {isEditing ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        type={isNumeric ? "number" : "text"}
+                                        value={(() => {
+                                          // Jika value adalah placeholder text, kosongkan input
+                                          if (
+                                            value === "Kosong (isi manual)" ||
+                                            value === "Wajib diisi"
+                                          ) {
+                                            return "";
+                                          }
+                                          // Jika field adalah dosen_id dan tidak ada value
+                                          if (
+                                            field === "dosen_id" &&
+                                            (!value ||
+                                              value === 0 ||
+                                              value === null)
+                                          ) {
+                                            return "";
+                                          }
+                                          // Jika field adalah jam/tanggal dan kosong
+                                          if (
+                                            (field === "jam_mulai" ||
+                                              field === "jam_selesai" ||
+                                              field === "tanggal") &&
+                                            (!value || value.trim() === "")
+                                          ) {
+                                            return "";
+                                          }
+                                          // Return value as is
+                                          return value || "";
+                                        })()}
+                                        onChange={(e) =>
+                                          selectedTemplate === "LAMA"
+                                            ? handleCellEdit(
+                                              actualIndex,
+                                              field,
+                                              e.target.value
+                                            )
+                                            : handleSiakadCellEdit(
+                                              actualIndex,
+                                              field,
+                                              e.target.value
+                                            )
+                                        }
+                                        onBlur={() =>
+                                          selectedTemplate === "LAMA"
+                                            ? setEditingCell(null)
+                                            : setSiakadEditingCell(null)
+                                        }
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span
+                                        className={
+                                          cellError
+                                            ? "text-red-500"
+                                            : "text-gray-800 dark:text-gray-100"
+                                        }
+                                      >
+                                        {value || "-"}
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              };
 
                               return (
-                                <td
-                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                    isEditing ? "border-2 border-brand-500" : ""
-                                  } ${
-                                    cellError
-                                      ? "bg-red-100 dark:bg-red-900/30"
-                                      : ""
-                                  }`}
-                                  onClick={() =>
-                                    selectedTemplate === "LAMA"
-                                      ? setEditingCell({
-                                          row: actualIndex,
-                                          key: field,
-                                        })
-                                      : setSiakadEditingCell({
-                                          row: actualIndex,
-                                          key: field,
-                                        })
-                                  }
-                                  title={cellError ? cellError.message : ""}
-                                >
-                                  {isEditing ? (
-                                    <input
-                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                      type={isNumeric ? "number" : "text"}
-                                      value={(() => {
-                                        // Jika value adalah placeholder text, kosongkan input
-                                        if (
-                                          value === "Kosong (isi manual)" ||
-                                          value === "Wajib diisi"
-                                        ) {
-                                          return "";
-                                        }
-                                        // Jika field adalah dosen_id dan tidak ada value
-                                        if (
-                                          field === "dosen_id" &&
-                                          (!value ||
-                                            value === 0 ||
-                                            value === null)
-                                        ) {
-                                          return "";
-                                        }
-                                        // Jika field adalah jam/tanggal dan kosong
-                                        if (
-                                          (field === "jam_mulai" ||
-                                            field === "jam_selesai" ||
-                                            field === "tanggal") &&
-                                          (!value || value.trim() === "")
-                                        ) {
-                                          return "";
-                                        }
-                                        // Return value as is
-                                        return value || "";
-                                      })()}
-                                      onChange={(e) =>
-                                        selectedTemplate === "LAMA"
-                                          ? handleCellEdit(
-                                              actualIndex,
-                                              field,
-                                              e.target.value
-                                            )
-                                          : handleSiakadCellEdit(
-                                              actualIndex,
-                                              field,
-                                              e.target.value
-                                            )
-                                      }
-                                      onBlur={() =>
-                                        selectedTemplate === "LAMA"
-                                          ? setEditingCell(null)
-                                          : setSiakadEditingCell(null)
-                                      }
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    <span
-                                      className={
-                                        cellError
-                                          ? "text-red-500"
-                                          : "text-gray-800 dark:text-gray-100"
-                                      }
-                                    >
-                                      {value || "-"}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            };
-
-                            return (
-                              <tr
-                                key={index}
-                                className={`${
-                                  index % 2 === 1
+                                <tr
+                                  key={index}
+                                  className={`${index % 2 === 1
                                     ? "bg-gray-50 dark:bg-white/[0.02]"
                                     : ""
-                                }`}
-                              >
-                                <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                                  {actualIndex + 1}
-                                </td>
+                                    }`}
+                                >
+                                  <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                    {actualIndex + 1}
+                                  </td>
 
-                                {renderEditableCell("tanggal", row.tanggal)}
+                                  {renderEditableCell("tanggal", row.tanggal)}
 
-                                {renderEditableCell("jam_mulai", row.jam_mulai)}
+                                  {renderEditableCell("jam_mulai", row.jam_mulai)}
 
-                                {renderEditableCell("materi", row.materi)}
+                                  {renderEditableCell("materi", row.materi)}
 
-                                {renderEditableCell("topik", row.topik)}
+                                  {renderEditableCell("topik", row.topik)}
 
-                                {/* Dosen - Special handling */}
+                                  {/* Dosen - Special handling */}
 
-                                {(() => {
-                                  const field = "nama_dosen";
+                                  {(() => {
+                                    const field = "nama_dosen";
 
-                                  const isEditing =
-                                    (selectedTemplate === "LAMA"
-                                      ? editingCell
-                                      : siakadEditingCell
-                                    )?.row === actualIndex &&
-                                    (selectedTemplate === "LAMA"
-                                      ? editingCell
-                                      : siakadEditingCell
-                                    )?.key === field;
+                                    const isEditing =
+                                      (selectedTemplate === "LAMA"
+                                        ? editingCell
+                                        : siakadEditingCell
+                                      )?.row === actualIndex &&
+                                      (selectedTemplate === "LAMA"
+                                        ? editingCell
+                                        : siakadEditingCell
+                                      )?.key === field;
 
-                                  const cellError = (
-                                    selectedTemplate === "LAMA"
-                                      ? cellErrors
-                                      : siakadCellErrors
-                                  ).find(
-                                    (err) =>
-                                      err.row === actualIndex &&
-                                      err.field === "dosen_id"
-                                  );
+                                    const cellError = (
+                                      selectedTemplate === "LAMA"
+                                        ? cellErrors
+                                        : siakadCellErrors
+                                    ).find(
+                                      (err) =>
+                                        err.row === actualIndex &&
+                                        err.field === "dosen_id"
+                                    );
 
-                                  return (
-                                    <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
                                           ? "border-2 border-brand-500"
                                           : ""
-                                      } ${
-                                        cellError
-                                          ? "bg-red-100 dark:bg-red-900/30"
-                                          : ""
-                                      }`}
-                                      onClick={() =>
-                                        selectedTemplate === "LAMA"
-                                          ? setEditingCell({
+                                          } ${cellError
+                                            ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                          }`}
+                                        onClick={() =>
+                                          selectedTemplate === "LAMA"
+                                            ? setEditingCell({
                                               row: actualIndex,
                                               key: field,
                                             })
-                                          : setSiakadEditingCell({
+                                            : setSiakadEditingCell({
                                               row: actualIndex,
                                               key: field,
                                             })
-                                      }
-                                      title={cellError ? cellError.message : ""}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                          value={
-                                            row.nama_dosen || dosen?.name || ""
-                                          }
-                                          onChange={(e) =>
-                                            selectedTemplate === "LAMA"
-                                              ? handleDosenEdit(
-                                                  actualIndex,
-                                                  e.target.value
-                                                )
-                                              : handleSiakadDosenEdit(
-                                                  actualIndex,
-                                                  e.target.value
-                                                )
-                                          }
-                                          onBlur={() =>
-                                            selectedTemplate === "LAMA"
-                                              ? setEditingCell(null)
-                                              : setSiakadEditingCell(null)
-                                          }
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span
-                                          className={
-                                            cellError
-                                              ? "text-red-500"
-                                              : "text-gray-800 dark:text-white/90"
-                                          }
-                                        >
-                                          {dosen?.name ||
-                                            (row as any).nama_dosen ||
-                                            "Tidak ditemukan"}
-                                        </span>
-                                      )}
-                                    </td>
-                                  );
-                                })()}
-
-                                {/* Ruangan - Special handling */}
-
-                                {(() => {
-                                  const field = "nama_ruangan";
-
-                                  const isEditing =
-                                    (selectedTemplate === "LAMA"
-                                      ? editingCell
-                                      : siakadEditingCell
-                                    )?.row === actualIndex &&
-                                    (selectedTemplate === "LAMA"
-                                      ? editingCell
-                                      : siakadEditingCell
-                                    )?.key === field;
-
-                                  const cellError = (
-                                    selectedTemplate === "LAMA"
-                                      ? cellErrors
-                                      : siakadCellErrors
-                                  ).find(
-                                    (err) =>
-                                      err.row === actualIndex &&
-                                      err.field === "ruangan_id"
-                                  );
-
-                                  return (
-                                    <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
-                                          ? "border-2 border-brand-500"
-                                          : ""
-                                      } ${
-                                        cellError
-                                          ? "bg-red-100 dark:bg-red-900/30"
-                                          : ""
-                                      }`}
-                                      onClick={() =>
-                                        selectedTemplate === "LAMA"
-                                          ? setEditingCell({
-                                              row: actualIndex,
-                                              key: field,
-                                            })
-                                          : setSiakadEditingCell({
-                                              row: actualIndex,
-                                              key: field,
-                                            })
-                                      }
-                                      title={cellError ? cellError.message : ""}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                          value={
-                                            row.nama_ruangan ||
-                                            ruangan?.nama ||
-                                            ""
-                                          }
-                                          onChange={(e) =>
-                                            selectedTemplate === "LAMA"
-                                              ? handleRuanganEdit(
-                                                  actualIndex,
-                                                  e.target.value
-                                                )
-                                              : handleSiakadRuanganEdit(
-                                                  actualIndex,
-                                                  e.target.value
-                                                )
-                                          }
-                                          onBlur={() =>
-                                            selectedTemplate === "LAMA"
-                                              ? setEditingCell(null)
-                                              : setSiakadEditingCell(null)
-                                          }
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span
-                                          className={
-                                            cellError
-                                              ? "text-red-500"
-                                              : ruangan
-                                              ? "text-gray-800 dark:text-white/90"
-                                              : "text-red-500"
-                                          }
-                                        >
-                                          {ruangan?.nama ||
-                                            (row as any).nama_ruangan ||
-                                            "Tidak ditemukan"}
-                                        </span>
-                                      )}
-                                    </td>
-                                  );
-                                })()}
-
-                                {(() => {
-                                  const field = "kelompok_besar_id";
-
-                                  const isEditing =
-                                    (selectedTemplate === "LAMA"
-                                      ? editingCell
-                                      : siakadEditingCell
-                                    )?.row === actualIndex &&
-                                    (selectedTemplate === "LAMA"
-                                      ? editingCell
-                                      : siakadEditingCell
-                                    )?.key === field;
-
-                                  const cellError = (
-                                    selectedTemplate === "LAMA"
-                                      ? cellErrors
-                                      : siakadCellErrors
-                                  ).find(
-                                    (err) =>
-                                      err.row === actualIndex &&
-                                      err.field === field
-                                  );
-
-                                  return (
-                                    <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
-                                          ? "border-2 border-brand-500"
-                                          : ""
-                                      } ${
-                                        cellError
-                                          ? "bg-red-100 dark:bg-red-900/30"
-                                          : ""
-                                      }`}
-                                      onClick={() =>
-                                        selectedTemplate === "LAMA"
-                                          ? setEditingCell({
-                                              row: actualIndex,
-                                              key: field,
-                                            })
-                                          : setSiakadEditingCell({
-                                              row: actualIndex,
-                                              key: field,
-                                            })
-                                      }
-                                      title={cellError ? cellError.message : ""}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                          type="number"
-                                          value={row.kelompok_besar_id || ""}
-                                          onChange={(e) => {
-                                            if (selectedTemplate === "LAMA") {
-                                              handleCellEdit(
-                                                actualIndex,
-                                                field,
-                                                e.target.value
-                                              );
-                                            } else {
-                                              handleSiakadCellEdit(
-                                                actualIndex,
-                                                field,
-                                                parseInt(e.target.value) || 0
-                                              );
+                                        }
+                                        title={cellError ? cellError.message : ""}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                            value={
+                                              row.nama_dosen || dosen?.name || ""
                                             }
-                                          }}
-                                          onBlur={() => {
-                                            if (selectedTemplate === "LAMA") {
-                                              setEditingCell(null);
-                                            } else {
-                                              setSiakadEditingCell(null);
+                                            onChange={(e) =>
+                                              selectedTemplate === "LAMA"
+                                                ? handleDosenEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                )
+                                                : handleSiakadDosenEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                )
                                             }
-                                          }}
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span
-                                          className={
-                                            cellError
-                                              ? "text-red-500"
-                                              : "text-gray-800 dark:text-white/90"
-                                          }
-                                        >
-                                          {kelompokBesar
-                                            ? kelompokBesar.label
-                                            : `ID ${row.kelompok_besar_id}`}
-                                        </span>
-                                      )}
-                                    </td>
-                                  );
-                                })()}
+                                            onBlur={() =>
+                                              selectedTemplate === "LAMA"
+                                                ? setEditingCell(null)
+                                                : setSiakadEditingCell(null)
+                                            }
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={
+                                              cellError
+                                                ? "text-red-500"
+                                                : "text-gray-800 dark:text-white/90"
+                                            }
+                                          >
+                                            {dosen?.name ||
+                                              (row as any).nama_dosen ||
+                                              "Tidak ditemukan"}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
 
-                                {renderEditableCell(
-                                  "jumlah_sesi",
-                                  row.jumlah_sesi,
-                                  true
-                                )}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                                  {/* Ruangan - Special handling */}
 
-                  {/* Pagination untuk Import Preview */}
+                                  {(() => {
+                                    const field = "nama_ruangan";
 
-                  {(selectedTemplate === "LAMA" ? importData : siakadImportData)
-                    .length > importPageSize && (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center gap-4">
-                        <select
-                          value={importPageSize}
-                          onChange={(e) => {
-                            setImportPageSize(Number(e.target.value));
-                            setImportPage(1);
-                          }}
-                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                        >
-                          <option value={5}>5 per halaman</option>
+                                    const isEditing =
+                                      (selectedTemplate === "LAMA"
+                                        ? editingCell
+                                        : siakadEditingCell
+                                      )?.row === actualIndex &&
+                                      (selectedTemplate === "LAMA"
+                                        ? editingCell
+                                        : siakadEditingCell
+                                      )?.key === field;
 
-                          <option value={10}>10 per halaman</option>
+                                    const cellError = (
+                                      selectedTemplate === "LAMA"
+                                        ? cellErrors
+                                        : siakadCellErrors
+                                    ).find(
+                                      (err) =>
+                                        err.row === actualIndex &&
+                                        err.field === "ruangan_id"
+                                    );
 
-                          <option value={20}>20 per halaman</option>
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                          ? "border-2 border-brand-500"
+                                          : ""
+                                          } ${cellError
+                                            ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                          }`}
+                                        onClick={() =>
+                                          selectedTemplate === "LAMA"
+                                            ? setEditingCell({
+                                              row: actualIndex,
+                                              key: field,
+                                            })
+                                            : setSiakadEditingCell({
+                                              row: actualIndex,
+                                              key: field,
+                                            })
+                                        }
+                                        title={cellError ? cellError.message : ""}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                            value={
+                                              row.nama_ruangan ||
+                                              ruangan?.nama ||
+                                              ""
+                                            }
+                                            onChange={(e) =>
+                                              selectedTemplate === "LAMA"
+                                                ? handleRuanganEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                )
+                                                : handleSiakadRuanganEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                )
+                                            }
+                                            onBlur={() =>
+                                              selectedTemplate === "LAMA"
+                                                ? setEditingCell(null)
+                                                : setSiakadEditingCell(null)
+                                            }
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={
+                                              cellError
+                                                ? "text-red-500"
+                                                : ruangan
+                                                  ? "text-gray-800 dark:text-white/90"
+                                                  : "text-red-500"
+                                            }
+                                          >
+                                            {ruangan?.nama ||
+                                              (row as any).nama_ruangan ||
+                                              "Tidak ditemukan"}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
 
-                          <option value={50}>50 per halaman</option>
-                        </select>
+                                  {(() => {
+                                    const field = "kelompok_besar_id";
 
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          Menampilkan{" "}
-                          {((selectedTemplate === "LAMA"
-                            ? importPage
-                            : siakadImportPage) -
-                            1) *
-                            importPageSize +
-                            1}
-                          -
-                          {Math.min(
-                            (selectedTemplate === "LAMA"
-                              ? importPage
-                              : siakadImportPage) * importPageSize,
-                            (selectedTemplate === "LAMA"
-                              ? importData
-                              : siakadImportData
-                            ).length
-                          )}{" "}
-                          dari{" "}
-                          {
-                            (selectedTemplate === "LAMA"
-                              ? importData
-                              : siakadImportData
-                            ).length
-                          }{" "}
-                          jadwal
-                        </span>
+                                    const isEditing =
+                                      (selectedTemplate === "LAMA"
+                                        ? editingCell
+                                        : siakadEditingCell
+                                      )?.row === actualIndex &&
+                                      (selectedTemplate === "LAMA"
+                                        ? editingCell
+                                        : siakadEditingCell
+                                      )?.key === field;
+
+                                    const cellError = (
+                                      selectedTemplate === "LAMA"
+                                        ? cellErrors
+                                        : siakadCellErrors
+                                    ).find(
+                                      (err) =>
+                                        err.row === actualIndex &&
+                                        err.field === field
+                                    );
+
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                          ? "border-2 border-brand-500"
+                                          : ""
+                                          } ${cellError
+                                            ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                          }`}
+                                        onClick={() =>
+                                          selectedTemplate === "LAMA"
+                                            ? setEditingCell({
+                                              row: actualIndex,
+                                              key: field,
+                                            })
+                                            : setSiakadEditingCell({
+                                              row: actualIndex,
+                                              key: field,
+                                            })
+                                        }
+                                        title={cellError ? cellError.message : ""}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                            type="number"
+                                            value={row.kelompok_besar_id || ""}
+                                            onChange={(e) => {
+                                              if (selectedTemplate === "LAMA") {
+                                                handleCellEdit(
+                                                  actualIndex,
+                                                  field,
+                                                  e.target.value
+                                                );
+                                              } else {
+                                                handleSiakadCellEdit(
+                                                  actualIndex,
+                                                  field,
+                                                  parseInt(e.target.value) || 0
+                                                );
+                                              }
+                                            }}
+                                            onBlur={() => {
+                                              if (selectedTemplate === "LAMA") {
+                                                setEditingCell(null);
+                                              } else {
+                                                setSiakadEditingCell(null);
+                                              }
+                                            }}
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={
+                                              cellError
+                                                ? "text-red-500"
+                                                : "text-gray-800 dark:text-white/90"
+                                            }
+                                          >
+                                            {kelompokBesar
+                                              ? kelompokBesar.label
+                                              : `ID ${row.kelompok_besar_id}`}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
+
+                                  {renderEditableCell(
+                                    "jumlah_sesi",
+                                    row.jumlah_sesi,
+                                    true
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() =>
-                            setImportPage((p) => Math.max(1, p - 1))
-                          }
-                          disabled={importPage === 1}
-                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                        >
-                          Prev
-                        </button>
+                    {/* Pagination untuk Import Preview */}
 
-                        {/* Smart Pagination with Scroll */}
+                    {(selectedTemplate === "LAMA" ? importData : siakadImportData)
+                      .length > importPageSize && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-4">
+                            <select
+                              value={importPageSize}
+                              onChange={(e) => {
+                                setImportPageSize(Number(e.target.value));
+                                setImportPage(1);
+                              }}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            >
+                              <option value={5}>5 per halaman</option>
 
-                        <div
-                          className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
-                          style={{
-                            scrollbarWidth: "thin",
+                              <option value={10}>10 per halaman</option>
 
-                            scrollbarColor: "#cbd5e1 #f1f5f9",
-                          }}
-                        >
-                          <style
-                            dangerouslySetInnerHTML={{
-                              __html: `
+                              <option value={20}>20 per halaman</option>
+
+                              <option value={50}>50 per halaman</option>
+                            </select>
+
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Menampilkan{" "}
+                              {((selectedTemplate === "LAMA"
+                                ? importPage
+                                : siakadImportPage) -
+                                1) *
+                                importPageSize +
+                                1}
+                              -
+                              {Math.min(
+                                (selectedTemplate === "LAMA"
+                                  ? importPage
+                                  : siakadImportPage) * importPageSize,
+                                (selectedTemplate === "LAMA"
+                                  ? importData
+                                  : siakadImportData
+                                ).length
+                              )}{" "}
+                              dari{" "}
+                              {
+                                (selectedTemplate === "LAMA"
+                                  ? importData
+                                  : siakadImportData
+                                ).length
+                              }{" "}
+                              jadwal
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                setImportPage((p) => Math.max(1, p - 1))
+                              }
+                              disabled={importPage === 1}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Prev
+                            </button>
+
+                            {/* Smart Pagination with Scroll */}
+
+                            <div
+                              className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                              style={{
+                                scrollbarWidth: "thin",
+
+                                scrollbarColor: "#cbd5e1 #f1f5f9",
+                              }}
+                            >
+                              <style
+                                dangerouslySetInnerHTML={{
+                                  __html: `
 
                                   .pagination-scroll::-webkit-scrollbar {
 
@@ -29442,102 +29448,99 @@ export default function DetailBlok() {
                                   }
 
                                 `,
-                            }}
-                          />
+                                }}
+                              />
 
-                          {/* Always show first page if it's not the last page */}
+                              {/* Always show first page if it's not the last page */}
 
-                          {importTotalPages > 1 && (
-                            <button
-                              onClick={() => setImportPage(1)}
-                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                importPage === 1
-                                  ? "bg-brand-500 text-white"
-                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                              }`}
-                            >
-                              1
-                            </button>
-                          )}
-
-                          {/* Show ellipsis if current page is far from start */}
-
-                          {importPage > 4 && (
-                            <span className="px-2 text-gray-500 dark:text-gray-400">
-                              ...
-                            </span>
-                          )}
-
-                          {/* Show pages around current page */}
-
-                          {Array.from({ length: importTotalPages }, (_, i) => {
-                            const pageNum = i + 1;
-
-                            // Show pages around current page (2 pages before and after)
-
-                            const shouldShow =
-                              pageNum > 1 &&
-                              pageNum < importTotalPages &&
-                              pageNum >= importPage - 2 &&
-                              pageNum <= importPage + 2;
-
-                            if (!shouldShow) return null;
-
-                            return (
-                              <button
-                                key={pageNum}
-                                onClick={() => setImportPage(pageNum)}
-                                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                  importPage === pageNum
+                              {importTotalPages > 1 && (
+                                <button
+                                  onClick={() => setImportPage(1)}
+                                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${importPage === 1
                                     ? "bg-brand-500 text-white"
                                     : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
+                                    }`}
+                                >
+                                  1
+                                </button>
+                              )}
 
-                          {/* Show ellipsis if current page is far from end */}
+                              {/* Show ellipsis if current page is far from start */}
 
-                          {importPage < importTotalPages - 3 && (
-                            <span className="px-2 text-gray-500 dark:text-gray-400">
-                              ...
-                            </span>
-                          )}
+                              {importPage > 4 && (
+                                <span className="px-2 text-gray-500 dark:text-gray-400">
+                                  ...
+                                </span>
+                              )}
 
-                          {/* Always show last page if it's not the first page */}
+                              {/* Show pages around current page */}
 
-                          {importTotalPages > 1 && (
+                              {Array.from({ length: importTotalPages }, (_, i) => {
+                                const pageNum = i + 1;
+
+                                // Show pages around current page (2 pages before and after)
+
+                                const shouldShow =
+                                  pageNum > 1 &&
+                                  pageNum < importTotalPages &&
+                                  pageNum >= importPage - 2 &&
+                                  pageNum <= importPage + 2;
+
+                                if (!shouldShow) return null;
+
+                                return (
+                                  <button
+                                    key={pageNum}
+                                    onClick={() => setImportPage(pageNum)}
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${importPage === pageNum
+                                      ? "bg-brand-500 text-white"
+                                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                      }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              })}
+
+                              {/* Show ellipsis if current page is far from end */}
+
+                              {importPage < importTotalPages - 3 && (
+                                <span className="px-2 text-gray-500 dark:text-gray-400">
+                                  ...
+                                </span>
+                              )}
+
+                              {/* Always show last page if it's not the first page */}
+
+                              {importTotalPages > 1 && (
+                                <button
+                                  onClick={() => setImportPage(importTotalPages)}
+                                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${importPage === importTotalPages
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    }`}
+                                >
+                                  {importTotalPages}
+                                </button>
+                              )}
+                            </div>
+
                             <button
-                              onClick={() => setImportPage(importTotalPages)}
-                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                importPage === importTotalPages
-                                  ? "bg-brand-500 text-white"
-                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                              }`}
+                              onClick={() =>
+                                setImportPage((p) =>
+                                  Math.min(importTotalPages, p + 1)
+                                )
+                              }
+                              disabled={importPage === importTotalPages}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
                             >
-                              {importTotalPages}
+                              Next
                             </button>
-                          )}
+                          </div>
                         </div>
-
-                        <button
-                          onClick={() =>
-                            setImportPage((p) =>
-                              Math.min(importTotalPages, p + 1)
-                            )
-                          }
-                          disabled={importPage === importTotalPages}
-                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                      )}
+                  </div>
+                )}
 
               {/* Action Buttons */}
 
@@ -29851,96 +29854,96 @@ export default function DetailBlok() {
               {!(selectedPBLTemplate === "LAMA"
                 ? pblImportFile
                 : pblSiakadImportFile) && (
-                <div className="mb-6">
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
-                    <div className="space-y-4">
-                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                        <FontAwesomeIcon
-                          icon={faFileExcel}
-                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
-                        />
+                  <div className="mb-6">
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                          <FontAwesomeIcon
+                            icon={faFileExcel}
+                            className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                          />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                            Upload File Excel{" "}
+                            {selectedPBLTemplate === "LAMA" ? "" : "SIAKAD"}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Pilih file Excel dengan format{" "}
+                            {selectedPBLTemplate === "LAMA"
+                              ? "template aplikasi"
+                              : "SIAKAD"}{" "}
+                            (.xlsx, .xls)
+                          </p>
+                        </div>
+                        <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                          <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                          Pilih File
+                          <input
+                            ref={pblFileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={handlePBLFileUpload}
+                            className="hidden"
+                          />
+                        </label>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                          Upload File Excel{" "}
-                          {selectedPBLTemplate === "LAMA" ? "" : "SIAKAD"}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Pilih file Excel dengan format{" "}
-                          {selectedPBLTemplate === "LAMA"
-                            ? "template aplikasi"
-                            : "SIAKAD"}{" "}
-                          (.xlsx, .xls)
-                        </p>
-                      </div>
-                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                        Pilih File
-                        <input
-                          ref={pblFileInputRef}
-                          type="file"
-                          accept=".xlsx,.xls"
-                          onChange={handlePBLFileUpload}
-                          className="hidden"
-                        />
-                      </label>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* File Info */}
 
               {(selectedPBLTemplate === "LAMA"
                 ? pblImportFile
                 : pblSiakadImportFile) && (
-                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FontAwesomeIcon
-                      icon={faFileExcel}
-                      className="w-5 h-5 text-blue-500"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-blue-800 dark:text-blue-200">
-                        {
-                          (selectedPBLTemplate === "LAMA"
-                            ? pblImportFile
-                            : pblSiakadImportFile
-                          )?.name
-                        }
-                      </p>
-                      <p className="text-sm text-blue-600 dark:text-blue-300">
-                        {(
-                          ((selectedPBLTemplate === "LAMA"
-                            ? pblImportFile
-                            : pblSiakadImportFile
-                          )?.size || 0) / 1024
-                        ).toFixed(1)}{" "}
-                        KB
-                      </p>
-                    </div>
-                    <button
-                      onClick={handlePBLRemoveFile}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
-                      title="Hapus file"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                  <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FontAwesomeIcon
+                        icon={faFileExcel}
+                        className="w-5 h-5 text-blue-500"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-blue-800 dark:text-blue-200">
+                          {
+                            (selectedPBLTemplate === "LAMA"
+                              ? pblImportFile
+                              : pblSiakadImportFile
+                            )?.name
+                          }
+                        </p>
+                        <p className="text-sm text-blue-600 dark:text-blue-300">
+                          {(
+                            ((selectedPBLTemplate === "LAMA"
+                              ? pblImportFile
+                              : pblSiakadImportFile
+                            )?.size || 0) / 1024
+                          ).toFixed(1)}{" "}
+                          KB
+                        </p>
+                      </div>
+                      <button
+                        onClick={handlePBLRemoveFile}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                        title="Hapus file"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Error Messages */}
 
@@ -29952,57 +29955,57 @@ export default function DetailBlok() {
                   ? pblCellErrors
                   : pblSiakadCellErrors
                 ).length > 0) && (
-                <div className="mb-6">
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FontAwesomeIcon
-                        icon={faExclamationTriangle}
-                        className="w-5 h-5 text-red-500"
-                      />
+                  <div className="mb-6">
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
 
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi (
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {(selectedPBLTemplate === "LAMA"
+                            ? pblImportErrors
+                            : pblSiakadImportErrors
+                          ).length +
+                            (selectedPBLTemplate === "LAMA"
+                              ? pblCellErrors
+                              : pblSiakadCellErrors
+                            ).length}{" "}
+                          error)
+                        </h3>
+                      </div>
+
+                      <div className="max-h-40 overflow-y-auto space-y-2">
                         {(selectedPBLTemplate === "LAMA"
                           ? pblImportErrors
                           : pblSiakadImportErrors
-                        ).length +
-                          (selectedPBLTemplate === "LAMA"
-                            ? pblCellErrors
-                            : pblSiakadCellErrors
-                          ).length}{" "}
-                        error)
-                      </h3>
-                    </div>
+                        ).map((error, index) => (
+                          <p
+                            key={index}
+                            className="text-sm text-red-600 dark:text-red-400"
+                          >
+                            • {error}
+                          </p>
+                        ))}
 
-                    <div className="max-h-40 overflow-y-auto space-y-2">
-                      {(selectedPBLTemplate === "LAMA"
-                        ? pblImportErrors
-                        : pblSiakadImportErrors
-                      ).map((error, index) => (
-                        <p
-                          key={index}
-                          className="text-sm text-red-600 dark:text-red-400"
-                        >
-                          • {error}
-                        </p>
-                      ))}
-
-                      {(selectedPBLTemplate === "LAMA"
-                        ? pblCellErrors
-                        : pblSiakadCellErrors
-                      ).map((err, idx) => (
-                        <p
-                          key={idx}
-                          className="text-sm text-red-600 dark:text-red-400 mb-1"
-                        >
-                          • {err.message} (Baris {err.row + 1}, Kolom{" "}
-                          {err.field.toUpperCase()})
-                        </p>
-                      ))}
+                        {(selectedPBLTemplate === "LAMA"
+                          ? pblCellErrors
+                          : pblSiakadCellErrors
+                        ).map((err, idx) => (
+                          <p
+                            key={idx}
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
+                          >
+                            • {err.message} (Baris {err.row + 1}, Kolom{" "}
+                            {err.field.toUpperCase()})
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Data Table */}
 
@@ -30010,629 +30013,618 @@ export default function DetailBlok() {
                 ? pblImportData
                 : pblSiakadImportData
               ).length > 0 && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Preview Data (
-                      {
-                        (selectedPBLTemplate === "LAMA"
-                          ? pblImportData
-                          : pblSiakadImportData
-                        ).length
-                      }{" "}
-                      jadwal)
-                    </h3>
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        Preview Data (
+                        {
+                          (selectedPBLTemplate === "LAMA"
+                            ? pblImportData
+                            : pblSiakadImportData
+                          ).length
+                        }{" "}
+                        jadwal)
+                      </h3>
 
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      File:{" "}
-                      {
-                        (selectedPBLTemplate === "LAMA"
-                          ? pblImportFile
-                          : pblSiakadImportFile
-                        )?.name
-                      }
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        File:{" "}
+                        {
+                          (selectedPBLTemplate === "LAMA"
+                            ? pblImportFile
+                            : pblSiakadImportFile
+                          )?.name
+                        }
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                    <div className="max-w-full overflow-x-auto hide-scroll">
-                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                          <tr>
-                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              No
-                            </th>
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                No
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Tanggal
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Tanggal
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Jam Mulai
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Jam Mulai
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Modul PBL
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Modul PBL
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Kelompok Kecil
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Kelompok Kecil
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Dosen
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Dosen
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Ruangan
-                            </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Ruangan
+                              </th>
 
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              PBL Tipe
-                            </th>
-                          </tr>
-                        </thead>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                PBL Tipe
+                              </th>
+                            </tr>
+                          </thead>
 
-                        <tbody>
-                          {(selectedPBLTemplate === "LAMA"
-                            ? pblImportPaginatedData
-                            : pblSiakadImportPaginatedData
-                          ).map((row, index) => {
-                            const actualIndex =
-                              ((selectedPBLTemplate === "LAMA"
-                                ? pblImportPage
-                                : pblSiakadImportPage) -
-                                1) *
+                          <tbody>
+                            {(selectedPBLTemplate === "LAMA"
+                              ? pblImportPaginatedData
+                              : pblSiakadImportPaginatedData
+                            ).map((row, index) => {
+                              const actualIndex =
+                                ((selectedPBLTemplate === "LAMA"
+                                  ? pblImportPage
+                                  : pblSiakadImportPage) -
+                                  1) *
                                 pblImportPageSize +
-                              index;
+                                index;
 
-                            const modulPBL = modulPBLList?.find(
-                              (m) => m.id === row.modul_pbl_id
-                            );
-
-                            const kelompokKecil = kelompokKecilList?.find(
-                              (k) => k.id === row.kelompok_kecil_id
-                            );
-                            const namaKelompokAsli = (row as any).nama_kelompok;
-
-                            const dosen = allDosenList?.find(
-                              (d) => d.id === row.dosen_id
-                            );
-
-                            const ruangan = allRuanganList?.find(
-                              (r) => r.id === row.ruangan_id
-                            );
-
-                            const renderEditableCell = (
-                              field: string,
-                              value: any,
-                              isNumeric = false
-                            ) => {
-                              const isEditing =
-                                (selectedPBLTemplate === "LAMA"
-                                  ? pblEditingCell
-                                  : pblSiakadEditingCell
-                                )?.row === actualIndex &&
-                                (selectedPBLTemplate === "LAMA"
-                                  ? pblEditingCell
-                                  : pblSiakadEditingCell
-                                )?.key === field;
-
-                              const cellError = (
-                                selectedPBLTemplate === "LAMA"
-                                  ? pblCellErrors
-                                  : pblSiakadCellErrors
-                              ).find(
-                                (err) =>
-                                  err.row === actualIndex && err.field === field
+                              const modulPBL = modulPBLList?.find(
+                                (m) => m.id === row.modul_pbl_id
                               );
+
+                              const kelompokKecil = kelompokKecilList?.find(
+                                (k) => k.id === row.kelompok_kecil_id
+                              );
+                              const namaKelompokAsli = (row as any).nama_kelompok;
+
+                              const dosen = allDosenList?.find(
+                                (d) => d.id === row.dosen_id
+                              );
+
+                              const ruangan = allRuanganList?.find(
+                                (r) => r.id === row.ruangan_id
+                              );
+
+                              const renderEditableCell = (
+                                field: string,
+                                value: any,
+                                isNumeric = false
+                              ) => {
+                                const isEditing =
+                                  (selectedPBLTemplate === "LAMA"
+                                    ? pblEditingCell
+                                    : pblSiakadEditingCell
+                                  )?.row === actualIndex &&
+                                  (selectedPBLTemplate === "LAMA"
+                                    ? pblEditingCell
+                                    : pblSiakadEditingCell
+                                  )?.key === field;
+
+                                const cellError = (
+                                  selectedPBLTemplate === "LAMA"
+                                    ? pblCellErrors
+                                    : pblSiakadCellErrors
+                                ).find(
+                                  (err) =>
+                                    err.row === actualIndex && err.field === field
+                                );
+
+                                return (
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? "border-2 border-brand-500" : ""
+                                      } ${cellError
+                                        ? "bg-red-100 dark:bg-red-900/30"
+                                        : ""
+                                      }`}
+                                    onClick={() =>
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? setPBLEditingCell
+                                        : setPBLSiakadEditingCell)({
+                                          row: actualIndex,
+                                          key: field,
+                                        })
+                                    }
+                                    title={cellError ? cellError.message : ""}
+                                  >
+                                    {isEditing ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        type={isNumeric ? "number" : "text"}
+                                        value={
+                                          value === "Kosong (isi manual)" ||
+                                            value === "Wajib diisi"
+                                            ? ""
+                                            : value || ""
+                                        }
+                                        onChange={(e) => {
+                                          if (selectedPBLTemplate === "SIAKAD") {
+                                            if (field === "nama_modul") {
+                                              handlePBLSIAKADCellEdit(
+                                                actualIndex,
+                                                field,
+                                                e.target.value
+                                              );
+                                            } else if (field === "dosen_id") {
+                                              handlePBLSIAKADCellEdit(
+                                                actualIndex,
+                                                field,
+                                                e.target.value
+                                              );
+                                            } else {
+                                              handlePBLSIAKADCellEdit(
+                                                actualIndex,
+                                                field,
+                                                e.target.value
+                                              );
+                                            }
+                                          } else {
+                                            handlePBLCellEdit(
+                                              actualIndex,
+                                              field,
+                                              e.target.value
+                                            );
+                                          }
+                                        }}
+                                        onBlur={() =>
+                                          selectedPBLTemplate === "LAMA"
+                                            ? setPBLEditingCell(null)
+                                            : setPBLSiakadEditingCell(null)
+                                        }
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span
+                                        className={
+                                          cellError ||
+                                            (field === "tanggal" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "jam_mulai" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "jam_selesai" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "nama_modul" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "dosen_id" &&
+                                              (!value ||
+                                                value === 0 ||
+                                                value === null)) ||
+                                            (field === "pbl_tipe" &&
+                                              (!value || value.trim() === ""))
+                                            ? "text-red-500"
+                                            : "text-gray-800 dark:text-gray-100"
+                                        }
+                                      >
+                                        {field === "tanggal" &&
+                                          (!value || value.trim() === "")
+                                          ? "Wajib diisi"
+                                          : field === "jam_mulai" &&
+                                            (!value || value.trim() === "")
+                                            ? "Wajib diisi"
+                                            : field === "jam_selesai" &&
+                                              (!value || value.trim() === "")
+                                              ? "Wajib diisi"
+                                              : field === "nama_modul" &&
+                                                (!value || value.trim() === "")
+                                                ? "Wajib diisi"
+                                                : field === "dosen_id" &&
+                                                  (!value ||
+                                                    value === 0 ||
+                                                    value === null)
+                                                  ? "Wajib diisi"
+                                                  : field === "pbl_tipe" &&
+                                                    (!value || value.trim() === "")
+                                                    ? "Wajib diisi"
+                                                    : value || "-"}
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              };
 
                               return (
-                                <td
-                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                    isEditing ? "border-2 border-brand-500" : ""
-                                  } ${
-                                    cellError
-                                      ? "bg-red-100 dark:bg-red-900/30"
-                                      : ""
-                                  }`}
-                                  onClick={() =>
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? setPBLEditingCell
-                                      : setPBLSiakadEditingCell)({
-                                      row: actualIndex,
-                                      key: field,
-                                    })
-                                  }
-                                  title={cellError ? cellError.message : ""}
-                                >
-                                  {isEditing ? (
-                                    <input
-                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                      type={isNumeric ? "number" : "text"}
-                                      value={
-                                        value === "Kosong (isi manual)" ||
-                                        value === "Wajib diisi"
-                                          ? ""
-                                          : value || ""
-                                      }
-                                      onChange={(e) => {
-                                        if (selectedPBLTemplate === "SIAKAD") {
-                                          if (field === "nama_modul") {
-                                            handlePBLSIAKADCellEdit(
-                                              actualIndex,
-                                              field,
-                                              e.target.value
-                                            );
-                                          } else if (field === "dosen_id") {
-                                            handlePBLSIAKADCellEdit(
-                                              actualIndex,
-                                              field,
-                                              e.target.value
-                                            );
-                                          } else {
-                                            handlePBLSIAKADCellEdit(
-                                              actualIndex,
-                                              field,
-                                              e.target.value
-                                            );
-                                          }
-                                        } else {
-                                          handlePBLCellEdit(
-                                            actualIndex,
-                                            field,
-                                            e.target.value
-                                          );
-                                        }
-                                      }}
-                                      onBlur={() =>
-                                        selectedPBLTemplate === "LAMA"
-                                          ? setPBLEditingCell(null)
-                                          : setPBLSiakadEditingCell(null)
-                                      }
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    <span
-                                      className={
-                                        cellError ||
-                                        (field === "tanggal" &&
-                                          (!value || value.trim() === "")) ||
-                                        (field === "jam_mulai" &&
-                                          (!value || value.trim() === "")) ||
-                                        (field === "jam_selesai" &&
-                                          (!value || value.trim() === "")) ||
-                                        (field === "nama_modul" &&
-                                          (!value || value.trim() === "")) ||
-                                        (field === "dosen_id" &&
-                                          (!value ||
-                                            value === 0 ||
-                                            value === null)) ||
-                                        (field === "pbl_tipe" &&
-                                          (!value || value.trim() === ""))
-                                          ? "text-red-500"
-                                          : "text-gray-800 dark:text-gray-100"
-                                      }
-                                    >
-                                      {field === "tanggal" &&
-                                      (!value || value.trim() === "")
-                                        ? "Wajib diisi"
-                                        : field === "jam_mulai" &&
-                                          (!value || value.trim() === "")
-                                        ? "Wajib diisi"
-                                        : field === "jam_selesai" &&
-                                          (!value || value.trim() === "")
-                                        ? "Wajib diisi"
-                                        : field === "nama_modul" &&
-                                          (!value || value.trim() === "")
-                                        ? "Wajib diisi"
-                                        : field === "dosen_id" &&
-                                          (!value ||
-                                            value === 0 ||
-                                            value === null)
-                                        ? "Wajib diisi"
-                                        : field === "pbl_tipe" &&
-                                          (!value || value.trim() === "")
-                                        ? "Wajib diisi"
-                                        : value || "-"}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            };
-
-                            return (
-                              <tr
-                                key={index}
-                                className={`${
-                                  index % 2 === 1
+                                <tr
+                                  key={index}
+                                  className={`${index % 2 === 1
                                     ? "bg-gray-50 dark:bg-white/[0.02]"
                                     : ""
-                                }`}
-                              >
-                                <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                                  {actualIndex + 1}
-                                </td>
+                                    }`}
+                                >
+                                  <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                    {actualIndex + 1}
+                                  </td>
 
-                                {renderEditableCell("tanggal", row.tanggal)}
+                                  {renderEditableCell("tanggal", row.tanggal)}
 
-                                {renderEditableCell("jam_mulai", row.jam_mulai)}
+                                  {renderEditableCell("jam_mulai", row.jam_mulai)}
 
-                                {/* Modul PBL - Special handling with error highlighting */}
-                                {(() => {
-                                  const field = "nama_modul";
-                                  const isEditing =
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.row === actualIndex &&
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.key === field;
+                                  {/* Modul PBL - Special handling with error highlighting */}
+                                  {(() => {
+                                    const field = "nama_modul";
+                                    const isEditing =
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.row === actualIndex &&
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.key === field;
 
-                                  const cellError = (
-                                    selectedPBLTemplate === "LAMA"
-                                      ? pblCellErrors
-                                      : pblSiakadCellErrors
-                                  ).find(
-                                    (err) =>
-                                      err.row === actualIndex &&
-                                      err.field === "modul_pbl_id"
-                                  );
+                                    const cellError = (
+                                      selectedPBLTemplate === "LAMA"
+                                        ? pblCellErrors
+                                        : pblSiakadCellErrors
+                                    ).find(
+                                      (err) =>
+                                        err.row === actualIndex &&
+                                        err.field === "modul_pbl_id"
+                                    );
 
-                                  return (
-                                    <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
                                           ? "border-2 border-brand-500"
                                           : ""
-                                      } ${
-                                        cellError
-                                          ? "bg-red-100 dark:bg-red-900/30"
-                                          : ""
-                                      }`}
-                                      onClick={() =>
-                                        (selectedPBLTemplate === "LAMA"
-                                          ? setPBLEditingCell
-                                          : setPBLSiakadEditingCell)({
-                                          row: actualIndex,
-                                          key: field,
-                                        })
-                                      }
-                                      title={cellError ? cellError.message : ""}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                          value={
-                                            (row as any).nama_modul ===
-                                            "Kosong (isi manual)"
-                                              ? ""
-                                              : (row as any).nama_modul || ""
-                                          }
-                                          onChange={(e) =>
-                                            selectedPBLTemplate === "LAMA"
-                                              ? handlePBLCellEdit(
+                                          } ${cellError
+                                            ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                          }`}
+                                        onClick={() =>
+                                          (selectedPBLTemplate === "LAMA"
+                                            ? setPBLEditingCell
+                                            : setPBLSiakadEditingCell)({
+                                              row: actualIndex,
+                                              key: field,
+                                            })
+                                        }
+                                        title={cellError ? cellError.message : ""}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                            value={
+                                              (row as any).nama_modul ===
+                                                "Kosong (isi manual)"
+                                                ? ""
+                                                : (row as any).nama_modul || ""
+                                            }
+                                            onChange={(e) =>
+                                              selectedPBLTemplate === "LAMA"
+                                                ? handlePBLCellEdit(
                                                   actualIndex,
                                                   field,
                                                   e.target.value
                                                 )
-                                              : handlePBLSIAKADCellEdit(
+                                                : handlePBLSIAKADCellEdit(
                                                   actualIndex,
                                                   field,
                                                   e.target.value
                                                 )
-                                          }
-                                          onBlur={() =>
-                                            selectedPBLTemplate === "LAMA"
-                                              ? setPBLEditingCell(null)
-                                              : setPBLSiakadEditingCell(null)
-                                          }
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span
-                                          className={
-                                            cellError
-                                              ? "text-red-500"
-                                              : modulPBL
-                                              ? "text-gray-800 dark:text-white/90"
-                                              : "text-red-500"
-                                          }
-                                        >
-                                          {(row as any).nama_modul ||
-                                            modulPBL?.nama_modul ||
-                                            "Tidak ditemukan"}
-                                        </span>
-                                      )}
-                                    </td>
-                                  );
-                                })()}
+                                            }
+                                            onBlur={() =>
+                                              selectedPBLTemplate === "LAMA"
+                                                ? setPBLEditingCell(null)
+                                                : setPBLSiakadEditingCell(null)
+                                            }
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={
+                                              cellError
+                                                ? "text-red-500"
+                                                : modulPBL
+                                                  ? "text-gray-800 dark:text-white/90"
+                                                  : "text-red-500"
+                                            }
+                                          >
+                                            {(row as any).nama_modul ||
+                                              modulPBL?.nama_modul ||
+                                              "Tidak ditemukan"}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
 
-                                {/* Kelompok Kecil - Special handling */}
+                                  {/* Kelompok Kecil - Special handling */}
 
-                                {(() => {
-                                  const field = "kelompok_kecil_id";
+                                  {(() => {
+                                    const field = "kelompok_kecil_id";
 
-                                  const isEditing =
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.row === actualIndex &&
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.key === field;
+                                    const isEditing =
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.row === actualIndex &&
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.key === field;
 
-                                  const cellError = (
-                                    selectedPBLTemplate === "LAMA"
-                                      ? pblCellErrors
-                                      : pblSiakadCellErrors
-                                  ).find(
-                                    (err) =>
-                                      err.row === actualIndex &&
-                                      err.field === field
-                                  );
+                                    const cellError = (
+                                      selectedPBLTemplate === "LAMA"
+                                        ? pblCellErrors
+                                        : pblSiakadCellErrors
+                                    ).find(
+                                      (err) =>
+                                        err.row === actualIndex &&
+                                        err.field === field
+                                    );
 
-                                  return (
-                                    <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
                                           ? "border-2 border-brand-500"
                                           : ""
-                                      } ${
-                                        cellError
-                                          ? "bg-red-100 dark:bg-red-900/30"
-                                          : ""
-                                      }`}
-                                      onClick={() =>
-                                        (selectedPBLTemplate === "LAMA"
-                                          ? setPBLEditingCell
-                                          : setPBLSiakadEditingCell)({
-                                          row: actualIndex,
-                                          key: field,
-                                        })
-                                      }
-                                      title={cellError ? cellError.message : ""}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                          value={namaKelompokAsli || ""}
-                                          onChange={(e) =>
-                                            selectedPBLTemplate === "LAMA"
-                                              ? handlePBLKelompokKecilEdit(
+                                          } ${cellError
+                                            ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                          }`}
+                                        onClick={() =>
+                                          (selectedPBLTemplate === "LAMA"
+                                            ? setPBLEditingCell
+                                            : setPBLSiakadEditingCell)({
+                                              row: actualIndex,
+                                              key: field,
+                                            })
+                                        }
+                                        title={cellError ? cellError.message : ""}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                            value={namaKelompokAsli || ""}
+                                            onChange={(e) =>
+                                              selectedPBLTemplate === "LAMA"
+                                                ? handlePBLKelompokKecilEdit(
                                                   actualIndex,
                                                   e.target.value
                                                 )
-                                              : handlePBLSiakadKelompokKecilEdit(
+                                                : handlePBLSiakadKelompokKecilEdit(
                                                   actualIndex,
                                                   e.target.value
                                                 )
-                                          }
-                                          onBlur={() =>
-                                            selectedPBLTemplate === "LAMA"
-                                              ? setPBLEditingCell(null)
-                                              : setPBLSiakadEditingCell(null)
-                                          }
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span
-                                          className={
-                                            cellError
-                                              ? "text-red-500"
-                                              : kelompokKecil
-                                              ? "text-gray-800 dark:text-white/90"
-                                              : "text-red-500"
-                                          }
-                                        >
-                                          {namaKelompokAsli || "-"}
-                                        </span>
-                                      )}
-                                    </td>
-                                  );
-                                })()}
+                                            }
+                                            onBlur={() =>
+                                              selectedPBLTemplate === "LAMA"
+                                                ? setPBLEditingCell(null)
+                                                : setPBLSiakadEditingCell(null)
+                                            }
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={
+                                              cellError
+                                                ? "text-red-500"
+                                                : kelompokKecil
+                                                  ? "text-gray-800 dark:text-white/90"
+                                                  : "text-red-500"
+                                            }
+                                          >
+                                            {namaKelompokAsli || "-"}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
 
-                                {/* Dosen - Special handling */}
+                                  {/* Dosen - Special handling */}
 
-                                {(() => {
-                                  const field = "dosen_id";
+                                  {(() => {
+                                    const field = "dosen_id";
 
-                                  const isEditing =
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.row === actualIndex &&
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.key === field;
+                                    const isEditing =
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.row === actualIndex &&
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.key === field;
 
-                                  const cellError = (
-                                    selectedPBLTemplate === "LAMA"
-                                      ? pblCellErrors
-                                      : pblSiakadCellErrors
-                                  ).find(
-                                    (err) =>
-                                      err.row === actualIndex &&
-                                      err.field === field
-                                  );
+                                    const cellError = (
+                                      selectedPBLTemplate === "LAMA"
+                                        ? pblCellErrors
+                                        : pblSiakadCellErrors
+                                    ).find(
+                                      (err) =>
+                                        err.row === actualIndex &&
+                                        err.field === field
+                                    );
 
-                                  return (
-                                    <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
                                           ? "border-2 border-brand-500"
                                           : ""
-                                      } ${
-                                        cellError
-                                          ? "bg-red-100 dark:bg-red-900/30"
-                                          : ""
-                                      }`}
-                                      onClick={() => {
-                                        (selectedPBLTemplate === "LAMA"
-                                          ? setPBLEditingCell
-                                          : setPBLSiakadEditingCell)({
-                                          row: actualIndex,
-                                          key: field,
-                                        });
-                                        const currentValue =
-                                          dosen?.name ||
-                                          (row as any).nama_dosen ||
-                                          "";
-                                        setPBLDosenInput(
-                                          currentValue === "Kosong (isi manual)"
-                                            ? ""
-                                            : currentValue
-                                        );
-                                      }}
-                                      title={cellError ? cellError.message : ""}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                          value={pblDosenInput}
-                                          onChange={(e) => {
-                                            const inputValue = e.target.value;
-                                            setPBLDosenInput(inputValue);
-                                            (selectedPBLTemplate === "LAMA"
-                                              ? handlePBLDosenEdit
-                                              : handlePBLSiakadDosenEdit)(
-                                              actualIndex,
-                                              inputValue
-                                            );
-                                          }}
-                                          onBlur={() => {
-                                            (selectedPBLTemplate === "LAMA"
-                                              ? setPBLEditingCell
-                                              : setPBLSiakadEditingCell)(null);
-                                            setPBLDosenInput("");
-                                          }}
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span
-                                          className={
-                                            cellError
-                                              ? "text-red-500"
-                                              : dosen
-                                              ? "text-gray-800 dark:text-white/90"
-                                              : "text-red-500"
-                                          }
-                                        >
-                                          {dosen?.name ||
+                                          } ${cellError
+                                            ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                          }`}
+                                        onClick={() => {
+                                          (selectedPBLTemplate === "LAMA"
+                                            ? setPBLEditingCell
+                                            : setPBLSiakadEditingCell)({
+                                              row: actualIndex,
+                                              key: field,
+                                            });
+                                          const currentValue =
+                                            dosen?.name ||
                                             (row as any).nama_dosen ||
-                                            "Tidak ditemukan"}
-                                        </span>
-                                      )}
-                                    </td>
-                                  );
-                                })()}
+                                            "";
+                                          setPBLDosenInput(
+                                            currentValue === "Kosong (isi manual)"
+                                              ? ""
+                                              : currentValue
+                                          );
+                                        }}
+                                        title={cellError ? cellError.message : ""}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                            value={pblDosenInput}
+                                            onChange={(e) => {
+                                              const inputValue = e.target.value;
+                                              setPBLDosenInput(inputValue);
+                                              (selectedPBLTemplate === "LAMA"
+                                                ? handlePBLDosenEdit
+                                                : handlePBLSiakadDosenEdit)(
+                                                  actualIndex,
+                                                  inputValue
+                                                );
+                                            }}
+                                            onBlur={() => {
+                                              (selectedPBLTemplate === "LAMA"
+                                                ? setPBLEditingCell
+                                                : setPBLSiakadEditingCell)(null);
+                                              setPBLDosenInput("");
+                                            }}
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={
+                                              cellError
+                                                ? "text-red-500"
+                                                : dosen
+                                                  ? "text-gray-800 dark:text-white/90"
+                                                  : "text-red-500"
+                                            }
+                                          >
+                                            {dosen?.name ||
+                                              (row as any).nama_dosen ||
+                                              "Tidak ditemukan"}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
 
-                                {/* Ruangan - Special handling */}
+                                  {/* Ruangan - Special handling */}
 
-                                {(() => {
-                                  const field = "ruangan_id";
+                                  {(() => {
+                                    const field = "ruangan_id";
 
-                                  const isEditing =
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.row === actualIndex &&
-                                    (selectedPBLTemplate === "LAMA"
-                                      ? pblEditingCell
-                                      : pblSiakadEditingCell
-                                    )?.key === field;
+                                    const isEditing =
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.row === actualIndex &&
+                                      (selectedPBLTemplate === "LAMA"
+                                        ? pblEditingCell
+                                        : pblSiakadEditingCell
+                                      )?.key === field;
 
-                                  const cellError = (
-                                    selectedPBLTemplate === "LAMA"
-                                      ? pblCellErrors
-                                      : pblSiakadCellErrors
-                                  ).find(
-                                    (err) =>
-                                      err.row === actualIndex &&
-                                      err.field === field
-                                  );
+                                    const cellError = (
+                                      selectedPBLTemplate === "LAMA"
+                                        ? pblCellErrors
+                                        : pblSiakadCellErrors
+                                    ).find(
+                                      (err) =>
+                                        err.row === actualIndex &&
+                                        err.field === field
+                                    );
 
-                                  return (
-                                    <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
                                           ? "border-2 border-brand-500"
                                           : ""
-                                      } ${
-                                        cellError
-                                          ? "bg-red-100 dark:bg-red-900/30"
-                                          : ""
-                                      }`}
-                                      onClick={() => {
-                                        (selectedPBLTemplate === "LAMA"
-                                          ? setPBLEditingCell
-                                          : setPBLSiakadEditingCell)({
-                                          row: actualIndex,
-                                          key: field,
-                                        });
-                                        setPBLRuanganInput(
-                                          ruangan?.nama ||
+                                          } ${cellError
+                                            ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                          }`}
+                                        onClick={() => {
+                                          (selectedPBLTemplate === "LAMA"
+                                            ? setPBLEditingCell
+                                            : setPBLSiakadEditingCell)({
+                                              row: actualIndex,
+                                              key: field,
+                                            });
+                                          setPBLRuanganInput(
+                                            ruangan?.nama ||
                                             (row as any).nama_ruangan ||
                                             ""
-                                        );
-                                      }}
-                                      title={cellError ? cellError.message : ""}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                          value={pblRuanganInput}
-                                          onChange={(e) => {
-                                            const inputValue = e.target.value;
-                                            setPBLRuanganInput(inputValue);
-                                            (selectedPBLTemplate === "LAMA"
-                                              ? handlePBLRuanganEdit
-                                              : handlePBLSiakadRuanganEdit)(
-                                              actualIndex,
-                                              inputValue
-                                            );
-                                          }}
-                                          onBlur={() => {
-                                            (selectedPBLTemplate === "LAMA"
-                                              ? setPBLEditingCell
-                                              : setPBLSiakadEditingCell)(null);
-                                            setPBLRuanganInput("");
-                                          }}
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span
-                                          className={
-                                            cellError
-                                              ? "text-red-500"
-                                              : ruangan
-                                              ? "text-gray-800 dark:text-white/90"
-                                              : "text-red-500"
-                                          }
-                                        >
-                                          {ruangan?.nama ||
-                                            (row as any).nama_ruangan ||
-                                            "Tidak ditemukan"}
-                                        </span>
-                                      )}
-                                    </td>
-                                  );
-                                })()}
+                                          );
+                                        }}
+                                        title={cellError ? cellError.message : ""}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                            value={pblRuanganInput}
+                                            onChange={(e) => {
+                                              const inputValue = e.target.value;
+                                              setPBLRuanganInput(inputValue);
+                                              (selectedPBLTemplate === "LAMA"
+                                                ? handlePBLRuanganEdit
+                                                : handlePBLSiakadRuanganEdit)(
+                                                  actualIndex,
+                                                  inputValue
+                                                );
+                                            }}
+                                            onBlur={() => {
+                                              (selectedPBLTemplate === "LAMA"
+                                                ? setPBLEditingCell
+                                                : setPBLSiakadEditingCell)(null);
+                                              setPBLRuanganInput("");
+                                            }}
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={
+                                              cellError
+                                                ? "text-red-500"
+                                                : ruangan
+                                                  ? "text-gray-800 dark:text-white/90"
+                                                  : "text-red-500"
+                                            }
+                                          >
+                                            {ruangan?.nama ||
+                                              (row as any).nama_ruangan ||
+                                              "Tidak ditemukan"}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
 
-                                {renderEditableCell("pbl_tipe", row.pbl_tipe)}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                  {renderEditableCell("pbl_tipe", row.pbl_tipe)}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Action Buttons */}
 
@@ -30937,128 +30929,128 @@ export default function DetailBlok() {
               {!(selectedPraktikumTemplate === "LAMA"
                 ? praktikumImportFile
                 : praktikumSiakadImportFile) && (
-                <div className="mb-6">
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
-                    <div className="space-y-4">
-                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                        <FontAwesomeIcon
-                          icon={faFileExcel}
-                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
-                        />
+                  <div className="mb-6">
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                          <FontAwesomeIcon
+                            icon={faFileExcel}
+                            className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                          />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                            Upload File Excel{" "}
+                            {selectedPraktikumTemplate === "LAMA" ? "" : "SIAKAD"}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Pilih file Excel dengan format{" "}
+                            {selectedPraktikumTemplate === "LAMA"
+                              ? "template aplikasi"
+                              : "SIAKAD"}{" "}
+                            (.xlsx, .xls)
+                          </p>
+                        </div>
+                        <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                          <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                          Pilih File
+                          <input
+                            ref={
+                              selectedPraktikumTemplate === "LAMA"
+                                ? praktikumFileInputRef
+                                : praktikumSiakadFileInputRef
+                            }
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={
+                              selectedPraktikumTemplate === "LAMA"
+                                ? handlePraktikumFileUpload
+                                : handlePraktikumSiakadFileUpload
+                            }
+                            className="hidden"
+                          />
+                        </label>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                          Upload File Excel{" "}
-                          {selectedPraktikumTemplate === "LAMA" ? "" : "SIAKAD"}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Pilih file Excel dengan format{" "}
-                          {selectedPraktikumTemplate === "LAMA"
-                            ? "template aplikasi"
-                            : "SIAKAD"}{" "}
-                          (.xlsx, .xls)
-                        </p>
-                      </div>
-                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                        Pilih File
-                        <input
-                          ref={
-                            selectedPraktikumTemplate === "LAMA"
-                              ? praktikumFileInputRef
-                              : praktikumSiakadFileInputRef
-                          }
-                          type="file"
-                          accept=".xlsx,.xls"
-                          onChange={
-                            selectedPraktikumTemplate === "LAMA"
-                              ? handlePraktikumFileUpload
-                              : handlePraktikumSiakadFileUpload
-                          }
-                          className="hidden"
-                        />
-                      </label>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* File Info */}
               {(selectedPraktikumTemplate === "LAMA"
                 ? praktikumImportFile
                 : praktikumSiakadImportFile) && (
-                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FontAwesomeIcon
-                      icon={faFileExcel}
-                      className="w-5 h-5 text-blue-500"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-blue-800 dark:text-blue-200">
-                        {
-                          (selectedPraktikumTemplate === "LAMA"
-                            ? praktikumImportFile
-                            : praktikumSiakadImportFile
-                          )?.name
-                        }
-                      </p>
-                      <p className="text-sm text-blue-600 dark:text-blue-300">
-                        {(
-                          ((selectedPraktikumTemplate === "LAMA"
-                            ? praktikumImportFile
-                            : praktikumSiakadImportFile
-                          )?.size || 0) / 1024
-                        ).toFixed(1)}{" "}
-                        KB
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (selectedPraktikumTemplate === "LAMA") {
-                          setPraktikumImportFile(null);
-                          setPraktikumImportData([]);
-                          setPraktikumImportErrors([]);
-                          setPraktikumCellErrors([]);
-                          setPraktikumEditingCell(null);
-                          setPraktikumImportPage(1);
-                        } else {
-                          setPraktikumSiakadImportFile(null);
-                          setPraktikumSiakadImportData([]);
-                          setPraktikumSiakadImportErrors([]);
-                          setPraktikumSiakadCellErrors([]);
-                          setPraktikumSiakadEditingCell(null);
-                          setPraktikumSiakadImportPage(1);
-                        }
-                        if (selectedPraktikumTemplate === "LAMA") {
-                          if (praktikumFileInputRef.current) {
-                            praktikumFileInputRef.current.value = "";
+                  <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FontAwesomeIcon
+                        icon={faFileExcel}
+                        className="w-5 h-5 text-blue-500"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-blue-800 dark:text-blue-200">
+                          {
+                            (selectedPraktikumTemplate === "LAMA"
+                              ? praktikumImportFile
+                              : praktikumSiakadImportFile
+                            )?.name
                           }
-                        } else {
-                          if (praktikumSiakadFileInputRef.current) {
-                            praktikumSiakadFileInputRef.current.value = "";
+                        </p>
+                        <p className="text-sm text-blue-600 dark:text-blue-300">
+                          {(
+                            ((selectedPraktikumTemplate === "LAMA"
+                              ? praktikumImportFile
+                              : praktikumSiakadImportFile
+                            )?.size || 0) / 1024
+                          ).toFixed(1)}{" "}
+                          KB
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (selectedPraktikumTemplate === "LAMA") {
+                            setPraktikumImportFile(null);
+                            setPraktikumImportData([]);
+                            setPraktikumImportErrors([]);
+                            setPraktikumCellErrors([]);
+                            setPraktikumEditingCell(null);
+                            setPraktikumImportPage(1);
+                          } else {
+                            setPraktikumSiakadImportFile(null);
+                            setPraktikumSiakadImportData([]);
+                            setPraktikumSiakadImportErrors([]);
+                            setPraktikumSiakadCellErrors([]);
+                            setPraktikumSiakadEditingCell(null);
+                            setPraktikumSiakadImportPage(1);
                           }
-                        }
-                      }}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
-                      title="Hapus file"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                          if (selectedPraktikumTemplate === "LAMA") {
+                            if (praktikumFileInputRef.current) {
+                              praktikumFileInputRef.current.value = "";
+                            }
+                          } else {
+                            if (praktikumSiakadFileInputRef.current) {
+                              praktikumSiakadFileInputRef.current.value = "";
+                            }
+                          }
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                        title="Hapus file"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Error Messages */}
               {((selectedPraktikumTemplate === "LAMA"
@@ -31069,207 +31061,173 @@ export default function DetailBlok() {
                   ? praktikumCellErrors
                   : praktikumSiakadCellErrors
                 ).length > 0) && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0">
-                      <FontAwesomeIcon
-                        icon={faExclamationTriangle}
-                        className="w-5 h-5 text-red-500"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi (
-                        {(selectedPraktikumTemplate === "LAMA"
-                          ? praktikumImportErrors
-                          : praktikumSiakadImportErrors
-                        ).length +
-                          (selectedPraktikumTemplate === "LAMA"
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {(selectedPraktikumTemplate === "LAMA"
+                            ? praktikumImportErrors
+                            : praktikumSiakadImportErrors
+                          ).length +
+                            (selectedPraktikumTemplate === "LAMA"
+                              ? praktikumCellErrors
+                              : praktikumSiakadCellErrors
+                            ).length}{" "}
+                          error)
+                        </h3>
+                        <div className="max-h-40 overflow-y-auto">
+                          {/* Error dari API response */}
+                          {(selectedPraktikumTemplate === "LAMA"
+                            ? praktikumImportErrors
+                            : praktikumSiakadImportErrors
+                          ).map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err}
+                            </p>
+                          ))}
+                          {/* Error cell/detail */}
+                          {(selectedPraktikumTemplate === "LAMA"
                             ? praktikumCellErrors
                             : praktikumSiakadCellErrors
-                          ).length}{" "}
-                        error)
-                      </h3>
-                      <div className="max-h-40 overflow-y-auto">
-                        {/* Error dari API response */}
-                        {(selectedPraktikumTemplate === "LAMA"
-                          ? praktikumImportErrors
-                          : praktikumSiakadImportErrors
-                        ).map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err}
-                          </p>
-                        ))}
-                        {/* Error cell/detail */}
-                        {(selectedPraktikumTemplate === "LAMA"
-                          ? praktikumCellErrors
-                          : praktikumSiakadCellErrors
-                        ).map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err.message} (Baris {err.row}, Kolom{" "}
-                            {err.field.toUpperCase()})
-                          </p>
-                        ))}
+                          ).map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err.message} (Baris {err.row}, Kolom{" "}
+                              {err.field.toUpperCase()})
+                            </p>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Table */}
               {(selectedPraktikumTemplate === "LAMA"
                 ? praktikumImportData
                 : praktikumSiakadImportData
               ).length > 0 && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Preview Data (
-                      {
-                        (selectedPraktikumTemplate === "LAMA"
-                          ? praktikumImportData
-                          : praktikumSiakadImportData
-                        ).length
-                      }{" "}
-                      jadwal)
-                    </h3>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      File:{" "}
-                      {
-                        (selectedPraktikumTemplate === "LAMA"
-                          ? praktikumImportFile
-                          : praktikumSiakadImportFile
-                        )?.name
-                      }
-                    </div>
-                  </div>
-
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                    <div className="max-w-full overflow-x-auto hide-scroll">
-                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                          <tr>
-                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              No
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Tanggal
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Jam Mulai
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Materi
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Topik
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Kelompok Kecil
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Dosen
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Ruangan
-                            </th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Sesi
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(selectedPraktikumTemplate === "LAMA"
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        Preview Data (
+                        {
+                          (selectedPraktikumTemplate === "LAMA"
                             ? praktikumImportData
                             : praktikumSiakadImportData
-                          )
-                            .slice(
-                              (praktikumImportPage - 1) *
-                                praktikumImportPageSize,
-                              praktikumImportPage * praktikumImportPageSize
+                          ).length
+                        }{" "}
+                        jadwal)
+                      </h3>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        File:{" "}
+                        {
+                          (selectedPraktikumTemplate === "LAMA"
+                            ? praktikumImportFile
+                            : praktikumSiakadImportFile
+                          )?.name
+                        }
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                No
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Tanggal
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Jam Mulai
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Materi
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Topik
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Kelompok Kecil
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Dosen
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Ruangan
+                              </th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Sesi
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(selectedPraktikumTemplate === "LAMA"
+                              ? praktikumImportData
+                              : praktikumSiakadImportData
                             )
-                            .map((row, index) => {
-                              const actualIndex =
+                              .slice(
                                 (praktikumImportPage - 1) *
+                                praktikumImportPageSize,
+                                praktikumImportPage * praktikumImportPageSize
+                              )
+                              .map((row, index) => {
+                                const actualIndex =
+                                  (praktikumImportPage - 1) *
                                   praktikumImportPageSize +
-                                index;
+                                  index;
 
-                              const renderEditableCell = (
-                                field: string,
-                                value: any,
-                                isNumeric = false
-                              ) => {
-                                const isEditing =
-                                  (selectedPraktikumTemplate === "LAMA"
-                                    ? praktikumEditingCell
-                                    : praktikumSiakadEditingCell
-                                  )?.row === actualIndex &&
-                                  (selectedPraktikumTemplate === "LAMA"
-                                    ? praktikumEditingCell
-                                    : praktikumSiakadEditingCell
-                                  )?.key === field;
-                                const cellError = (
-                                  selectedPraktikumTemplate === "LAMA"
-                                    ? praktikumCellErrors
-                                    : praktikumSiakadCellErrors
-                                ).find(
-                                  (err) =>
-                                    err.row === actualIndex + 1 &&
-                                    err.field === field
-                                );
+                                const renderEditableCell = (
+                                  field: string,
+                                  value: any,
+                                  isNumeric = false
+                                ) => {
+                                  const isEditing =
+                                    (selectedPraktikumTemplate === "LAMA"
+                                      ? praktikumEditingCell
+                                      : praktikumSiakadEditingCell
+                                    )?.row === actualIndex &&
+                                    (selectedPraktikumTemplate === "LAMA"
+                                      ? praktikumEditingCell
+                                      : praktikumSiakadEditingCell
+                                    )?.key === field;
+                                  const cellError = (
+                                    selectedPraktikumTemplate === "LAMA"
+                                      ? praktikumCellErrors
+                                      : praktikumSiakadCellErrors
+                                  ).find(
+                                    (err) =>
+                                      err.row === actualIndex + 1 &&
+                                      err.field === field
+                                  );
 
-                                // Untuk template SIAKAD dan LAMA, semua kolom bisa diedit
-                                const isEditable = true;
+                                  // Untuk template SIAKAD dan LAMA, semua kolom bisa diedit
+                                  const isEditable = true;
 
-                                return (
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap ${
-                                      isEditable
+                                  return (
+                                    <td
+                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap ${isEditable
                                         ? "cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20"
                                         : ""
-                                    } ${
-                                      isEditing
-                                        ? "border-2 border-brand-500"
-                                        : ""
-                                    } ${
-                                      cellError ||
-                                      (field === "tanggal" &&
-                                        (!value || value.trim() === "")) ||
-                                      (field === "jam_mulai" &&
-                                        (!value || value.trim() === "")) ||
-                                      (field === "jam_selesai" &&
-                                        (!value || value.trim() === "")) ||
-                                      (field === "kelompok_kecil_id" &&
-                                        (!value || value.trim() === "")) ||
-                                      (field === "ruangan_id" &&
-                                        (!value || value.trim() === ""))
-                                        ? "bg-red-50 dark:bg-red-900/20"
-                                        : ""
-                                    }`}
-                                    onClick={() =>
-                                      isEditable &&
-                                      (selectedPraktikumTemplate === "LAMA"
-                                        ? setPraktikumEditingCell
-                                        : setPraktikumSiakadEditingCell)({
-                                        row: actualIndex,
-                                        key: field,
-                                      })
-                                    }
-                                    title={cellError ? cellError.message : ""}
-                                  >
-                                    {isEditing ? (
-                                      <input
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
-                                        type={isNumeric ? "number" : "text"}
-                                        value={
-                                          value === "Kosong (isi manual)" ||
-                                          value === "Wajib diisi" ||
+                                        } ${isEditing
+                                          ? "border-2 border-brand-500"
+                                          : ""
+                                        } ${cellError ||
                                           (field === "tanggal" &&
                                             (!value || value.trim() === "")) ||
                                           (field === "jam_mulai" &&
@@ -31280,271 +31238,298 @@ export default function DetailBlok() {
                                             (!value || value.trim() === "")) ||
                                           (field === "ruangan_id" &&
                                             (!value || value.trim() === ""))
-                                            ? ""
-                                            : value || ""
-                                        }
-                                        onChange={(e) => {
-                                          if (
-                                            selectedPraktikumTemplate ===
-                                            "SIAKAD"
-                                          ) {
-                                            if (field === "materi") {
-                                              handlePraktikumSiakadMateriEdit(
-                                                actualIndex,
-                                                e.target.value
-                                              );
-                                            } else if (field === "dosen_id") {
-                                              handlePraktikumSiakadDosenEdit(
-                                                actualIndex,
-                                                e.target.value
-                                              );
-                                            } else if (field === "topik") {
-                                              handlePraktikumSiakadTopikEdit(
-                                                actualIndex,
-                                                e.target.value
-                                              );
-                                            } else if (field === "ruangan_id") {
-                                              handlePraktikumSiakadRuanganEdit(
-                                                actualIndex,
-                                                e.target.value
-                                              );
+                                          ? "bg-red-50 dark:bg-red-900/20"
+                                          : ""
+                                        }`}
+                                      onClick={() =>
+                                        isEditable &&
+                                        (selectedPraktikumTemplate === "LAMA"
+                                          ? setPraktikumEditingCell
+                                          : setPraktikumSiakadEditingCell)({
+                                            row: actualIndex,
+                                            key: field,
+                                          })
+                                      }
+                                      title={cellError ? cellError.message : ""}
+                                    >
+                                      {isEditing ? (
+                                        <input
+                                          className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                          type={isNumeric ? "number" : "text"}
+                                          value={
+                                            value === "Kosong (isi manual)" ||
+                                              value === "Wajib diisi" ||
+                                              (field === "tanggal" && !value) ||
+                                              (field === "jam_mulai" && !value) ||
+                                              (field === "jam_selesai" && !value) ||
+                                              (field === "kelompok_kecil_id" && !value) ||
+                                              (field === "ruangan_id" && !value)
+                                              ? ""
+                                              : value || ""
+                                          }
+                                          onChange={(e) => {
+                                            if (
+                                              selectedPraktikumTemplate ===
+                                              "SIAKAD"
+                                            ) {
+                                              if (field === "materi") {
+                                                handlePraktikumSiakadMateriEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                );
+                                              } else if (field === "dosen_id") {
+                                                handlePraktikumSiakadDosenEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                );
+                                              } else if (field === "topik") {
+                                                handlePraktikumSiakadTopikEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                );
+                                              } else if (field === "ruangan_id") {
+                                                handlePraktikumSiakadRuanganEdit(
+                                                  actualIndex,
+                                                  e.target.value
+                                                );
+                                              } else {
+                                                // Untuk field lain (tanggal, jam_mulai, jam_selesai, dll), gunakan handler SIAKAD
+                                                handlePraktikumSiakadCellEdit(
+                                                  actualIndex,
+                                                  field,
+                                                  isNumeric
+                                                    ? parseInt(e.target.value) ||
+                                                    0
+                                                    : e.target.value
+                                                );
+                                              }
                                             } else {
-                                              // Untuk field lain (tanggal, jam_mulai, jam_selesai, dll), gunakan handler SIAKAD
-                                              handlePraktikumSiakadCellEdit(
+                                              handlePraktikumCellEdit(
                                                 actualIndex,
                                                 field,
                                                 isNumeric
-                                                  ? parseInt(e.target.value) ||
-                                                      0
+                                                  ? parseInt(e.target.value) || 0
                                                   : e.target.value
                                               );
                                             }
-                                          } else {
-                                            handlePraktikumCellEdit(
-                                              actualIndex,
-                                              field,
-                                              isNumeric
-                                                ? parseInt(e.target.value) || 0
-                                                : e.target.value
-                                            );
-                                          }
-                                        }}
-                                        onBlur={() => {
-                                          if (
-                                            selectedPraktikumTemplate ===
-                                            "SIAKAD"
-                                          ) {
-                                            setPraktikumSiakadEditingCell(null);
-                                          } else {
-                                            setPraktikumEditingCell(null);
-                                          }
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") {
+                                          }}
+                                          onBlur={() => {
                                             if (
                                               selectedPraktikumTemplate ===
                                               "SIAKAD"
                                             ) {
-                                              setPraktikumSiakadEditingCell(
-                                                null
-                                              );
+                                              setPraktikumSiakadEditingCell(null);
                                             } else {
                                               setPraktikumEditingCell(null);
                                             }
-                                          }
-                                          if (e.key === "Escape") {
-                                            if (
-                                              selectedPraktikumTemplate ===
-                                              "SIAKAD"
-                                            ) {
-                                              setPraktikumSiakadEditingCell(
-                                                null
-                                              );
-                                            } else {
-                                              setPraktikumEditingCell(null);
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              if (
+                                                selectedPraktikumTemplate ===
+                                                "SIAKAD"
+                                              ) {
+                                                setPraktikumSiakadEditingCell(
+                                                  null
+                                                );
+                                              } else {
+                                                setPraktikumEditingCell(null);
+                                              }
                                             }
-                                          }
-                                        }}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span
-                                        className={`${
-                                          cellError ||
-                                          (field === "tanggal" &&
-                                            (!value || value.trim() === "")) ||
-                                          (field === "jam_mulai" &&
-                                            (!value || value.trim() === "")) ||
-                                          (field === "jam_selesai" &&
-                                            (!value || value.trim() === "")) ||
-                                          (field === "kelompok_kecil_id" &&
-                                            (!value || value.trim() === "")) ||
-                                          (field === "ruangan_id" &&
-                                            (!value || value.trim() === ""))
+                                            if (e.key === "Escape") {
+                                              if (
+                                                selectedPraktikumTemplate ===
+                                                "SIAKAD"
+                                              ) {
+                                                setPraktikumSiakadEditingCell(
+                                                  null
+                                                );
+                                              } else {
+                                                setPraktikumEditingCell(null);
+                                              }
+                                            }
+                                          }}
+                                          autoFocus
+                                        />
+                                      ) : (
+                                        <span
+                                          className={`${cellError ||
+                                            (field === "tanggal" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "jam_mulai" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "jam_selesai" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "kelompok_kecil_id" &&
+                                              (!value || value.trim() === "")) ||
+                                            (field === "ruangan_id" &&
+                                              (!value || value.trim() === ""))
                                             ? "text-red-500"
                                             : "text-gray-800 dark:text-white/90"
-                                        }`}
-                                      >
-                                        {field === "tanggal" &&
-                                        (!value || value.trim() === "")
-                                          ? "Wajib diisi"
-                                          : field === "jam_mulai" &&
+                                            }`}
+                                        >
+                                          {field === "tanggal" &&
                                             (!value || value.trim() === "")
-                                          ? "Wajib diisi"
-                                          : field === "jam_selesai" &&
-                                            (!value || value.trim() === "")
-                                          ? "Wajib diisi"
-                                          : field === "kelompok_kecil_id" &&
-                                            (!value || value.trim() === "")
-                                          ? "Wajib diisi"
-                                          : field === "ruangan_id" &&
-                                            (!value || value.trim() === "")
-                                          ? "Wajib diisi"
-                                          : value || "-"}
-                                      </span>
-                                    )}
-                                  </td>
-                                );
-                              };
+                                            ? "Wajib diisi"
+                                            : field === "jam_mulai" &&
+                                              (!value || value.trim() === "")
+                                              ? "Wajib diisi"
+                                              : field === "jam_selesai" &&
+                                                (!value || value.trim() === "")
+                                                ? "Wajib diisi"
+                                                : field === "kelompok_kecil_id" &&
+                                                  (!value || value.trim() === "")
+                                                  ? "Wajib diisi"
+                                                  : field === "ruangan_id" &&
+                                                    (!value || value.trim() === "")
+                                                    ? "Wajib diisi"
+                                                    : value || "-"}
+                                        </span>
+                                      )}
+                                    </td>
+                                  );
+                                };
 
-                              return (
-                                <tr
-                                  key={actualIndex}
-                                  className={`${
-                                    index % 2 === 1
+                                return (
+                                  <tr
+                                    key={actualIndex}
+                                    className={`${index % 2 === 1
                                       ? "bg-gray-50 dark:bg-white/[0.02]"
                                       : ""
-                                  }`}
-                                >
-                                  <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                                    {actualIndex + 1}
-                                  </td>
-                                  {renderEditableCell("tanggal", row.tanggal)}
-                                  {renderEditableCell(
-                                    "jam_mulai",
-                                    row.jam_mulai
-                                  )}
-                                  {renderEditableCell("materi", row.materi)}
-                                  {renderEditableCell("topik", row.topik)}
-                                  {renderEditableCell(
-                                    "kelompok_kecil_id",
-                                    row.kelompok_kecil?.nama_kelompok ||
-                                      (row as any).kelompok_kecil_name ||
-                                      ""
-                                  )}
-                                  {renderEditableCell(
-                                    "dosen_id",
-                                    row.nama_dosen
-                                  )}
-                                  {renderEditableCell(
-                                    "ruangan_id",
-                                    row.nama_ruangan
-                                  )}
-                                  {renderEditableCell(
-                                    "jumlah_sesi",
-                                    row.jumlah_sesi,
-                                    true
-                                  )}
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
+                                      }`}
+                                  >
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                      {actualIndex + 1}
+                                    </td>
+                                    {renderEditableCell("tanggal", row.tanggal)}
+                                    {renderEditableCell(
+                                      "jam_mulai",
+                                      row.jam_mulai
+                                    )}
+                                    {renderEditableCell("materi", row.materi)}
+                                    {renderEditableCell("topik", row.topik)}
+                                    {renderEditableCell(
+                                      "kelompok_kecil_id",
+                                      Array.isArray(row.kelompok_kecil) && row.kelompok_kecil.length > 0
+                                        ? row.kelompok_kecil
+                                          .map((k) => `Kelompok ${k.nama_kelompok}`)
+                                          .join(", ")
+                                        : (row as any).kelompok_kecil_name ||
+                                        ""
+                                    )}
+                                    {renderEditableCell(
+                                      "dosen_id",
+                                      row.nama_dosen
+                                    )}
+                                    {renderEditableCell(
+                                      "ruangan_id",
+                                      row.nama_ruangan
+                                    )}
+                                    {renderEditableCell(
+                                      "jumlah_sesi",
+                                      row.jumlah_sesi,
+                                      true
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Pagination untuk Import Preview */}
               {(selectedPraktikumTemplate === "LAMA"
                 ? praktikumImportData
                 : praktikumSiakadImportData
               ).length > praktikumImportPageSize && (
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-4">
-                    <select
-                      value={praktikumImportPageSize}
-                      onChange={(e) => {
-                        setPraktikumImportPageSize(Number(e.target.value));
-                        setPraktikumImportPage(1);
-                      }}
-                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                    >
-                      <option value={5}>5 per halaman</option>
-                      <option value={10}>10 per halaman</option>
-                      <option value={20}>20 per halaman</option>
-                      <option value={50}>50 per halaman</option>
-                    </select>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      Menampilkan{" "}
-                      {(praktikumImportPage - 1) * praktikumImportPageSize + 1}-
-                      {Math.min(
-                        praktikumImportPage * praktikumImportPageSize,
-                        (selectedPraktikumTemplate === "LAMA"
-                          ? praktikumImportData
-                          : praktikumSiakadImportData
-                        ).length
-                      )}{" "}
-                      dari{" "}
-                      {
-                        (selectedPraktikumTemplate === "LAMA"
-                          ? praktikumImportData
-                          : praktikumSiakadImportData
-                        ).length
-                      }{" "}
-                      jadwal
-                    </span>
-                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-4">
+                      <select
+                        value={praktikumImportPageSize}
+                        onChange={(e) => {
+                          setPraktikumImportPageSize(Number(e.target.value));
+                          setPraktikumImportPage(1);
+                        }}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                      >
+                        <option value={5}>5 per halaman</option>
+                        <option value={10}>10 per halaman</option>
+                        <option value={20}>20 per halaman</option>
+                        <option value={50}>50 per halaman</option>
+                      </select>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Menampilkan{" "}
+                        {(praktikumImportPage - 1) * praktikumImportPageSize + 1}-
+                        {Math.min(
+                          praktikumImportPage * praktikumImportPageSize,
+                          (selectedPraktikumTemplate === "LAMA"
+                            ? praktikumImportData
+                            : praktikumSiakadImportData
+                          ).length
+                        )}{" "}
+                        dari{" "}
+                        {
+                          (selectedPraktikumTemplate === "LAMA"
+                            ? praktikumImportData
+                            : praktikumSiakadImportData
+                          ).length
+                        }{" "}
+                        jadwal
+                      </span>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() =>
-                        setPraktikumImportPage((p) => Math.max(1, p - 1))
-                      }
-                      disabled={praktikumImportPage === 1}
-                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                    >
-                      Prev
-                    </button>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      Halaman {praktikumImportPage} dari{" "}
-                      {Math.ceil(
-                        (selectedPraktikumTemplate === "LAMA"
-                          ? praktikumImportData
-                          : praktikumSiakadImportData
-                        ).length / praktikumImportPageSize
-                      )}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setPraktikumImportPage((p) =>
-                          Math.min(
-                            Math.ceil(
-                              (selectedPraktikumTemplate === "LAMA"
-                                ? praktikumImportData
-                                : praktikumSiakadImportData
-                              ).length / praktikumImportPageSize
-                            ),
-                            p + 1
-                          )
-                        )
-                      }
-                      disabled={
-                        praktikumImportPage >=
-                        Math.ceil(
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() =>
+                          setPraktikumImportPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={praktikumImportPage === 1}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Prev
+                      </button>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Halaman {praktikumImportPage} dari{" "}
+                        {Math.ceil(
                           (selectedPraktikumTemplate === "LAMA"
                             ? praktikumImportData
                             : praktikumSiakadImportData
                           ).length / praktikumImportPageSize
-                        )
-                      }
-                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                    >
-                      Next
-                    </button>
+                        )}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setPraktikumImportPage((p) =>
+                            Math.min(
+                              Math.ceil(
+                                (selectedPraktikumTemplate === "LAMA"
+                                  ? praktikumImportData
+                                  : praktikumSiakadImportData
+                                ).length / praktikumImportPageSize
+                              ),
+                              p + 1
+                            )
+                          )
+                        }
+                        disabled={
+                          praktikumImportPage >=
+                          Math.ceil(
+                            (selectedPraktikumTemplate === "LAMA"
+                              ? praktikumImportData
+                              : praktikumSiakadImportData
+                            ).length / praktikumImportPageSize
+                          )
+                        }
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-2 pt-6">
@@ -31725,45 +31710,45 @@ export default function DetailBlok() {
               {/* Error Messages */}
               {(agendaKhususImportErrors.length > 0 ||
                 agendaKhususCellErrors.length > 0) && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0">
-                      <FontAwesomeIcon
-                        icon={faExclamationTriangle}
-                        className="w-5 h-5 text-red-500"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi (
-                        {agendaKhususImportErrors.length +
-                          agendaKhususCellErrors.length}{" "}
-                        error)
-                      </h3>
-                      <div className="max-h-40 overflow-y-auto">
-                        {/* Error dari API response */}
-                        {agendaKhususImportErrors.map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err}
-                          </p>
-                        ))}
-                        {/* Error cell/detail */}
-                        {agendaKhususCellErrors.map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err.message}
-                          </p>
-                        ))}
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {agendaKhususImportErrors.length +
+                            agendaKhususCellErrors.length}{" "}
+                          error)
+                        </h3>
+                        <div className="max-h-40 overflow-y-auto">
+                          {/* Error dari API response */}
+                          {agendaKhususImportErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err}
+                            </p>
+                          ))}
+                          {/* Error cell/detail */}
+                          {agendaKhususCellErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err.message}
+                            </p>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Table */}
               {agendaKhususImportData.length > 0 && (
@@ -31825,13 +31810,11 @@ export default function DetailBlok() {
 
                               return (
                                 <td
-                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                    isEditing ? "border-2 border-brand-500" : ""
-                                  } ${
-                                    cellError
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? "border-2 border-brand-500" : ""
+                                    } ${cellError
                                       ? "bg-red-50 dark:bg-red-900/20"
                                       : ""
-                                  }`}
+                                    }`}
                                   onClick={() =>
                                     setAgendaKhususEditingCell({
                                       row: actualIndex,
@@ -31867,11 +31850,10 @@ export default function DetailBlok() {
                                     />
                                   ) : (
                                     <span
-                                      className={`${
-                                        cellError
-                                          ? "text-red-500"
-                                          : "text-gray-800 dark:text-white/90"
-                                      }`}
+                                      className={`${cellError
+                                        ? "text-red-500"
+                                        : "text-gray-800 dark:text-white/90"
+                                        }`}
                                     >
                                       {value || "-"}
                                     </span>
@@ -31883,11 +31865,10 @@ export default function DetailBlok() {
                             return (
                               <tr
                                 key={actualIndex}
-                                className={`${
-                                  index % 2 === 1
-                                    ? "bg-gray-50 dark:bg-white/[0.02]"
-                                    : ""
-                                }`}
+                                className={`${index % 2 === 1
+                                  ? "bg-gray-50 dark:bg-white/[0.02]"
+                                  : ""
+                                  }`}
                               >
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                                   {actualIndex + 1}
@@ -32087,45 +32068,45 @@ export default function DetailBlok() {
               {/* Error Messages */}
               {(jurnalReadingImportErrors.length > 0 ||
                 jurnalReadingCellErrors.length > 0) && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0">
-                      <FontAwesomeIcon
-                        icon={faExclamationTriangle}
-                        className="w-5 h-5 text-red-500"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi (
-                        {jurnalReadingImportErrors.length +
-                          jurnalReadingCellErrors.length}{" "}
-                        error)
-                      </h3>
-                      <div className="max-h-40 overflow-y-auto">
-                        {/* Error dari API response */}
-                        {jurnalReadingImportErrors.map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err}
-                          </p>
-                        ))}
-                        {/* Error cell/detail */}
-                        {jurnalReadingCellErrors.map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err.message}
-                          </p>
-                        ))}
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {jurnalReadingImportErrors.length +
+                            jurnalReadingCellErrors.length}{" "}
+                          error)
+                        </h3>
+                        <div className="max-h-40 overflow-y-auto">
+                          {/* Error dari API response */}
+                          {jurnalReadingImportErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err}
+                            </p>
+                          ))}
+                          {/* Error cell/detail */}
+                          {jurnalReadingCellErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err.message}
+                            </p>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Table */}
               {jurnalReadingImportData.length > 0 && (
@@ -32190,13 +32171,11 @@ export default function DetailBlok() {
 
                               return (
                                 <td
-                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                    isEditing ? "border-2 border-brand-500" : ""
-                                  } ${
-                                    cellError
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? "border-2 border-brand-500" : ""
+                                    } ${cellError
                                       ? "bg-red-50 dark:bg-red-900/20"
                                       : ""
-                                  }`}
+                                    }`}
                                   onClick={() =>
                                     setJurnalReadingEditingCell({
                                       row: actualIndex,
@@ -32232,11 +32211,10 @@ export default function DetailBlok() {
                                     />
                                   ) : (
                                     <span
-                                      className={`${
-                                        cellError
-                                          ? "text-red-500"
-                                          : "text-gray-800 dark:text-white/90"
-                                      }`}
+                                      className={`${cellError
+                                        ? "text-red-500"
+                                        : "text-gray-800 dark:text-white/90"
+                                        }`}
                                     >
                                       {value || "-"}
                                     </span>
@@ -32248,11 +32226,10 @@ export default function DetailBlok() {
                             return (
                               <tr
                                 key={actualIndex}
-                                className={`${
-                                  index % 2 === 1
-                                    ? "bg-gray-50 dark:bg-white/[0.02]"
-                                    : ""
-                                }`}
+                                className={`${index % 2 === 1
+                                  ? "bg-gray-50 dark:bg-white/[0.02]"
+                                  : ""
+                                  }`}
                               >
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                                   {actualIndex + 1}
@@ -32470,43 +32447,43 @@ export default function DetailBlok() {
               {/* Error Messages */}
               {(persamaanPersepsiImportErrors.length > 0 ||
                 persamaanPersepsiCellErrors.length > 0) && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0">
-                      <FontAwesomeIcon
-                        icon={faExclamationTriangle}
-                        className="w-5 h-5 text-red-500"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi (
-                        {persamaanPersepsiImportErrors.length +
-                          persamaanPersepsiCellErrors.length}{" "}
-                        error)
-                      </h3>
-                      <div className="max-h-40 overflow-y-auto">
-                        {persamaanPersepsiImportErrors.map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err}
-                          </p>
-                        ))}
-                        {persamaanPersepsiCellErrors.map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err.message}
-                          </p>
-                        ))}
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {persamaanPersepsiImportErrors.length +
+                            persamaanPersepsiCellErrors.length}{" "}
+                          error)
+                        </h3>
+                        <div className="max-h-40 overflow-y-auto">
+                          {persamaanPersepsiImportErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err}
+                            </p>
+                          ))}
+                          {persamaanPersepsiCellErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err.message}
+                            </p>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Table */}
               {persamaanPersepsiImportData.length > 0 && (
@@ -32562,24 +32539,22 @@ export default function DetailBlok() {
                             ) => {
                               const isEditing =
                                 persamaanPersepsiEditingCell?.row ===
-                                  actualIndex &&
+                                actualIndex &&
                                 persamaanPersepsiEditingCell?.key === field;
                               const cellError =
                                 persamaanPersepsiCellErrors.find(
-                                (err) =>
-                                  err.row === actualIndex + 1 &&
-                                  err.field === field
-                              );
+                                  (err) =>
+                                    err.row === actualIndex + 1 &&
+                                    err.field === field
+                                );
 
                               return (
                                 <td
-                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                    isEditing ? "border-2 border-brand-500" : ""
-                                  } ${
-                                    cellError
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? "border-2 border-brand-500" : ""
+                                    } ${cellError
                                       ? "bg-red-50 dark:bg-red-900/20"
                                       : ""
-                                  }`}
+                                    }`}
                                   onClick={() =>
                                     setPersamaanPersepsiEditingCell({
                                       row: actualIndex,
@@ -32615,11 +32590,10 @@ export default function DetailBlok() {
                                     />
                                   ) : (
                                     <span
-                                      className={`${
-                                        cellError
-                                          ? "text-red-500"
-                                          : "text-gray-800 dark:text-white/90"
-                                      }`}
+                                      className={`${cellError
+                                        ? "text-red-500"
+                                        : "text-gray-800 dark:text-white/90"
+                                        }`}
                                     >
                                       {value || "-"}
                                     </span>
@@ -32631,11 +32605,10 @@ export default function DetailBlok() {
                             return (
                               <tr
                                 key={actualIndex}
-                                className={`${
-                                  index % 2 === 1
-                                    ? "bg-gray-50 dark:bg-white/[0.02]"
-                                    : ""
-                                }`}
+                                className={`${index % 2 === 1
+                                  ? "bg-gray-50 dark:bg-white/[0.02]"
+                                  : ""
+                                  }`}
                               >
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                                   {actualIndex + 1}
@@ -32727,77 +32700,77 @@ export default function DetailBlok() {
         )}
       </AnimatePresence>
 
-        {/* Modal Konfirmasi Bulk Delete */}
-        <AnimatePresence>
-          {showBulkDeleteModal && (
-            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-              <div
-                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-                onClick={() => setShowBulkDeleteModal(false)}
-              ></div>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
-              >
-                <div className="flex items-center justify-between pb-6">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-                    Konfirmasi Hapus Data
-                  </h2>
-                </div>
-                <div>
-                  <p className="mb-6 text-gray-500 dark:text-gray-400">
-                    Apakah Anda yakin ingin menghapus{" "}
-                    <span className="font-semibold text-gray-800 dark:text-white">
-                      {bulkDeleteType === "kuliah-besar" &&
-                        selectedKuliahBesarItems.length}
-                      {bulkDeleteType === "praktikum" &&
-                        selectedPraktikumItems.length}
-                      {bulkDeleteType === "agenda-khusus" &&
-                        selectedAgendaKhususItems.length}
-                      {bulkDeleteType === "pbl" && selectedPBLItems.length}
-                      {bulkDeleteType === "jurnal-reading" &&
-                        selectedJurnalReadingItems.length}
-                      {bulkDeleteType === "persamaan-persepsi" &&
-                        selectedPersamaanPersepsiItems.length}
-                    </span>{" "}
-                    jadwal {bulkDeleteType === "kuliah-besar" && "kuliah besar"}
-                    {bulkDeleteType === "praktikum" && "praktikum"}
-                    {bulkDeleteType === "agenda-khusus" && "agenda khusus"}
-                    {bulkDeleteType === "pbl" && "PBL"}
-                  {bulkDeleteType === "jurnal-reading" && "jurnal reading"}
+      {/* Modal Konfirmasi Bulk Delete */}
+      <AnimatePresence>
+        {showBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Hapus Data
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus{" "}
+                  <span className="font-semibold text-gray-800 dark:text-white">
+                    {bulkDeleteType === "kuliah-besar" &&
+                      selectedKuliahBesarItems.length}
+                    {bulkDeleteType === "praktikum" &&
+                      selectedPraktikumItems.length}
+                    {bulkDeleteType === "agenda-khusus" &&
+                      selectedAgendaKhususItems.length}
+                    {bulkDeleteType === "pbl" && selectedPBLItems.length}
+                    {bulkDeleteType === "jurnal-reading" &&
+                      selectedJurnalReadingItems.length}
                     {bulkDeleteType === "persamaan-persepsi" &&
-                      "persamaan persepsi"}{" "}
-                    terpilih? Data yang dihapus tidak dapat dikembalikan.
-                  </p>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      onClick={() => setShowBulkDeleteModal(false)}
-                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      onClick={confirmBulkDelete}
-                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
-                      disabled={isBulkDeleting}
-                    >
-                      {isBulkDeleting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                          Menghapus...
-                        </>
-                      ) : (
-                        "Hapus"
-                      )}
-                    </button>
-                  </div>
+                      selectedPersamaanPersepsiItems.length}
+                  </span>{" "}
+                  jadwal {bulkDeleteType === "kuliah-besar" && "kuliah besar"}
+                  {bulkDeleteType === "praktikum" && "praktikum"}
+                  {bulkDeleteType === "agenda-khusus" && "agenda khusus"}
+                  {bulkDeleteType === "pbl" && "PBL"}
+                  {bulkDeleteType === "jurnal-reading" && "jurnal reading"}
+                  {bulkDeleteType === "persamaan-persepsi" &&
+                    "persamaan persepsi"}{" "}
+                  terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmBulkDelete}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
+                    disabled={isBulkDeleting}
+                  >
+                    {isBulkDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Menghapus...
+                      </>
+                    ) : (
+                      "Hapus"
+                    )}
+                  </button>
                 </div>
-              </motion.div>
-            </div>
-          )}
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Hidden file input for praktikum import */}
@@ -32909,22 +32882,20 @@ export default function DetailBlok() {
                   <div className="space-y-3">
                     {/* Template Aplikasi */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedKuliahBesarExportTemplate === "APLIKASI"
-                          ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
-                          : ""
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedKuliahBesarExportTemplate === "APLIKASI"
+                        ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                        : ""
+                        }`}
                       onClick={() =>
                         setSelectedKuliahBesarExportTemplate("APLIKASI")
                       }
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedKuliahBesarExportTemplate === "APLIKASI"
-                              ? "bg-brand-500 border-brand-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedKuliahBesarExportTemplate === "APLIKASI"
+                            ? "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600"
+                            }`}
                         >
                           {selectedKuliahBesarExportTemplate === "APLIKASI" && (
                             <svg
@@ -32960,22 +32931,20 @@ export default function DetailBlok() {
 
                     {/* Template SIAKAD */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedKuliahBesarExportTemplate === "SIAKAD"
-                          ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
-                          : ""
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedKuliahBesarExportTemplate === "SIAKAD"
+                        ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                        : ""
+                        }`}
                       onClick={() =>
                         setSelectedKuliahBesarExportTemplate("SIAKAD")
                       }
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedKuliahBesarExportTemplate === "SIAKAD"
-                              ? "bg-brand-500 border-brand-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedKuliahBesarExportTemplate === "SIAKAD"
+                            ? "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600"
+                            }`}
                         >
                           {selectedKuliahBesarExportTemplate === "SIAKAD" && (
                             <svg
@@ -33020,11 +32989,10 @@ export default function DetailBlok() {
                   <button
                     onClick={handleKuliahBesarExport}
                     disabled={!selectedKuliahBesarExportTemplate}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
-                      selectedKuliahBesarExportTemplate
-                        ? "bg-blue-600 hover:bg-blue-700 text-white"
-                        : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                    }`}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${selectedKuliahBesarExportTemplate
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                      }`}
                   >
                     Export
                   </button>
@@ -33099,22 +33067,20 @@ export default function DetailBlok() {
                   <div className="space-y-3">
                     {/* Template Aplikasi */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedPraktikumExportTemplate === "APLIKASI"
-                          ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
-                          : ""
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedPraktikumExportTemplate === "APLIKASI"
+                        ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                        : ""
+                        }`}
                       onClick={() =>
                         setSelectedPraktikumExportTemplate("APLIKASI")
                       }
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedPraktikumExportTemplate === "APLIKASI"
-                              ? "bg-brand-500 border-brand-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPraktikumExportTemplate === "APLIKASI"
+                            ? "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600"
+                            }`}
                         >
                           {selectedPraktikumExportTemplate === "APLIKASI" && (
                             <svg
@@ -33150,22 +33116,20 @@ export default function DetailBlok() {
 
                     {/* Template SIAKAD */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedPraktikumExportTemplate === "SIAKAD"
-                          ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
-                          : ""
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedPraktikumExportTemplate === "SIAKAD"
+                        ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                        : ""
+                        }`}
                       onClick={() =>
                         setSelectedPraktikumExportTemplate("SIAKAD")
                       }
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedPraktikumExportTemplate === "SIAKAD"
-                              ? "bg-brand-500 border-brand-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPraktikumExportTemplate === "SIAKAD"
+                            ? "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600"
+                            }`}
                         >
                           {selectedPraktikumExportTemplate === "SIAKAD" && (
                             <svg
@@ -33210,11 +33174,10 @@ export default function DetailBlok() {
                   <button
                     onClick={handlePraktikumExport}
                     disabled={!selectedPraktikumExportTemplate}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
-                      selectedPraktikumExportTemplate
-                        ? "bg-blue-600 hover:bg-blue-700 text-white"
-                        : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                    }`}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${selectedPraktikumExportTemplate
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                      }`}
                   >
                     Export
                   </button>
@@ -33289,20 +33252,18 @@ export default function DetailBlok() {
                   <div className="space-y-3">
                     {/* Template Aplikasi */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedPBLExportTemplate === "APLIKASI"
-                          ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
-                          : ""
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedPBLExportTemplate === "APLIKASI"
+                        ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                        : ""
+                        }`}
                       onClick={() => setSelectedPBLExportTemplate("APLIKASI")}
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedPBLExportTemplate === "APLIKASI"
-                              ? "bg-brand-500 border-brand-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPBLExportTemplate === "APLIKASI"
+                            ? "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600"
+                            }`}
                         >
                           {selectedPBLExportTemplate === "APLIKASI" && (
                             <svg
@@ -33338,20 +33299,18 @@ export default function DetailBlok() {
 
                     {/* Template SIAKAD */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedPBLExportTemplate === "SIAKAD"
-                          ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
-                          : ""
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedPBLExportTemplate === "SIAKAD"
+                        ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                        : ""
+                        }`}
                       onClick={() => setSelectedPBLExportTemplate("SIAKAD")}
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedPBLExportTemplate === "SIAKAD"
-                              ? "bg-brand-500 border-brand-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPBLExportTemplate === "SIAKAD"
+                            ? "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600"
+                            }`}
                         >
                           {selectedPBLExportTemplate === "SIAKAD" && (
                             <svg
@@ -33396,11 +33355,10 @@ export default function DetailBlok() {
                   <button
                     onClick={handlePBLExport}
                     disabled={!selectedPBLExportTemplate}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
-                      selectedPBLExportTemplate
-                        ? "bg-blue-600 hover:bg-blue-700 text-white"
-                        : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                    }`}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${selectedPBLExportTemplate
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                      }`}
                   >
                     Export
                   </button>
@@ -33540,73 +33498,73 @@ export default function DetailBlok() {
               {/* Error Messages */}
               {(seminarPlenoImportErrors.length > 0 ||
                 seminarPlenoCellErrors.length > 0) && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0">
-                      <FontAwesomeIcon
-                        icon={faExclamationTriangle}
-                        className="w-5 h-5 text-red-500"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi (
-                        {seminarPlenoCellErrors.length + 
-                         seminarPlenoImportErrors.filter((err) => {
-                           // Filter error generic yang tidak perlu ditampilkan
-                            if (
-                              err.includes("data.") &&
-                              err.includes("field is required")
-                            )
-                              return false;
-                            if (
-                              err.includes(
-                                "Terjadi kesalahan saat memvalidasi data"
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {seminarPlenoCellErrors.length +
+                            seminarPlenoImportErrors.filter((err) => {
+                              // Filter error generic yang tidak perlu ditampilkan
+                              if (
+                                err.includes("data.") &&
+                                err.includes("field is required")
                               )
-                            )
-                              return false;
-                           return true;
-                         }).length}{" "}
-                        error)
-                      </h3>
-                      <div className="max-h-40 overflow-y-auto">
-                        {seminarPlenoImportErrors
-                          .filter((err) => {
-                            // Filter error generic yang tidak perlu ditampilkan
-                            if (
-                              err.includes("data.") &&
-                              err.includes("field is required")
-                            )
-                              return false;
-                            if (
-                              err.includes(
-                                "Terjadi kesalahan saat memvalidasi data"
+                                return false;
+                              if (
+                                err.includes(
+                                  "Terjadi kesalahan saat memvalidasi data"
+                                )
                               )
-                            )
-                              return false;
-                            return true;
-                          })
-                          .map((err, idx) => (
+                                return false;
+                              return true;
+                            }).length}{" "}
+                          error)
+                        </h3>
+                        <div className="max-h-40 overflow-y-auto">
+                          {seminarPlenoImportErrors
+                            .filter((err) => {
+                              // Filter error generic yang tidak perlu ditampilkan
+                              if (
+                                err.includes("data.") &&
+                                err.includes("field is required")
+                              )
+                                return false;
+                              if (
+                                err.includes(
+                                  "Terjadi kesalahan saat memvalidasi data"
+                                )
+                              )
+                                return false;
+                              return true;
+                            })
+                            .map((err, idx) => (
+                              <p
+                                key={idx}
+                                className="text-sm text-red-600 dark:text-red-400 mb-1"
+                              >
+                                • {err}
+                              </p>
+                            ))}
+                          {seminarPlenoCellErrors.map((err, idx) => (
                             <p
                               key={idx}
                               className="text-sm text-red-600 dark:text-red-400 mb-1"
                             >
-                              • {err}
+                              • {err.message}
                             </p>
                           ))}
-                        {seminarPlenoCellErrors.map((err, idx) => (
-                          <p
-                            key={idx}
-                            className="text-sm text-red-600 dark:text-red-400 mb-1"
-                          >
-                            • {err.message}
-                          </p>
-                        ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Table */}
               {seminarPlenoImportData.length > 0 && (
@@ -33676,13 +33634,11 @@ export default function DetailBlok() {
 
                               return (
                                 <td
-                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                    isEditing ? "border-2 border-brand-500" : ""
-                                  } ${
-                                    cellError
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? "border-2 border-brand-500" : ""
+                                    } ${cellError
                                       ? "bg-red-50 dark:bg-red-900/20"
                                       : ""
-                                  }`}
+                                    }`}
                                   onClick={() =>
                                     setSeminarPlenoEditingCell({
                                       row: actualIndex,
@@ -33693,11 +33649,10 @@ export default function DetailBlok() {
                                 >
                                   {isEditing ? (
                                     <input
-                                      className={`w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent ${
-                                        cellError
-                                          ? "text-red-500"
-                                          : "text-gray-800 dark:text-white/90"
-                                      }`}
+                                      className={`w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent ${cellError
+                                        ? "text-red-500"
+                                        : "text-gray-800 dark:text-white/90"
+                                        }`}
                                       type={isNumeric ? "number" : "text"}
                                       value={value || ""}
                                       onChange={(e) =>
@@ -33770,7 +33725,7 @@ export default function DetailBlok() {
                                   const field = "kelompok_besar";
                                   const isEditing =
                                     seminarPlenoEditingCell?.row ===
-                                      actualIndex &&
+                                    actualIndex &&
                                     seminarPlenoEditingCell?.key === field;
                                   const cellError = seminarPlenoCellErrors.find(
                                     (err) =>
@@ -33786,8 +33741,8 @@ export default function DetailBlok() {
                                       // Extract semester from label like "Kelompok Besar Semester 3 (17 mahasiswa)"
                                       const match =
                                         row.kelompok_besar.match(
-                                        /Semester\s*(\d+)/i
-                                      );
+                                          /Semester\s*(\d+)/i
+                                        );
                                       if (match) {
                                         inputValue = match[1];
                                       } else {
@@ -33798,12 +33753,12 @@ export default function DetailBlok() {
                                               (kb) =>
                                                 Number(kb.id) ===
                                                 row.kelompok_besar_id
-                                          );
+                                            );
                                           if (kelompokBesar) {
                                             const semesterMatch =
                                               kelompokBesar.label.match(
-                                              /Semester\s*(\d+)/i
-                                            );
+                                                /Semester\s*(\d+)/i
+                                              );
                                             if (semesterMatch) {
                                               inputValue = semesterMatch[1];
                                             }
@@ -33817,12 +33772,12 @@ export default function DetailBlok() {
                                           (kb) =>
                                             Number(kb.id) ===
                                             row.kelompok_besar_id
-                                      );
+                                        );
                                       if (kelompokBesar) {
                                         const semesterMatch =
                                           kelompokBesar.label.match(
-                                          /Semester\s*(\d+)/i
-                                        );
+                                            /Semester\s*(\d+)/i
+                                          );
                                         if (semesterMatch) {
                                           inputValue = semesterMatch[1];
                                         }
@@ -33839,7 +33794,7 @@ export default function DetailBlok() {
                                         (kb) =>
                                           Number(kb.id) ===
                                           row.kelompok_besar_id
-                                    );
+                                      );
                                     if (kelompokBesar) {
                                       displayValue = kelompokBesar.label;
                                     }
@@ -33847,15 +33802,13 @@ export default function DetailBlok() {
 
                                   return (
                                     <td
-                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                        isEditing
-                                          ? "border-2 border-brand-500"
-                                          : ""
-                                      } ${
-                                        cellError
+                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                        ? "border-2 border-brand-500"
+                                        : ""
+                                        } ${cellError
                                           ? "bg-red-50 dark:bg-red-900/20"
                                           : ""
-                                      }`}
+                                        }`}
                                       onClick={() =>
                                         setSeminarPlenoEditingCell({
                                           row: actualIndex,
@@ -33866,11 +33819,10 @@ export default function DetailBlok() {
                                     >
                                       {isEditing ? (
                                         <input
-                                          className={`w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent ${
-                                            cellError
-                                              ? "text-red-500"
-                                              : "text-gray-800 dark:text-white/90"
-                                          }`}
+                                          className={`w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent ${cellError
+                                            ? "text-red-500"
+                                            : "text-gray-800 dark:text-white/90"
+                                            }`}
                                           type="number"
                                           value={inputValue}
                                           onChange={(e) => {

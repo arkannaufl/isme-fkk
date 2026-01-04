@@ -26,7 +26,7 @@ class JadwalPraktikumController extends Controller
     // List semua jadwal praktikum untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen' => function ($query) {
+        $jadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'kelompokKecil', 'dosen' => function ($query) {
             $query->select('users.id', 'users.name', 'users.nid', 'users.nidn', 'users.nuptk', 'users.signature_image')
                 ->withPivot('status_konfirmasi', 'alasan_konfirmasi');
         }])
@@ -64,7 +64,8 @@ class JadwalPraktikumController extends Controller
         $data = $request->validate([
             'materi' => 'required|string',
             'topik' => 'nullable|string',
-            'kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
+            'kelompok_kecil_ids' => 'required|array|min:1',
+            'kelompok_kecil_ids.*' => 'exists:kelompok_kecil,id',
             'ruangan_id' => 'required|exists:ruangan,id',
             'tanggal' => 'required|date',
             'jam_mulai' => 'required|string',
@@ -95,8 +96,12 @@ class JadwalPraktikumController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
-        $jadwal = JadwalPraktikum::create($data);
+        // Create tanpa kelompok_kecil_id (karena sekarang pivot)
+        $jadwal = JadwalPraktikum::create(\Illuminate\Support\Arr::except($data, ['kelompok_kecil_ids']));
 
+        // Sync kelompok kecil
+        $jadwal->kelompokKecil()->sync($data['kelompok_kecil_ids']);
+        
         // Sync dosen (replace semua dosen yang ada)
         $jadwal->dosen()->sync($data['dosen_ids']);
 
@@ -110,7 +115,7 @@ class JadwalPraktikumController extends Controller
                 'jam_selesai' => $data['jam_selesai'],
                 'materi' => $data['materi'],
                 'topik' => $data['topik'],
-                'kelompok_kecil_id' => $data['kelompok_kecil_id']
+                'kelompok_kecil_ids' => $data['kelompok_kecil_ids']
             ])
             ->log('Jadwal Praktikum created');
 
@@ -141,7 +146,8 @@ class JadwalPraktikumController extends Controller
         $data = $request->validate([
             'materi' => 'required|string',
             'topik' => 'nullable|string',
-            'kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
+            'kelompok_kecil_ids' => 'required|array|min:1',
+            'kelompok_kecil_ids.*' => 'exists:kelompok_kecil,id',
             'ruangan_id' => 'required|exists:ruangan,id',
             'tanggal' => 'required|date',
             'jam_mulai' => 'required|string',
@@ -172,7 +178,10 @@ class JadwalPraktikumController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
-        $jadwal->update($data);
+        $jadwal->update(\Illuminate\Support\Arr::except($data, ['kelompok_kecil_ids']));
+
+        // Sync kelompok kecil
+        $jadwal->kelompokKecil()->sync($data['kelompok_kecil_ids']);
 
         // Sync dosen (replace semua dosen yang ada)
         $jadwal->dosen()->sync($data['dosen_ids']);
@@ -187,7 +196,7 @@ class JadwalPraktikumController extends Controller
                 'jam_selesai' => $data['jam_selesai'],
                 'materi' => $data['materi'],
                 'topik' => $data['topik'],
-                'kelompok_kecil_id' => $data['kelompok_kecil_id']
+                'kelompok_kecil_ids' => $data['kelompok_kecil_ids']
             ])
             ->log('Jadwal Praktikum updated');
 
@@ -379,8 +388,11 @@ class JadwalPraktikumController extends Controller
                 }
             })
             ->where(function ($q) use ($data) {
-                $q->where('kelompok_kecil_id', $data['kelompok_kecil_id'])
-                    ->orWhere('ruangan_id', $data['ruangan_id']);
+                // Cek overlap kelompok kecil (menggunakan whereHas karena sekarang many-to-many)
+                $q->whereHas('kelompokKecil', function ($subQ) use ($data) {
+                    $subQ->whereIn('kelompok_kecil.id', $data['kelompok_kecil_ids']);
+                })
+                ->orWhere('ruangan_id', $data['ruangan_id']);
             })
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
@@ -509,9 +521,12 @@ class JadwalPraktikumController extends Controller
         }
 
         // Cek bentrok kelompok kecil
-        if (isset($data['kelompok_kecil_id']) && isset($jadwalBentrok->kelompok_kecil_id) && $data['kelompok_kecil_id'] == $jadwalBentrok->kelompok_kecil_id) {
-            $kelompokKecil = \App\Models\KelompokKecil::find($data['kelompok_kecil_id']);
-            $reasons[] = "Kelompok Kecil: " . ($kelompokKecil ? $kelompokKecil->nama_kelompok : 'Tidak diketahui');
+        if (isset($data['kelompok_kecil_ids'])) {
+            $commonGroups = $jadwalBentrok->kelompokKecil()->whereIn('kelompok_kecil.id', $data['kelompok_kecil_ids'])->get();
+            if ($commonGroups->isNotEmpty()) {
+                $groupNames = $commonGroups->pluck('nama_kelompok')->join(', ');
+                $reasons[] = "Kelompok: " . $groupNames;
+            }
         }
 
         return implode(', ', $reasons);
@@ -529,16 +544,24 @@ class JadwalPraktikumController extends Controller
         }
 
         // Untuk praktikum, hitung mahasiswa berdasarkan kelompok kecil
-        $kelompokKecil = \App\Models\KelompokKecil::find($data['kelompok_kecil_id']);
+        $kelompokKecilList = \App\Models\KelompokKecil::whereIn('id', $data['kelompok_kecil_ids'])->get();
 
-        if (!$kelompokKecil) {
+        if ($kelompokKecilList->isEmpty()) {
             return 'Kelompok kecil tidak ditemukan';
         }
 
-        // Hitung mahasiswa di kelompok kecil ini
-        $jumlahMahasiswa = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
-            ->where('semester', $kelompokKecil->semester)
+        $jumlahMahasiswa = 0;
+        $namaKelompokList = [];
+
+        foreach ($kelompokKecilList as $kelompokKecil) {
+            $count = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
+                ->where('semester', $kelompokKecil->semester)
                 ->count();
+            $jumlahMahasiswa += $count;
+            $namaKelompokList[] = $kelompokKecil->nama_kelompok;
+        }
+        
+        $namaKelompokStr = implode(', ', $namaKelompokList);
 
         // Hitung jumlah dosen yang dipilih
         $jumlahDosen = count($data['dosen_ids']);
@@ -548,9 +571,8 @@ class JadwalPraktikumController extends Controller
 
         // Debug: Log untuk troubleshooting
         Log::info('Praktikum Capacity Check:', [
-            'kelompok_kecil_id' => $data['kelompok_kecil_id'],
-            'nama_kelompok' => $kelompokKecil->nama_kelompok ?? 'N/A',
-            'semester' => $kelompokKecil->semester ?? 'N/A',
+            'kelompok_kecil_ids' => $data['kelompok_kecil_ids'],
+            'nama_kelompok' => $namaKelompokStr,
             'jumlah_mahasiswa' => $jumlahMahasiswa,
             'jumlah_dosen' => $jumlahDosen,
             'total_yang_diperlukan' => $totalYangDiperlukan,
@@ -560,8 +582,7 @@ class JadwalPraktikumController extends Controller
 
         // Cek apakah kapasitas ruangan mencukupi
         if ($totalYangDiperlukan > $ruangan->kapasitas) {
-            $namaKelompok = $kelompokKecil->nama_kelompok ?? 'Tidak diketahui';
-            return "Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$totalYangDiperlukan} orang (kelompok {$namaKelompok}: {$jumlahMahasiswa} mahasiswa + {$jumlahDosen} dosen).";
+            return "Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$totalYangDiperlukan} orang (kelompok {$namaKelompokStr}: {$jumlahMahasiswa} mahasiswa + {$jumlahDosen} dosen).";
         }
 
         return null; // Kapasitas mencukupi
@@ -583,10 +604,20 @@ class JadwalPraktikumController extends Controller
                 'dosen' => function ($query) {
                     $query->withPivot('status_konfirmasi', 'alasan_konfirmasi');
                 },
-                'ruangan'
+                'ruangan',
+                'kelompokKecil'
             ])
                 ->whereHas('mataKuliah', function ($query) use ($mahasiswa) {
                     $query->where('semester', $mahasiswa->semester);
+                })
+                ->whereHas('kelompokKecil', function($q) use ($mahasiswa) {
+                    // Check if the schedule's groups contain a group that the student belongs to
+                    $q->whereIn('nama_kelompok', function($sub) use ($mahasiswa) {
+                        $sub->select('nama_kelompok')
+                            ->from('kelompok_kecil')
+                            ->where('mahasiswa_id', $mahasiswa->id)
+                            ->where('semester', $mahasiswa->semester);
+                    });
                 })
                 ->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
@@ -612,6 +643,8 @@ class JadwalPraktikumController extends Controller
                     $statusKonfirmasi = $firstActiveDosen->pivot->status_konfirmasi ?? 'belum_konfirmasi';
                 }
 
+                $groupNames = $item->kelompokKecil->pluck('nama_kelompok')->join(', ');
+
                 return [
                     'id' => $item->id,
                     'tanggal' => $item->tanggal,
@@ -619,7 +652,7 @@ class JadwalPraktikumController extends Controller
                     'jam_selesai' => substr($item->jam_selesai, 0, 5),
                     'materi' => $item->materi ?? 'N/A',
                     'topik' => $item->topik ?? 'N/A',
-                    'kelompok_kecil' => $item->kelompokKecil ? $item->kelompokKecil->nama_kelompok : 'N/A',
+                    'kelompok_kecil' => $groupNames ?: 'N/A',
                     'dosen' => $activeDosen->map(fn($d) => ['id' => $d->id, 'name' => $d->name])->toArray(),
                     'ruangan' => $item->ruangan ? ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama] : null,
                     'jumlah_sesi' => $item->jumlah_sesi ?? 2,
@@ -641,33 +674,40 @@ class JadwalPraktikumController extends Controller
     private function sendNotificationToMahasiswa($jadwal)
     {
         try {
-            $kelompokKecil = $jadwal->kelompokKecil;
+            $kelompokKecilList = $jadwal->kelompokKecil;
 
-            if (!$kelompokKecil) {
+            if ($kelompokKecilList->isEmpty()) {
                 Log::warning("Praktikum sendNotificationToMahasiswa - Kelompok kecil tidak ditemukan untuk jadwal ID: {$jadwal->id}");
                 return;
             }
 
-            Log::info("Praktikum sendNotificationToMahasiswa - Starting for jadwal ID: {$jadwal->id}, kelompok_kecil_id: {$kelompokKecil->id}, nama_kelompok: {$kelompokKecil->nama_kelompok}");
+            $groupNames = $kelompokKecilList->pluck('nama_kelompok')->join(', ');
 
-            // Get mahasiswa in the specific kelompok kecil
-            $mahasiswaIds = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
-                ->where('semester', $kelompokKecil->semester)
-                ->pluck('mahasiswa_id')
-                ->toArray();
+            Log::info("Praktikum sendNotificationToMahasiswa - Starting for jadwal ID: {$jadwal->id}, kelompok: {$groupNames}");
+
+            // Get all mahasiswa IDs in these groups
+            $mahasiswaIds = [];
+            foreach ($kelompokKecilList as $kk) {
+                 $ids = \App\Models\KelompokKecil::where('nama_kelompok', $kk->nama_kelompok)
+                    ->where('semester', $kk->semester)
+                    ->pluck('mahasiswa_id')
+                    ->toArray();
+                 $mahasiswaIds = array_merge($mahasiswaIds, $ids);
+            }
+            $mahasiswaIds = array_unique($mahasiswaIds);
 
             $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
                 ->whereIn('id', $mahasiswaIds)
                 ->get();
 
-            Log::info("Praktikum sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in kelompok '{$kelompokKecil->nama_kelompok}'");
+            Log::info("Praktikum sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in kelompok '{$groupNames}'");
 
             // Send notification to each mahasiswa
             foreach ($mahasiswaList as $mahasiswa) {
                 \App\Models\Notification::create([
                     'user_id' => $mahasiswa->id,
                     'title' => 'Jadwal Praktikum Baru',
-                    'message' => "Jadwal Praktikum baru telah ditambahkan: {$jadwal->mataKuliah->nama} - {$jadwal->materi} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama} untuk kelompok {$kelompokKecil->nama_kelompok}.",
+                    'message' => "Jadwal Praktikum baru telah ditambahkan: {$jadwal->mataKuliah->nama} - {$jadwal->materi} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama} untuk kelompok {$groupNames}.",
                     'type' => 'info',
                     'is_read' => false,
                     'data' => [
@@ -678,8 +718,8 @@ class JadwalPraktikumController extends Controller
                         'materi' => $jadwal->materi,
                         'topik' => $jadwal->topik,
                         'kelompok_kecil' => [
-                            'id' => $kelompokKecil->id,
-                            'nama_kelompok' => $kelompokKecil->nama_kelompok,
+                            'names' => $groupNames,
+                            'count' => $kelompokKecilList->count()
                         ],
                         'tanggal' => $jadwal->tanggal,
                         'jam_mulai' => $jadwal->jam_mulai,
@@ -694,7 +734,7 @@ class JadwalPraktikumController extends Controller
                 ]);
             }
 
-            Log::info("Praktikum notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id} in kelompok '{$kelompokKecil->nama_kelompok}'");
+            Log::info("Praktikum notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
             Log::error("Error sending Praktikum notifications to mahasiswa: " . $e->getMessage());
         }
@@ -721,21 +761,25 @@ class JadwalPraktikumController extends Controller
     /**
      * Dapatkan informasi debug untuk validasi
      */
+    /**
+     * Dapatkan informasi debug untuk validasi
+     */
     private function getDebugInfo($data)
     {
         $ruangan = Ruangan::find($data['ruangan_id']);
         $semester = $this->getMataKuliahSemester($data['mata_kuliah_kode']);
 
         // Hitung jumlah mahasiswa berdasarkan kelompok kecil
-        $kelompokKecil = \App\Models\KelompokKecil::find($data['kelompok_kecil_id']);
+        $kelompokKecilList = \App\Models\KelompokKecil::whereIn('id', $data['kelompok_kecil_ids'])->get();
         $jumlahMahasiswa = 0;
-        $namaKelompok = 'Tidak diketahui';
+        $namaKelompokList = [];
 
-        if ($kelompokKecil) {
-            $jumlahMahasiswa = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
+        foreach ($kelompokKecilList as $kelompokKecil) {
+            $count = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
                 ->where('semester', $kelompokKecil->semester)
             ->count();
-            $namaKelompok = $kelompokKecil->nama_kelompok;
+            $jumlahMahasiswa += $count;
+            $namaKelompokList[] = $kelompokKecil->nama_kelompok;
         }
 
         // Hitung jumlah dosen yang dipilih
@@ -745,8 +789,8 @@ class JadwalPraktikumController extends Controller
         $totalYangDiperlukan = $jumlahMahasiswa + $jumlahDosen;
 
         return [
-            'kelompok_kecil_id' => $data['kelompok_kecil_id'],
-            'nama_kelompok' => $namaKelompok,
+            'kelompok_kecil_ids' => $data['kelompok_kecil_ids'],
+            'nama_kelompok' => implode(', ', $namaKelompokList),
             'mata_kuliah_kode' => $data['mata_kuliah_kode'],
             'semester' => $semester,
             'ruangan_nama' => $ruangan ? $ruangan->nama : 'Tidak ditemukan',
@@ -772,6 +816,7 @@ class JadwalPraktikumController extends Controller
 
             $mataKuliah = $jadwal->mataKuliah;
             $ruangan = $jadwal->ruangan;
+            $groupNames = $jadwal->kelompokKecil->pluck('nama_kelompok')->join(', ');
 
             \App\Models\Notification::create([
                 'user_id' => $dosenId,
@@ -779,7 +824,7 @@ class JadwalPraktikumController extends Controller
                 'message' => "Anda telah di-assign untuk mengajar Praktikum {$mataKuliah->nama} pada tanggal " .
                     date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
                     str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
-                    " di ruangan {$ruangan->nama} untuk kelompok " . ($jadwal->kelompokKecil ? $jadwal->kelompokKecil->nama_kelompok : 'Tidak diketahui') . ". Silakan konfirmasi ketersediaan Anda.",
+                    " di ruangan {$ruangan->nama} untuk kelompok " . ($groupNames ?: 'Tidak diketahui') . ". Silakan konfirmasi ketersediaan Anda.",
                 'type' => 'info',
                 'is_read' => false,
                 'data' => [
@@ -791,10 +836,9 @@ class JadwalPraktikumController extends Controller
                     'jam_mulai' => $jadwal->jam_mulai,
                     'jam_selesai' => $jadwal->jam_selesai,
                     'ruangan' => $ruangan->nama,
-                    'kelompok_kecil' => $jadwal->kelompokKecil ? [
-                        'id' => $jadwal->kelompokKecil->id,
-                        'nama_kelompok' => $jadwal->kelompokKecil->nama_kelompok,
-                    ] : null,
+                    'kelompok_kecil' => [
+                        'names' => $groupNames
+                    ],
                     'materi' => $jadwal->materi,
                     'topik' => $jadwal->topik,
                     'dosen_id' => $dosen->id,
@@ -818,7 +862,7 @@ class JadwalPraktikumController extends Controller
                 'jam_mulai' => $jadwal->jam_mulai,
                 'jam_selesai' => $jadwal->jam_selesai,
                 'ruangan' => $ruangan->nama,
-                'kelompok_kecil' => $jadwal->kelompokKecil ? $jadwal->kelompokKecil->nama_kelompok : null,
+                'kelompok_kecil' => $groupNames,
                 'topik' => $jadwal->topik,
                 'materi' => $jadwal->materi,
             ]);
@@ -851,7 +895,7 @@ class JadwalPraktikumController extends Controller
                     'message' => "Jadwal Praktikum {$mataKuliah->nama} pada tanggal " .
                         date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
                         str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
-                        " di ruangan {$ruangan->nama} untuk kelompok " . ($jadwal->kelompokKecil ? $jadwal->kelompokKecil->nama_kelompok : 'Tidak diketahui') . " telah dibuat. Mohon lakukan absensi dosen setelah praktikum selesai.",
+                        " di ruangan {$ruangan->nama} untuk kelompok " . ($jadwal->kelompokKecil->pluck('nama_kelompok')->join(', ') ?: 'Tidak diketahui') . " telah dibuat. Mohon lakukan absensi dosen setelah praktikum selesai.",
                     'type' => 'info',
                     'is_read' => false,
                     'data' => [
@@ -863,10 +907,12 @@ class JadwalPraktikumController extends Controller
                         'jam_mulai' => $jadwal->jam_mulai,
                         'jam_selesai' => $jadwal->jam_selesai,
                         'ruangan' => $ruangan->nama,
-                        'kelompok_kecil' => $jadwal->kelompokKecil ? [
-                            'id' => $jadwal->kelompokKecil->id,
-                            'nama_kelompok' => $jadwal->kelompokKecil->nama_kelompok,
-                        ] : null,
+                        'kelompok_kecil' => $jadwal->kelompokKecil->map(function($k) {
+                            return [
+                                'id' => $k->id,
+                                'nama_kelompok' => $k->nama_kelompok
+                            ];
+                        }),
                         'materi' => $jadwal->materi,
                         'topik' => $jadwal->topik ?? null,
                         'created_by' => Auth::user()->name ?? 'Admin',
@@ -949,10 +995,12 @@ class JadwalPraktikumController extends Controller
                         'nama' => $item->mataKuliah->nama ?? 'N/A',
                         'semester' => $item->mataKuliah->semester ?? ''
                     ],
-                    'kelompok_kecil' => $item->kelompokKecil ? [
-                        'id' => $item->kelompokKecil->id,
-                        'nama_kelompok' => $item->kelompokKecil->nama_kelompok,
-                    ] : null,
+                    'kelompok_kecil' => $item->kelompokKecil->map(function($k) {
+                        return [
+                            'id' => $k->id,
+                            'nama_kelompok' => $k->nama_kelompok
+                        ];
+                    }),
                     'dosen' => $item->dosen->map(function ($d) {
                         return (object) [
                             'id' => $d->id,
@@ -1062,7 +1110,8 @@ class JadwalPraktikumController extends Controller
                 'data.*.sesi' => 'required|integer|min:1|max:6',
                 'data.*.materi' => 'required|string',
                 'data.*.topik' => 'required|string',
-                'data.*.kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
+                'data.*.kelompok_kecil_ids' => 'required|array|min:1',
+                'data.*.kelompok_kecil_ids.*' => 'exists:kelompok_kecil,id',
                 'data.*.dosen_id' => 'nullable|exists:users,id', // Backward compatibility
                 'data.*.dosen_ids' => 'nullable|array|min:1', // Support multiple dosen
                 'data.*.dosen_ids.*' => 'exists:users,id',
@@ -1123,6 +1172,8 @@ class JadwalPraktikumController extends Controller
                     $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
                 }
 
+                // Materi sudah ada di $row['materi'] dari input Excel
+
                 // Validasi bentrok
                 $row['mata_kuliah_kode'] = $kode; // Tambahkan mata_kuliah_kode untuk checkBentrokWithDetail
                 $bentrokMessage = $this->checkBentrokWithDetail($row, null);
@@ -1158,7 +1209,6 @@ class JadwalPraktikumController extends Controller
                         'jam_selesai' => $row['jam_selesai'],
                         'materi' => $row['materi'],
                         'topik' => $row['topik'],
-                        'kelompok_kecil_id' => $row['kelompok_kecil_id'],
                         'ruangan_id' => $row['ruangan_id'],
                         'jumlah_sesi' => $row['jumlah_sesi'],
                         // SIAKAD fields
@@ -1178,6 +1228,10 @@ class JadwalPraktikumController extends Controller
                     $dosenIdsForSync = $row['dosen_ids'] ?? (isset($row['dosen_id']) ? [$row['dosen_id']] : []);
                     $jadwal->dosen()->sync($dosenIdsForSync);
 
+                    // Sync kelompok kecil (support multiple kelompok)
+                    $kelompokKecilIdsForSync = $row['kelompok_kecil_ids'] ?? [];
+                    $jadwal->kelompokKecil()->sync($kelompokKecilIdsForSync);
+
                     // Kirim notifikasi ke semua dosen yang di-assign
                     foreach ($dosenIdsForSync as $dosenId) {
                         $this->sendAssignmentNotification($jadwal, $dosenId);
@@ -1195,7 +1249,7 @@ class JadwalPraktikumController extends Controller
                             'jam_selesai' => $row['jam_selesai'],
                             'materi' => $row['materi'],
                             'topik' => $row['topik'],
-                            'kelompok_kecil_id' => $row['kelompok_kecil_id'],
+                            'kelompok_kecil_ids' => $row['kelompok_kecil_ids'],
                             // SIAKAD fields
                             'siakad_kurikulum' => $row['siakad_kurikulum'] ?? null,
                             'siakad_kode_mk' => $row['siakad_kode_mk'] ?? null,
@@ -1249,7 +1303,7 @@ class JadwalPraktikumController extends Controller
                     'message' => "Dosen {$dosen->name} tidak bisa mengajar pada jadwal Praktikum {$jadwal->mataKuliah->nama} pada tanggal " .
                         date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
                         str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
-                        " untuk kelompok " . ($jadwal->kelompokKecil ? $jadwal->kelompokKecil->nama_kelompok : 'Tidak diketahui') . " di ruangan {$jadwal->ruangan->nama}.{$alasanText}",
+                        " untuk kelompok " . ($jadwal->kelompokKecil->pluck('nama_kelompok')->join(', ') ?: 'Tidak diketahui') . " di ruangan {$jadwal->ruangan->nama}.{$alasanText}",
                     'type' => 'warning',
                     'is_read' => false,
                     'data' => [
@@ -1261,10 +1315,12 @@ class JadwalPraktikumController extends Controller
                         'tanggal' => $jadwal->tanggal,
                         'waktu' => $jadwal->jam_mulai . ' - ' . $jadwal->jam_selesai,
                         'ruangan' => $jadwal->ruangan->nama,
-                        'kelompok_kecil' => $jadwal->kelompokKecil ? [
-                            'id' => $jadwal->kelompokKecil->id,
-                            'nama_kelompok' => $jadwal->kelompokKecil->nama_kelompok,
-                        ] : null,
+                        'kelompok_kecil' => $jadwal->kelompokKecil->map(function($k) {
+                            return [
+                                'id' => $k->id,
+                                'nama_kelompok' => $k->nama_kelompok
+                            ];
+                        }),
                         'alasan' => $alasan
                     ]
                 ]);
@@ -1389,7 +1445,7 @@ class JadwalPraktikumController extends Controller
     public function getMahasiswa($kode, $jadwalId)
     {
         try {
-            $jadwal = JadwalPraktikum::where('mata_kuliah_kode', $kode)
+            $jadwal = JadwalPraktikum::with('kelompokKecil')->where('mata_kuliah_kode', $kode)
                 ->where('id', $jadwalId)
                 ->first();
 
@@ -1397,14 +1453,13 @@ class JadwalPraktikumController extends Controller
                 return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
             }
 
-            // Get kelompok kecil dari relasi
-            $kelompokKecil = $jadwal->kelompokKecil;
+            // Get kelompok kecil dari relasi (bisa multiple)
+            $kelompokKecilCollection = $jadwal->kelompokKecil;
 
-            if (!$kelompokKecil) {
+            if ($kelompokKecilCollection->isEmpty()) {
                 Log::warning("Kelompok kecil tidak ditemukan untuk jadwal praktikum", [
                     'kode' => $kode,
                     'jadwal_id' => $jadwalId,
-                    'kelompok_kecil_id' => $jadwal->kelompok_kecil_id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode
                 ]);
 
@@ -1414,22 +1469,46 @@ class JadwalPraktikumController extends Controller
                 ], 404);
             }
 
-            // Get mahasiswa in the specific kelompok kecil
-            $mahasiswaIds = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
-                ->where('semester', $kelompokKecil->semester)
-                ->pluck('mahasiswa_id')
-                ->toArray();
+            // Collect all unique mahasiswa IDs from all selected groups
+            $allMahasiswaIds = [];
+            
+            foreach ($kelompokKecilCollection as $kelompok) {
+                $ids = \App\Models\KelompokKecil::where('nama_kelompok', $kelompok->nama_kelompok)
+                    ->where('semester', $kelompok->semester)
+                    ->pluck('mahasiswa_id')
+                    ->toArray();
+                
+                $allMahasiswaIds = array_merge($allMahasiswaIds, $ids);
+            }
+
+            $uniqueMahasiswaIds = array_unique($allMahasiswaIds);
 
             $mahasiswaList = User::where('role', 'mahasiswa')
-                ->whereIn('id', $mahasiswaIds)
-                ->get()
-                ->map(function ($user) {
-                    return [
-                        'id' => $user->id,
-                        'nim' => $user->nim,
-                        'nama' => $user->name
-                    ];
-                });
+            ->whereIn('id', $uniqueMahasiswaIds)
+            ->orderBy('nim', 'asc')
+            ->get()
+            ->map(function ($user) use ($uniqueMahasiswaIds, $kelompokKecilCollection) {
+                // Cari kelompok mana mahasiswa ini tergabung (dari koleksi kelompok yang di-assign)
+                $kelompokNama = "";
+                foreach ($kelompokKecilCollection as $kelompok) {
+                    $existsInThisGroup = \App\Models\KelompokKecil::where('nama_kelompok', $kelompok->nama_kelompok)
+                        ->where('semester', $kelompok->semester)
+                        ->where('mahasiswa_id', $user->id)
+                        ->exists();
+                    
+                    if ($existsInThisGroup) {
+                        $kelompokNama = "Kelompok " . $kelompok->nama_kelompok;
+                        break;
+                    }
+                }
+
+                return [
+                    'id' => $user->id,
+                    'nim' => $user->nim,
+                    'nama' => $user->name,
+                    'nama_kelompok' => $kelompokNama
+                ];
+            });
 
             return response()->json([
                 'mahasiswa' => $mahasiswaList
@@ -1560,19 +1639,27 @@ class JadwalPraktikumController extends Controller
             $mahasiswaTerdaftar = [];
 
             // Get kelompok kecil dari relasi
-            $kelompokKecil = $jadwal->kelompokKecil;
+            $kelompokKecilCollection = $jadwal->kelompokKecil;
 
-            if ($kelompokKecil) {
-                    // Get mahasiswa in the specific kelompok kecil
-                $mahasiswaIds = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
-                    ->where('semester', $kelompokKecil->semester)
+            if ($kelompokKecilCollection->isNotEmpty()) {
+                // Collect all unique mahasiswa IDs from all selected groups
+                $allMahasiswaIds = [];
+                
+                foreach ($kelompokKecilCollection as $kelompok) {
+                    $ids = \App\Models\KelompokKecil::where('nama_kelompok', $kelompok->nama_kelompok)
+                        ->where('semester', $kelompok->semester)
                         ->pluck('mahasiswa_id')
                         ->toArray();
+                    
+                    $allMahasiswaIds = array_merge($allMahasiswaIds, $ids);
+                }
 
-                    $mahasiswaList = User::where('role', 'mahasiswa')
-                        ->whereIn('id', $mahasiswaIds)
-                        ->get();
-                    $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
+                $uniqueMahasiswaIds = array_unique($allMahasiswaIds);
+
+                $mahasiswaList = User::where('role', 'mahasiswa')
+                    ->whereIn('id', $uniqueMahasiswaIds)
+                    ->get();
+                $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
             }
 
             // Validasi NIM yang di-submit harus terdaftar di jadwal ini

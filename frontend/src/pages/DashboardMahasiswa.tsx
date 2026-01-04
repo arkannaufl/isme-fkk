@@ -34,10 +34,10 @@ interface JadwalPBL {
   pengampu: string;
   ruangan: string;
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
@@ -61,10 +61,10 @@ interface JadwalKuliahBesar {
   };
   jumlah_sesi: number;
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
   kelompok_besar?: {
@@ -81,7 +81,7 @@ interface JadwalPraktikum {
   jam_selesai: string;
   materi: string;
   topik?: string;
-  kelompok_kecil?: { id: number; nama_kelompok: string } | null;
+  kelompok_kecil?: Array<{ id: number; nama_kelompok: string }> | null;
   dosen: Array<{
     id: number;
     name: string;
@@ -92,10 +92,10 @@ interface JadwalPraktikum {
   };
   jumlah_sesi: number;
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
@@ -117,10 +117,10 @@ interface JadwalJurnalReading {
   } | null;
   jumlah_sesi: number;
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
@@ -135,10 +135,10 @@ interface JadwalCSR {
   pengampu: string;
   ruangan: string;
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
@@ -159,10 +159,10 @@ interface JadwalNonBlokNonCSR {
   komentator_list?: string[];
   penguji_list?: string[];
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
@@ -198,10 +198,10 @@ interface JadwalSeminarPleno {
   jumlah_sesi: number;
   use_ruangan: boolean;
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
   kelompok_besar?: {
@@ -214,10 +214,10 @@ interface JadwalSeminarPleno {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JadwalItem = any & {
   status_konfirmasi?:
-    | "belum_konfirmasi"
-    | "bisa"
-    | "tidak_bisa"
-    | "waiting_reschedule";
+  | "belum_konfirmasi"
+  | "bisa"
+  | "tidak_bisa"
+  | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
 };
 
@@ -514,76 +514,79 @@ export default function DashboardMahasiswa() {
 
   useEffect(() => {
     const fetchData = async () => {
-    try {
-      setLoading(true);
-      const user = getUser();
+      try {
+        setLoading(true);
+        const user = getUser();
         if (!user) {
           return;
         }
 
-      // Fetch profil akademik
-      try {
-        const p = await api.get(`/mahasiswa/${user.id}/profil-akademik`);
-        const data = p.data?.data || p.data || {};
-        setKelompokDisplay(
-          data.kelompok_kecil?.nama || data.kelompok_besar?.semester || "-"
-        );
-        setSemesterDisplay(data.semester || data.semester_aktif || "-");
+        // Fetch profil akademik
+        try {
+          const p = await api.get(`/mahasiswa/${user.id}/profil-akademik`);
+          const data = p.data?.data || p.data || {};
+          setKelompokDisplay(
+            (Array.isArray(data.kelompok_kecil)
+              ? data.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
+              : data.kelompok_kecil?.nama ? `Kelompok ${data.kelompok_kecil.nama}` : "") ||
+            (data.kelompok_besar?.semester ? `Semester ${data.kelompok_besar.semester}` : "-")
+          );
+          setSemesterDisplay(data.semester || data.semester_aktif || "-");
 
-        // Determine current semester type (ganjil/genap) based on semester number
-        const semesterNum = parseInt(
-          data.semester || data.semester_aktif || "1"
-        );
-        setSemesterNumber(semesterNum); // Save actual semester number
-        setCurrentSemester(semesterNum % 2 === 1 ? "ganjil" : "genap");
-      } catch {
-        setKelompokDisplay("-");
-        setSemesterDisplay("-");
-        setSemesterNumber(1);
-        setCurrentSemester("ganjil");
-      }
+          // Determine current semester type (ganjil/genap) based on semester number
+          const semesterNum = parseInt(
+            data.semester || data.semester_aktif || "1"
+          );
+          setSemesterNumber(semesterNum); // Save actual semester number
+          setCurrentSemester(semesterNum % 2 === 1 ? "ganjil" : "genap");
+        } catch {
+          setKelompokDisplay("-");
+          setSemesterDisplay("-");
+          setSemesterNumber(1);
+          setCurrentSemester("ganjil");
+        }
 
-      // Fetch all jadwal
-      const apiCalls = [
-        api.get(`/jadwal-pbl/mahasiswa/${user.id}${semesterParams}`),
-        api.get(`/jadwal-kuliah-besar/mahasiswa/${user.id}${semesterParams}`),
-        api.get(`/jadwal-praktikum/mahasiswa/${user.id}${semesterParams}`),
+        // Fetch all jadwal
+        const apiCalls = [
+          api.get(`/jadwal-pbl/mahasiswa/${user.id}${semesterParams}`),
+          api.get(`/jadwal-kuliah-besar/mahasiswa/${user.id}${semesterParams}`),
+          api.get(`/jadwal-praktikum/mahasiswa/${user.id}${semesterParams}`),
           api.get(
             `/jadwal-jurnal-reading/mahasiswa/${user.id}${semesterParams}`
           ),
           api.get(`/jadwal-agenda-besar/mahasiswa/${user.id}${semesterParams}`),
-        api.get(`/jadwal-seminar-pleno/mahasiswa/${user.id}${semesterParams}`),
-        api.get(`/notifications/dosen/${user.id}`),
-      ];
+          api.get(`/jadwal-seminar-pleno/mahasiswa/${user.id}${semesterParams}`),
+          api.get(`/notifications/dosen/${user.id}`),
+        ];
 
-      if (activeSemesterType !== "antara") {
+        if (activeSemesterType !== "antara") {
+          apiCalls.push(
+            api.get(`/jadwal-csr/mahasiswa/${user.id}${semesterParams}`)
+          );
+        }
+
         apiCalls.push(
-          api.get(`/jadwal-csr/mahasiswa/${user.id}${semesterParams}`)
+          api.get(
+            `/jadwal-non-blok-non-csr/mahasiswa/${user.id}${semesterParams}`
+          )
         );
-      }
 
-      apiCalls.push(
-        api.get(
-          `/jadwal-non-blok-non-csr/mahasiswa/${user.id}${semesterParams}`
-        )
-      );
+        const responses = await Promise.allSettled(apiCalls);
 
-      const responses = await Promise.allSettled(apiCalls);
-
-      const [
-        jadwalPBLResult,
-        jadwalKuliahBesarResult,
-        jadwalPraktikumResult,
-        jadwalJurnalReadingResult,
+        const [
+          jadwalPBLResult,
+          jadwalKuliahBesarResult,
+          jadwalPraktikumResult,
+          jadwalJurnalReadingResult,
           jadwalAgendaBesarResult,
-        jadwalSeminarPlenoResult,
-        notifResult,
-        ...otherResults
-      ] = responses;
+          jadwalSeminarPlenoResult,
+          notifResult,
+          ...otherResults
+        ] = responses;
 
         const pblData =
-        jadwalPBLResult.status === "fulfilled"
-          ? jadwalPBLResult.value.data.data || []
+          jadwalPBLResult.status === "fulfilled"
+            ? jadwalPBLResult.value.data.data || []
             : [];
 
         // Filter out replaced lecturers (status_konfirmasi = "tidak_bisa")
@@ -599,109 +602,109 @@ export default function DashboardMahasiswa() {
         };
 
         setJadwalPBL(filterActiveLecturers(pblData));
-      setJadwalKuliahBesar(
+        setJadwalKuliahBesar(
           filterActiveLecturers(
-        jadwalKuliahBesarResult.status === "fulfilled"
-          ? jadwalKuliahBesarResult.value.data.data || []
-          : []
+            jadwalKuliahBesarResult.status === "fulfilled"
+              ? jadwalKuliahBesarResult.value.data.data || []
+              : []
           )
-      );
-      setJadwalPraktikum(
+        );
+        setJadwalPraktikum(
           filterActiveLecturers(
-        jadwalPraktikumResult.status === "fulfilled"
-          ? jadwalPraktikumResult.value.data.data || []
-          : []
+            jadwalPraktikumResult.status === "fulfilled"
+              ? jadwalPraktikumResult.value.data.data || []
+              : []
           )
-      );
-      setJadwalJurnalReading(
+        );
+        setJadwalJurnalReading(
           filterActiveLecturers(
-        jadwalJurnalReadingResult.status === "fulfilled"
-          ? jadwalJurnalReadingResult.value.data.data || []
+            jadwalJurnalReadingResult.status === "fulfilled"
+              ? jadwalJurnalReadingResult.value.data.data || []
               : []
           )
         );
         setJadwalAgendaBesar(
           jadwalAgendaBesarResult.status === "fulfilled"
             ? jadwalAgendaBesarResult.value.data.data || []
-          : []
-      );
-      setJadwalSeminarPleno(
-        filterActiveLecturers(
-          jadwalSeminarPlenoResult.status === "fulfilled"
-            ? jadwalSeminarPlenoResult.value.data.data || []
             : []
-        )
-      );
-      setNotifications(
-        notifResult.status === "fulfilled" 
-          ? (Array.isArray(notifResult.value.data) 
-              ? notifResult.value.data 
+        );
+        setJadwalSeminarPleno(
+          filterActiveLecturers(
+            jadwalSeminarPlenoResult.status === "fulfilled"
+              ? jadwalSeminarPlenoResult.value.data.data || []
+              : []
+          )
+        );
+        setNotifications(
+          notifResult.status === "fulfilled"
+            ? (Array.isArray(notifResult.value.data)
+              ? notifResult.value.data
               : (notifResult.value.data?.data || []))
-          : []
-      );
+            : []
+        );
 
         // Handle CSR and Non Blok Non CSR based on semester type
-      if (activeSemesterType !== "antara") {
-        const jadwalCSRResult = otherResults[0];
-        setJadwalCSR(
+        if (activeSemesterType !== "antara") {
+          const jadwalCSRResult = otherResults[0];
+          setJadwalCSR(
             filterActiveLecturers(
-          jadwalCSRResult?.status === "fulfilled"
-            ? jadwalCSRResult.value.data.data || []
-            : []
+              jadwalCSRResult?.status === "fulfilled"
+                ? jadwalCSRResult.value.data.data || []
+                : []
             )
-        );
-        const jadwalNonBlokNonCSRResult = otherResults[1];
-        const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
+          );
+          const jadwalNonBlokNonCSRResult = otherResults[1];
+          const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
             ? jadwalNonBlokNonCSRResult.value.data.data || []
-          : [];
-        
-        // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
-        const bimbinganAkhirData = nonBlokNonCSRData.filter(
-          (item: JadwalNonBlokNonCSR) =>
-            item.jenis_baris === "seminar_proposal" ||
-            item.jenis_baris === "sidang_skripsi"
-        );
-        setJadwalBimbinganAkhir(bimbinganAkhirData);
-        
-        // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
-        const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
-          (item: JadwalNonBlokNonCSR) =>
-            item.jenis_baris !== "seminar_proposal" &&
-            item.jenis_baris !== "sidang_skripsi"
-        );
-        setJadwalNonBlokNonCSR(
-          filterActiveLecturers(nonBimbinganAkhirData)
-        );
-      } else {
-        setJadwalCSR([]);
-        const jadwalNonBlokNonCSRResult = otherResults[0];
-        const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
+            : [];
+
+          // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
+          const bimbinganAkhirData = nonBlokNonCSRData.filter(
+            (item: JadwalNonBlokNonCSR) =>
+              item.jenis_baris === "seminar_proposal" ||
+              item.jenis_baris === "sidang_skripsi"
+          );
+          setJadwalBimbinganAkhir(bimbinganAkhirData);
+
+          // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
+          const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
+            (item: JadwalNonBlokNonCSR) =>
+              item.jenis_baris !== "seminar_proposal" &&
+              item.jenis_baris !== "sidang_skripsi"
+          );
+          setJadwalNonBlokNonCSR(
+            filterActiveLecturers(nonBimbinganAkhirData)
+          );
+        } else {
+          setJadwalCSR([]);
+          const jadwalNonBlokNonCSRResult = otherResults[0];
+          const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
             ? jadwalNonBlokNonCSRResult.value.data.data || []
-          : [];
-        
-        // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
-        const bimbinganAkhirData = nonBlokNonCSRData.filter(
-          (item: JadwalNonBlokNonCSR) =>
-            item.jenis_baris === "seminar_proposal" ||
-            item.jenis_baris === "sidang_skripsi"
-        );
-        setJadwalBimbinganAkhir(bimbinganAkhirData);
-        
-        // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
-        const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
-          (item: JadwalNonBlokNonCSR) =>
-            item.jenis_baris !== "seminar_proposal" &&
-            item.jenis_baris !== "sidang_skripsi"
-        );
-        setJadwalNonBlokNonCSR(
-          filterActiveLecturers(nonBimbinganAkhirData)
+            : [];
+
+          // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
+          const bimbinganAkhirData = nonBlokNonCSRData.filter(
+            (item: JadwalNonBlokNonCSR) =>
+              item.jenis_baris === "seminar_proposal" ||
+              item.jenis_baris === "sidang_skripsi"
+          );
+          setJadwalBimbinganAkhir(bimbinganAkhirData);
+
+          // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
+          const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
+            (item: JadwalNonBlokNonCSR) =>
+              item.jenis_baris !== "seminar_proposal" &&
+              item.jenis_baris !== "sidang_skripsi"
+          );
+          setJadwalNonBlokNonCSR(
+            filterActiveLecturers(nonBimbinganAkhirData)
           );
         }
       } catch {
         // Error handling - could be logged to monitoring service
-    } finally {
-      setLoading(false);
-    }
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -709,19 +712,18 @@ export default function DashboardMahasiswa() {
 
   const getSemesterTypeBadge = useCallback(
     (semesterType?: "reguler" | "antara") => {
-    if (!semesterType) return null;
+      if (!semesterType) return null;
 
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-          semesterType === "reguler"
+      return (
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${semesterType === "reguler"
             ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-200"
             : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200"
-        }`}
-      >
-        {semesterType === "reguler" ? "Reguler" : "Antara"}
-      </span>
-    );
+            }`}
+        >
+          {semesterType === "reguler" ? "Reguler" : "Antara"}
+        </span>
+      );
     },
     []
   );
@@ -739,7 +741,7 @@ export default function DashboardMahasiswa() {
   }, []);
 
   // Helper function untuk mendapatkan array dosen dengan status konfirmasi (untuk praktikum)
-  const getPengampuWithStatus = useCallback((item: JadwalPraktikum): Array<{id: number; name: string; status_konfirmasi?: string}> => {
+  const getPengampuWithStatus = useCallback((item: JadwalPraktikum): Array<{ id: number; name: string; status_konfirmasi?: string }> => {
     try {
       if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
         return item.dosen.map((d: any) => ({
@@ -770,11 +772,11 @@ export default function DashboardMahasiswa() {
         setEmailStatus((prev) =>
           prev
             ? {
-                ...prev,
-                isEmailValid: true,
-                needsEmailUpdate: false,
-                email: newEmail.trim(),
-              }
+              ...prev,
+              isEmailValid: true,
+              needsEmailUpdate: false,
+              email: newEmail.trim(),
+            }
             : null
         );
         setShowEmailWarning(false);
@@ -910,11 +912,11 @@ export default function DashboardMahasiswa() {
           setEmailStatus((prev) =>
             prev
               ? {
-                  ...prev,
-                  isEmailValid: true,
-                  needsEmailUpdate: false,
-                  email: finalEmail,
-                }
+                ...prev,
+                isEmailValid: true,
+                needsEmailUpdate: false,
+                email: finalEmail,
+              }
               : null
           );
           setShowEmailWarning(false);
@@ -961,7 +963,7 @@ export default function DashboardMahasiswa() {
         } else {
           setErrorMessage(
             response.data.message ||
-              "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
+            "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
           );
           setShowErrorModal(true);
         }
@@ -993,26 +995,23 @@ export default function DashboardMahasiswa() {
         }
         if (errors.email) {
           errorMessages.push(
-            `Email: ${
-              Array.isArray(errors.email) ? errors.email[0] : errors.email
+            `Email: ${Array.isArray(errors.email) ? errors.email[0] : errors.email
             }`
           );
         }
         if (errors.whatsapp_address) {
           errorMessages.push(
-            `Alamat: ${
-              Array.isArray(errors.whatsapp_address)
-                ? errors.whatsapp_address[0]
-                : errors.whatsapp_address
+            `Alamat: ${Array.isArray(errors.whatsapp_address)
+              ? errors.whatsapp_address[0]
+              : errors.whatsapp_address
             }`
           );
         }
         if (errors.whatsapp_birth_day) {
           errorMessages.push(
-            `Tanggal Lahir: ${
-              Array.isArray(errors.whatsapp_birth_day)
-                ? errors.whatsapp_birth_day[0]
-                : errors.whatsapp_birth_day
+            `Tanggal Lahir: ${Array.isArray(errors.whatsapp_birth_day)
+              ? errors.whatsapp_birth_day[0]
+              : errors.whatsapp_birth_day
             }`
           );
         }
@@ -1211,7 +1210,9 @@ export default function DashboardMahasiswa() {
                     )}
                     {jadwalType === "praktikum" && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.kelompok_kecil?.nama_kelompok || "-"}
+                        {Array.isArray(item.kelompok_kecil)
+                          ? item.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
+                          : item.kelompok_kecil?.nama_kelompok ? `Kelompok ${item.kelompok_kecil.nama_kelompok}` : "-"}
                       </td>
                     )}
                     {jadwalType !== "pbl" && (
@@ -1241,9 +1242,9 @@ export default function DashboardMahasiswa() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.tipe || "N/A"}
                         </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.topik || "N/A"}
-                      </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.topik || "N/A"}
+                        </td>
                       </>
                     ) : jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang" ? (
                       <>
@@ -1254,9 +1255,9 @@ export default function DashboardMahasiswa() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.tipe || "N/A"}
                         </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.agenda || item.materi || "N/A"}
-                      </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.agenda || item.materi || "N/A"}
+                        </td>
                       </>
                     ) : jadwalType === "praktikum" ? (
                       <>
@@ -1265,7 +1266,7 @@ export default function DashboardMahasiswa() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                           {item.topik || "N/A"}
-                      </td>
+                        </td>
                       </>
                     ) : (
                       jadwalType !== "pbl" && (
@@ -1278,20 +1279,20 @@ export default function DashboardMahasiswa() {
                       {jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang"
                         ? item.pengampu || "N/A"
                         : jadwalType === "agenda_besar"
-                        ? "-"
-                        : jadwalType === "kuliah_besar"
-                        ? item.dosen?.name || "N/A"
-                        : jadwalType === "praktikum"
-                        ? item.dosen
-                            ?.map((d: { id: number; name: string }) => d.name)
-                            .join(", ") || "N/A"
-                        : jadwalType === "jurnal"
-                        ? item.dosen?.name || "N/A"
-                        : jadwalType === "seminar_pleno"
-                        ? item.pengampu_names || "N/A"
-                        : jadwalType === "pbl"
-                        ? item.pengampu || "N/A"
-                        : item.pengampu || item.dosen?.name || "N/A"}
+                          ? "-"
+                          : jadwalType === "kuliah_besar"
+                            ? item.dosen?.name || "N/A"
+                            : jadwalType === "praktikum"
+                              ? item.dosen
+                                ?.map((d: { id: number; name: string }) => d.name)
+                                .join(", ") || "N/A"
+                              : jadwalType === "jurnal"
+                                ? item.dosen?.name || "N/A"
+                                : jadwalType === "seminar_pleno"
+                                  ? item.pengampu_names || "N/A"
+                                  : jadwalType === "pbl"
+                                    ? item.pengampu || "N/A"
+                                    : item.pengampu || item.dosen?.name || "N/A"}
                     </td>
                     {/* Kolom Komentator untuk Seminar Proposal */}
                     {jadwalType === "bimbingan_akhir_sempro" && (
@@ -1325,16 +1326,16 @@ export default function DashboardMahasiswa() {
                       {jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang"
                         ? item.ruangan?.nama || (item.use_ruangan === false ? "-" : "N/A")
                         : jadwalType === "kuliah_besar" ||
-                      jadwalType === "praktikum" ||
-                      jadwalType === "jurnal" ||
-                      jadwalType === "seminar_pleno"
-                        ? item.ruangan?.nama || (item.use_ruangan === false ? "-" : "N/A")
-                        : jadwalType === "pbl"
-                        ? item.ruangan || "N/A"
-                        : jadwalType === "non_blok_non_csr"
-                        ? item.ruangan?.nama ||
-                          (item.use_ruangan === false ? "-" : "N/A")
-                        : item.ruangan?.nama || "N/A"}
+                          jadwalType === "praktikum" ||
+                          jadwalType === "jurnal" ||
+                          jadwalType === "seminar_pleno"
+                          ? item.ruangan?.nama || (item.use_ruangan === false ? "-" : "N/A")
+                          : jadwalType === "pbl"
+                            ? item.ruangan || "N/A"
+                            : jadwalType === "non_blok_non_csr"
+                              ? item.ruangan?.nama ||
+                              (item.use_ruangan === false ? "-" : "N/A")
+                              : item.ruangan?.nama || "N/A"}
                     </td>
                     {/* Kolom Lihat Pengampu - hanya untuk praktikum */}
                     {jadwalType === "praktikum" ? (
@@ -1355,35 +1356,35 @@ export default function DashboardMahasiswa() {
                         {jadwalType === "agenda_besar"
                           ? "-"
                           : jadwalType === "kuliah_besar"
-                          ? item.dosen?.name || "N/A"
-                          : jadwalType === "jurnal"
-                          ? item.dosen?.name || "N/A"
-                          : jadwalType === "seminar_pleno"
-                          ? item.pengampu_names || "N/A"
-                          : jadwalType === "pbl"
-                          ? item.pengampu || "N/A"
-                          : item.pengampu || item.dosen?.name || "N/A"}
+                            ? item.dosen?.name || "N/A"
+                            : jadwalType === "jurnal"
+                              ? item.dosen?.name || "N/A"
+                              : jadwalType === "seminar_pleno"
+                                ? item.pengampu_names || "N/A"
+                                : jadwalType === "pbl"
+                                  ? item.pengampu || "N/A"
+                                  : item.pengampu || item.dosen?.name || "N/A"}
                       </td>
                     ) : null}
                     {/* Kolom STATUS - untuk semua jadwal type kecuali praktikum */}
                     {jadwalType === "praktikum" ? null : (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "agenda_besar"
-                        ? "-"
-                        : jadwalType === "non_blok_non_csr" &&
-                          item.status_konfirmasi === "-"
-                        ? "-"
-                        : getStatusBadge(
-                            item.status_konfirmasi,
-                            item.status_reschedule
-                          )}
-                    </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {jadwalType === "agenda_besar"
+                          ? "-"
+                          : jadwalType === "non_blok_non_csr" &&
+                            item.status_konfirmasi === "-"
+                            ? "-"
+                            : getStatusBadge(
+                              item.status_konfirmasi,
+                              item.status_reschedule
+                            )}
+                      </td>
                     )}
                     {/* Hanya tampilkan badge semester type jika bukan jadwal bimbingan akhir */}
                     {jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {getSemesterTypeBadge(item.semester_type)}
-                    </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {getSemesterTypeBadge(item.semester_type)}
+                      </td>
                     )}
                   </tr>
                 ))
@@ -1580,7 +1581,7 @@ export default function DashboardMahasiswa() {
                   </h1>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     ISME - Integrated System Medical Education
-                    </p>
+                  </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Logged in as:{" "}
                     <span className="font-semibold text-blue-600 dark:text-blue-400">
@@ -1814,17 +1815,15 @@ export default function DashboardMahasiswa() {
                 {notifications.slice(0, 5).map((notif) => (
                   <div
                     key={notif.id}
-                    className={`p-4 rounded-xl border transition-all ${
-                      notif.is_read
-                        ? "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
-                        : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
-                    }`}
+                    className={`p-4 rounded-xl border transition-all ${notif.is_read
+                      ? "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
+                      : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
+                      }`}
                   >
                     <div className="flex items-start gap-3">
                       <div
-                        className={`w-2 h-2 rounded-full mt-2 ${
-                          !notif.is_read ? "bg-blue-500" : "bg-gray-400"
-                        }`}
+                        className={`w-2 h-2 rounded-full mt-2 ${!notif.is_read ? "bg-blue-500" : "bg-gray-400"
+                          }`}
                       ></div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -1963,31 +1962,28 @@ export default function DashboardMahasiswa() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setActiveSemesterType("reguler")}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                      activeSemesterType === "reguler"
-                        ? "bg-blue-500 text-white shadow-sm"
-                        : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-600"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemesterType === "reguler"
+                      ? "bg-blue-500 text-white shadow-sm"
+                      : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-600"
+                      }`}
                   >
                     Reguler
                   </button>
                   <button
                     onClick={() => setActiveSemesterType("antara")}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                      activeSemesterType === "antara"
-                        ? "bg-green-500 text-white shadow-sm"
-                        : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-600"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemesterType === "antara"
+                      ? "bg-green-500 text-white shadow-sm"
+                      : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-600"
+                      }`}
                   >
                     Antara
                   </button>
                   <button
                     onClick={() => setActiveSemesterType("all")}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                      activeSemesterType === "all"
-                        ? "bg-purple-500 text-white shadow-sm"
-                        : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-600"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${activeSemesterType === "all"
+                      ? "bg-purple-500 text-white shadow-sm"
+                      : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-600"
+                      }`}
                   >
                     Semua
                   </button>

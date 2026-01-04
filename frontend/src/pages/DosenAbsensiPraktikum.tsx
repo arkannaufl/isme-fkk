@@ -12,6 +12,7 @@ import {
   faPen,
   faCheckCircle,
   faExclamationTriangle,
+  faMagnifyingGlass,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import { QRCodeSVG as QRCode } from "qrcode.react";
@@ -96,6 +97,7 @@ export default function DosenAbsensiPraktikumPage() {
   } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterKelompok, setFilterKelompok] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [qrEnabled, setQrEnabled] = useState<boolean>(false);
@@ -873,7 +875,7 @@ export default function DosenAbsensiPraktikumPage() {
       } catch (err: any) {
         const errorMessage =
           err?.response?.data?.message || err?.message || "Unknown error";
-        
+
         // Jika error 404 dengan message "Kelompok kecil tidak ditemukan", tampilkan pesan yang lebih informatif
         if (err?.response?.status === 404 && errorMessage.includes("Kelompok kecil tidak ditemukan")) {
           setError(
@@ -1017,8 +1019,8 @@ export default function DosenAbsensiPraktikumPage() {
                 // Fetch dosen dengan peran koordinator untuk blok dan semester ini
                 const dosenResponse = await api.get("/users?role=dosen&per_page=1000");
                 // Handle pagination response
-                const allDosen = Array.isArray(dosenResponse.data) 
-                  ? dosenResponse.data 
+                const allDosen = Array.isArray(dosenResponse.data)
+                  ? dosenResponse.data
                   : (dosenResponse.data?.data || []);
 
                 // Cari koordinator blok
@@ -1787,14 +1789,18 @@ export default function DosenAbsensiPraktikumPage() {
         jadwalDetail?.mata_kuliah_kode ||
         "-";
       const semester = jadwalDetail?.mata_kuliah?.semester || "-";
-      const kelompokKecil = jadwalDetail?.kelompok_kecil?.nama_kelompok || "-";
+      const kelompokKecil = Array.isArray(jadwalDetail?.kelompok_kecil)
+        ? jadwalDetail.kelompok_kecil.map((k: any) => k.nama_kelompok).join(", ")
+        : jadwalDetail?.kelompok_kecil?.nama_kelompok ||
+        jadwalDetail?.kelompok_kecil_name ||
+        "-";
       const tanggal = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toLocaleDateString("id-ID", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
         : "-";
       const waktu =
         jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
@@ -1863,8 +1869,8 @@ export default function DosenAbsensiPraktikumPage() {
           absensiData?.hadir === true
             ? "Hadir"
             : absensiData?.hadir === false && isDosenAbsensiSubmitted
-            ? "Tidak Hadir"
-            : "Menunggu";
+              ? "Tidak Hadir"
+              : "Menunggu";
         const catatanAbsensi = absensiData?.catatan || "-";
         const tandaTanganDosen = absensiData?.tanda_tangan || null;
 
@@ -1954,7 +1960,7 @@ export default function DosenAbsensiPraktikumPage() {
       worksheet.addRow([]);
 
       // Header Tabel
-      const tableHeaders = ["No", "NIM", "Nama Mahasiswa", "Status Kehadiran"];
+      const tableHeaders = ["No", "NIM", "Nama Mahasiswa", "Kelompok Kecil", "Status Kehadiran"];
       const headerRow = worksheet.addRow(tableHeaders);
       headerRow.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
       headerRow.fill = {
@@ -1972,15 +1978,20 @@ export default function DosenAbsensiPraktikumPage() {
         size: 11,
         color: { argb: "FF2E7D32" },
       };
-      worksheet.mergeCells(`A${worksheet.rowCount}:D${worksheet.rowCount}`);
+      worksheet.mergeCells(`A${worksheet.rowCount}:E${worksheet.rowCount}`);
 
       const mahasiswaHadir = mahasiswaList
         .filter((m) => absensi[m.nim]?.hadir)
-        .sort((a, b) => a.nim.localeCompare(b.nim));
+        .sort((a: any, b: any) => {
+          const numA = parseInt(a.nama_kelompok?.match(/\d+/) || "0");
+          const numB = parseInt(b.nama_kelompok?.match(/\d+/) || "0");
+          if (numA !== numB) return numA - numB;
+          return a.nim.localeCompare(b.nim);
+        });
 
-      mahasiswaHadir.forEach((m, index) => {
-        const row = worksheet.addRow([index + 1, m.nim, m.nama, "Hadir"]);
-        row.getCell(4).fill = {
+      mahasiswaHadir.forEach((m: any, index: number) => {
+        const row = worksheet.addRow([index + 1, m.nim, m.nama, m.nama_kelompok || "-", "Hadir"]);
+        row.getCell(5).fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: "FFC8E6C9" },
@@ -1999,24 +2010,29 @@ export default function DosenAbsensiPraktikumPage() {
         size: 11,
         color: { argb: "FFC62828" },
       };
-      worksheet.mergeCells(`A${worksheet.rowCount}:D${worksheet.rowCount}`);
+      worksheet.mergeCells(`A${worksheet.rowCount}:E${worksheet.rowCount}`);
 
       const mahasiswaTidakHadir = mahasiswaList
         .filter((m) => !absensi[m.nim]?.hadir)
-        .sort((a, b) => a.nim.localeCompare(b.nim));
-
+        .sort((a: any, b: any) => {
+          const numA = parseInt(a.nama_kelompok?.match(/\d+/) || "0");
+          const numB = parseInt(b.nama_kelompok?.match(/\d+/) || "0");
+          if (numA !== numB) return numA - numB;
+          return a.nim.localeCompare(b.nim);
+        });
       if (mahasiswaTidakHadir.length === 0) {
-        const row = worksheet.addRow(["-", "-", "Semua mahasiswa hadir", "-"]);
+        const row = worksheet.addRow(["-", "-", "Semua mahasiswa hadir", "-", "-"]);
         row.getCell(3).font = { italic: true, color: { argb: "FF666666" } };
       } else {
-        mahasiswaTidakHadir.forEach((m, index) => {
+        mahasiswaTidakHadir.forEach((m: any, index: number) => {
           const row = worksheet.addRow([
             index + 1,
             m.nim,
             m.nama,
+            m.nama_kelompok || "-",
             "Tidak Hadir",
           ]);
-          row.getCell(4).fill = {
+          row.getCell(5).fill = {
             type: "pattern",
             pattern: "solid",
             fgColor: { argb: "FFFFCDD2" },
@@ -2028,22 +2044,21 @@ export default function DosenAbsensiPraktikumPage() {
       worksheet.getColumn(1).width = 8; // No
       worksheet.getColumn(2).width = 15; // NIM
       worksheet.getColumn(3).width = 40; // Nama
-      worksheet.getColumn(4).width = 20; // Status
+      worksheet.getColumn(4).width = 25; // Kelompok
+      worksheet.getColumn(5).width = 20; // Status
 
       // Add borders to all cells with data
-      const startRow = 1;
+      const startRow = headerRow.number;
       const endRow = worksheet.rowCount;
       for (let row = startRow; row <= endRow; row++) {
-        for (let col = 1; col <= 4; col++) {
+        for (let col = 1; col <= 5; col++) {
           const cell = worksheet.getCell(row, col);
-          if (cell.value !== null && cell.value !== "") {
-            cell.border = {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            };
-          }
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
         }
       }
 
@@ -2324,14 +2339,18 @@ export default function DosenAbsensiPraktikumPage() {
         jadwalDetail?.mata_kuliah_kode ||
         "-";
       const semester = jadwalDetail?.mata_kuliah?.semester || "-";
-      const kelompokKecil = jadwalDetail?.kelompok_kecil?.nama_kelompok || "-";
+      const kelompokKecil = Array.isArray(jadwalDetail?.kelompok_kecil)
+        ? jadwalDetail.kelompok_kecil.map((k: any) => k.nama_kelompok).join(", ")
+        : jadwalDetail?.kelompok_kecil?.nama_kelompok ||
+        jadwalDetail?.kelompok_kecil_name ||
+        "-";
       const tanggal = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toLocaleDateString("id-ID", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
         : "-";
       const waktu =
         jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
@@ -2396,8 +2415,8 @@ export default function DosenAbsensiPraktikumPage() {
           absensiData?.hadir === true
             ? "Hadir"
             : absensiData?.hadir === false && isDosenAbsensiSubmitted
-            ? "Tidak Hadir"
-            : "Menunggu";
+              ? "Tidak Hadir"
+              : "Menunggu";
         const catatanAbsensi = absensiData?.catatan || "-";
 
         return [
@@ -2519,8 +2538,7 @@ export default function DosenAbsensiPraktikumPage() {
         dosenList.forEach((dosen: Dosen, index: number) => {
           if (index > 0) yPos += 6;
           doc.text(
-            `${index + 1}. ${dosen.name || "-"} (NID: ${
-              dosen.nid || "-"
+            `${index + 1}. ${dosen.name || "-"} (NID: ${dosen.nid || "-"
             }, NIDN: ${dosen.nidn || "-"})`,
             margin,
             yPos
@@ -2547,17 +2565,23 @@ export default function DosenAbsensiPraktikumPage() {
 
       const mahasiswaHadir = mahasiswaList
         .filter((m) => absensi[m.nim]?.hadir)
-        .sort((a, b) => a.nim.localeCompare(b.nim));
+        .sort((a: any, b: any) => {
+          const numA = parseInt(a.nama_kelompok?.match(/\d+/) || "0");
+          const numB = parseInt(b.nama_kelompok?.match(/\d+/) || "0");
+          if (numA !== numB) return numA - numB;
+          return a.nim.localeCompare(b.nim);
+        });
 
       const hadirTableData = mahasiswaHadir.map((m, index) => [
         index + 1,
         m.nim,
         m.nama,
+        m.nama_kelompok || "-",
         "Hadir",
       ]);
 
       autoTable(doc, {
-        head: [["No", "NIM", "Nama Mahasiswa", "Status"]],
+        head: [["No", "NIM", "Nama Mahasiswa", "Kelompok Kecil", "Status"]],
         body: hadirTableData,
         startY: yPos,
         margin: { left: margin, right: margin },
@@ -2580,8 +2604,9 @@ export default function DosenAbsensiPraktikumPage() {
         columnStyles: {
           0: { cellWidth: 15, halign: "center" },
           1: { cellWidth: 30, halign: "left" },
-          2: { cellWidth: 100, halign: "left" },
-          3: { cellWidth: 30, halign: "center" },
+          2: { cellWidth: 70, halign: "left" },
+          3: { cellWidth: 35, halign: "left" },
+          4: { cellWidth: 25, halign: "center" },
         },
       });
 
@@ -2595,20 +2620,26 @@ export default function DosenAbsensiPraktikumPage() {
 
       const mahasiswaTidakHadir = mahasiswaList
         .filter((m) => !absensi[m.nim]?.hadir)
-        .sort((a, b) => a.nim.localeCompare(b.nim));
+        .sort((a: any, b: any) => {
+          const numA = parseInt(a.nama_kelompok?.match(/\d+/) || "0");
+          const numB = parseInt(b.nama_kelompok?.match(/\d+/) || "0");
+          if (numA !== numB) return numA - numB;
+          return a.nim.localeCompare(b.nim);
+        });
 
       const tidakHadirTableData =
         mahasiswaTidakHadir.length === 0
-          ? [["-", "-", "Semua mahasiswa hadir", "-"]]
+          ? [["-", "-", "Semua mahasiswa hadir", "-", "-"]]
           : mahasiswaTidakHadir.map((m, index) => [
-              index + 1,
-              m.nim,
-              m.nama,
-              "Tidak Hadir",
-            ]);
+            index + 1,
+            m.nim,
+            m.nama,
+            m.nama_kelompok || "-",
+            "Tidak Hadir",
+          ]);
 
       autoTable(doc, {
-        head: [["No", "NIM", "Nama Mahasiswa", "Status"]],
+        head: [["No", "NIM", "Nama Mahasiswa", "Kelompok Kecil", "Status"]],
         body: tidakHadirTableData,
         startY: yPos,
         margin: { left: margin, right: margin },
@@ -2631,8 +2662,9 @@ export default function DosenAbsensiPraktikumPage() {
         columnStyles: {
           0: { cellWidth: 15, halign: "center" },
           1: { cellWidth: 30, halign: "left" },
-          2: { cellWidth: 100, halign: "left" },
-          3: { cellWidth: 30, halign: "center" },
+          2: { cellWidth: 70, halign: "left" },
+          3: { cellWidth: 35, halign: "left" },
+          4: { cellWidth: 25, halign: "center" },
         },
       });
 
@@ -2773,8 +2805,8 @@ export default function DosenAbsensiPraktikumPage() {
           ? signYStart + 42
           : signYStart + 49
         : koordinatorBlokSignature
-        ? signYStart + 35
-        : signYStart + 42;
+          ? signYStart + 35
+          : signYStart + 42;
       doc.text("ttd", doc.internal.pageSize.width - margin, ttdYPos, {
         align: "right",
       });
@@ -2958,10 +2990,10 @@ export default function DosenAbsensiPraktikumPage() {
     persentase:
       mahasiswaList.length > 0
         ? Math.round(
-            (Object.values(absensi).filter((a) => a?.hadir).length /
-              mahasiswaList.length) *
-              100
-          )
+          (Object.values(absensi).filter((a) => a?.hadir).length /
+            mahasiswaList.length) *
+          100
+        )
         : 0,
   };
 
@@ -3000,6 +3032,22 @@ export default function DosenAbsensiPraktikumPage() {
               <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
                 {jadwalDetail?.mata_kuliah?.nama ||
                   jadwalDetail?.mata_kuliah_kode}
+              </div>
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+              <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">
+                Kelompok Kecil
+              </div>
+              <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
+                {Array.isArray(jadwalDetail?.kelompok_kecil)
+                  ? jadwalDetail.kelompok_kecil
+                    .map((k: any) => `Kelompok ${k.nama_kelompok}`)
+                    .join(", ")
+                  : jadwalDetail?.kelompok_kecil?.nama_kelompok
+                    ? `Kelompok ${jadwalDetail.kelompok_kecil.nama_kelompok}`
+                    : jadwalDetail?.kelompok_kecil_name
+                      ? `Kelompok ${jadwalDetail.kelompok_kecil_name}`
+                      : "-"}
               </div>
             </div>
             <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
@@ -3195,21 +3243,19 @@ export default function DosenAbsensiPraktikumPage() {
           <div className="flex">
             <button
               onClick={() => setActiveTab("manual")}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === "manual"
-                  ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
-                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-              }`}
+              className={`px-6 py-3 font-semibold transition-colors ${activeTab === "manual"
+                ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
+                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                }`}
             >
               Manual
             </button>
             <button
               onClick={() => setActiveTab("qr")}
-              className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-                activeTab === "qr"
-                  ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
-                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-              }`}
+              className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${activeTab === "qr"
+                ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
+                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                }`}
             >
               <FontAwesomeIcon icon={faDesktop} />
               Presentasi QR
@@ -3218,11 +3264,10 @@ export default function DosenAbsensiPraktikumPage() {
               <button
                 data-tab="dosen"
                 onClick={() => setActiveTab("dosen")}
-                className={`px-6 py-3 font-semibold transition-colors ${
-                  activeTab === "dosen"
-                    ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                }`}
+                className={`px-6 py-3 font-semibold transition-colors ${activeTab === "dosen"
+                  ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  }`}
               >
                 Absen Dosen
               </button>
@@ -3238,29 +3283,52 @@ export default function DosenAbsensiPraktikumPage() {
                 <div className="font-semibold text-lg text-brand-700 dark:text-white/80 mb-2 md:mb-0">
                   &nbsp;
                 </div>
-                <div className="relative w-full max-w-xs ml-auto">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
+                <div className="flex flex-col md:flex-row md:items-center gap-3 ml-auto w-full max-w-2xl">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                      <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
+                    </span>
+                    <input
+                      type="text"
+                      className="pl-10 pr-4 py-2 w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-brand-400 focus:border-brand-500 text-gray-700 dark:text-white text-sm placeholder:text-gray-400 dark:placeholder:text-gray-300 outline-none"
+                      placeholder="Cari nama atau NIM ..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+                  <div className="w-full md:w-56">
+                    <select
+                      value={filterKelompok}
+                      onChange={(e) => {
+                        setFilterKelompok(e.target.value);
+                        setPage(1);
+                      }}
+                      className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 sm:text-sm transition-all duration-200 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat"
                     >
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                  </span>
-                  <input
-                    type="text"
-                    className="pl-10 pr-4 py-2 w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-brand-400 focus:border-brand-500 text-gray-700 dark:text-white text-sm placeholder:text-gray-400 dark:placeholder:text-gray-300 outline-none"
-                    placeholder="Cari nama atau NIM ..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setPage(1); // Reset to first page when search changes
-                    }}
-                  />
+                      <option value="all">Semua Kelompok</option>
+                      {(() => {
+                        const groups = Array.from(
+                          new Set(
+                            mahasiswaList
+                              .map((m) => m.nama_kelompok)
+                              .filter(Boolean)
+                          )
+                        ).sort((a, b) => {
+                          const numA = parseInt(a.match(/\d+/) || "0");
+                          const numB = parseInt(b.match(/\d+/) || "0");
+                          return numA - numB;
+                        });
+                        return groups.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -3290,6 +3358,9 @@ export default function DosenAbsensiPraktikumPage() {
                         <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                           Nama
                         </th>
+                        <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                          Kelompok Kecil
+                        </th>
                         <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                           Hadir
                         </th>
@@ -3297,15 +3368,35 @@ export default function DosenAbsensiPraktikumPage() {
                     </thead>
                     <tbody>
                       {(() => {
-                        // Filter data berdasarkan search query
-                        const filteredData = mahasiswaList.filter((m) => {
-                          const q = searchQuery.trim().toLowerCase();
-                          return (
-                            q === "" ||
-                            m.nama.toLowerCase().includes(q) ||
-                            m.nim.toLowerCase().includes(q)
-                          );
-                        });
+                        // Filter data berdasarkan search query dan kelompok
+                        const filteredData = mahasiswaList
+                          .filter((m) => {
+                            const q = searchQuery.trim().toLowerCase();
+                            const matchSearch =
+                              q === "" ||
+                              m.nama.toLowerCase().includes(q) ||
+                              m.nim.toLowerCase().includes(q);
+
+                            const matchKelompok =
+                              filterKelompok === "all" ||
+                              m.nama_kelompok === filterKelompok;
+
+                            return matchSearch && matchKelompok;
+                          })
+                          .sort((a, b) => {
+                            // Sort by kelompok first
+                            const numA = parseInt(
+                              a.nama_kelompok?.match(/\d+/) || "0"
+                            );
+                            const numB = parseInt(
+                              b.nama_kelompok?.match(/\d+/) || "0"
+                            );
+
+                            if (numA !== numB) return numA - numB;
+
+                            // Then by name
+                            return a.nama.localeCompare(b.nama);
+                          });
 
                         // Pagination
                         const totalPages = Math.ceil(
@@ -3374,6 +3465,9 @@ export default function DosenAbsensiPraktikumPage() {
                               <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">
                                 {m.nama}
                               </td>
+                              <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
+                                {m.nama_kelompok || "-"}
+                              </td>
                               <td className="px-6 py-4 text-center">
                                 <div
                                   className="relative flex items-center justify-center select-none mx-auto"
@@ -3390,11 +3484,10 @@ export default function DosenAbsensiPraktikumPage() {
                                     }
                                     disabled={isSyncing || loading}
                                     className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
-                                    ${
-                                      hadir
+                                    ${hadir
                                         ? "border-brand-500 bg-brand-500"
                                         : "border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700"
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                      } disabled:opacity-50 disabled:cursor-not-allowed`}
                                     style={{ outline: "none" }}
                                   />
                                   {hadir && (
@@ -3531,11 +3624,10 @@ export default function DosenAbsensiPraktikumPage() {
                         {/* Always show first page */}
                         <button
                           onClick={() => setPage(1)}
-                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                            page === 1
-                              ? "bg-brand-500 text-white"
-                              : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          }`}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === 1
+                            ? "bg-brand-500 text-white"
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
                         >
                           1
                         </button>
@@ -3563,11 +3655,10 @@ export default function DosenAbsensiPraktikumPage() {
                             <button
                               key={i}
                               onClick={() => setPage(pageNum)}
-                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                page === pageNum
-                                  ? "bg-brand-500 text-white"
-                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                              }`}
+                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === pageNum
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                }`}
                             >
                               {pageNum}
                             </button>
@@ -3585,11 +3676,10 @@ export default function DosenAbsensiPraktikumPage() {
                         {totalPages > 1 && (
                           <button
                             onClick={() => setPage(totalPages)}
-                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                              page === totalPages
-                                ? "bg-brand-500 text-white"
-                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            }`}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === totalPages
+                              ? "bg-brand-500 text-white"
+                              : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              }`}
                           >
                             {totalPages}
                           </button>
@@ -3633,26 +3723,23 @@ export default function DosenAbsensiPraktikumPage() {
 
               {/* Status & Control Card */}
               <div
-                className={`rounded-xl border p-3 sm:p-4 mb-4 sm:mb-6 transition-colors ${
-                  qrEnabled
-                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                    : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700"
-                }`}
+                className={`rounded-xl border p-3 sm:p-4 mb-4 sm:mb-6 transition-colors ${qrEnabled
+                  ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                  : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700"
+                  }`}
               >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                   <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     <div
-                      className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${
-                        qrEnabled ? "bg-green-500" : "bg-gray-400"
-                      }`}
+                      className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${qrEnabled ? "bg-green-500" : "bg-gray-400"
+                        }`}
                     ></div>
                     <div className="flex-1 min-w-0">
                       <p
-                        className={`text-xs sm:text-sm font-semibold ${
-                          qrEnabled
-                            ? "text-green-700 dark:text-green-400"
-                            : "text-gray-700 dark:text-gray-300"
-                        }`}
+                        className={`text-xs sm:text-sm font-semibold ${qrEnabled
+                          ? "text-green-700 dark:text-green-400"
+                          : "text-gray-700 dark:text-gray-300"
+                          }`}
                       >
                         {qrEnabled ? "QR Code Aktif" : "QR Code Tidak Aktif"}
                       </p>
@@ -3681,11 +3768,10 @@ export default function DosenAbsensiPraktikumPage() {
                       }
                     }}
                     disabled={togglingQR}
-                    className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
-                      qrEnabled
-                        ? "bg-red-500 hover:bg-red-600 text-white"
-                        : "bg-brand-500 hover:bg-brand-600 text-white"
-                    } ${togglingQR ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${qrEnabled
+                      ? "bg-red-500 hover:bg-red-600 text-white"
+                      : "bg-brand-500 hover:bg-brand-600 text-white"
+                      } ${togglingQR ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {togglingQR ? (
                       <span className="flex items-center justify-center gap-2">
@@ -3770,27 +3856,24 @@ export default function DosenAbsensiPraktikumPage() {
                     {timeRemaining > 0 && (
                       <div className="mb-4 sm:mb-6 w-full flex justify-center">
                         <div
-                          className={`flex items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-4 rounded-xl border transition-colors w-full sm:w-auto ${
-                            timeRemaining <= 10
-                              ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-                              : timeRemaining <= 30
+                          className={`flex items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-4 rounded-xl border transition-colors w-full sm:w-auto ${timeRemaining <= 10
+                            ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                            : timeRemaining <= 30
                               ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
                               : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                          }`}
+                            }`}
                         >
                           <div
-                            className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0 ${
-                              timeRemaining <= 10
-                                ? "bg-red-500 dark:bg-red-600"
-                                : timeRemaining <= 30
+                            className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0 ${timeRemaining <= 10
+                              ? "bg-red-500 dark:bg-red-600"
+                              : timeRemaining <= 30
                                 ? "bg-orange-500 dark:bg-orange-600"
                                 : "bg-blue-500 dark:bg-blue-600"
-                            }`}
+                              }`}
                           >
                             <svg
-                              className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${
-                                timeRemaining <= 10 ? "animate-spin" : ""
-                              }`}
+                              className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${timeRemaining <= 10 ? "animate-spin" : ""
+                                }`}
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -3808,13 +3891,12 @@ export default function DosenAbsensiPraktikumPage() {
                               QR Code akan berubah dalam
                             </p>
                             <p
-                              className={`text-xl sm:text-2xl font-bold ${
-                                timeRemaining <= 10
-                                  ? "text-red-600 dark:text-red-400"
-                                  : timeRemaining <= 30
+                              className={`text-xl sm:text-2xl font-bold ${timeRemaining <= 10
+                                ? "text-red-600 dark:text-red-400"
+                                : timeRemaining <= 30
                                   ? "text-orange-600 dark:text-orange-400"
                                   : "text-blue-600 dark:text-blue-400"
-                              }`}
+                                }`}
                             >
                               {Math.floor(timeRemaining / 60)}:
                               {(timeRemaining % 60).toString().padStart(2, "0")}
@@ -4077,8 +4159,8 @@ export default function DosenAbsensiPraktikumPage() {
                                   hadir
                                     ? "bg-green-50 dark:bg-green-900/10"
                                     : i % 2 === 1
-                                    ? "bg-gray-50 dark:bg-white/[0.02]"
-                                    : ""
+                                      ? "bg-gray-50 dark:bg-white/[0.02]"
+                                      : ""
                                 }
                               >
                                 <td className="px-6 py-4 font-mono tracking-wide text-gray-700 dark:text-gray-200">
@@ -4294,16 +4376,7 @@ export default function DosenAbsensiPraktikumPage() {
                 <div className="mb-4">
                   <div className="relative w-full">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      </svg>
+                      <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
                     </span>
                     <input
                       type="text"
@@ -4378,7 +4451,7 @@ export default function DosenAbsensiPraktikumPage() {
                               <td
                                 colSpan={
                                   canEditDosenAbsensi &&
-                                  !isDosenAbsensiSubmitted
+                                    !isDosenAbsensiSubmitted
                                     ? 8
                                     : 7
                                 }
@@ -4461,28 +4534,26 @@ export default function DosenAbsensiPraktikumPage() {
                               </td>
                               <td className="px-6 py-4 text-center">
                                 <span
-                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                                    d.status_konfirmasi === "bisa"
-                                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                                      : d.status_konfirmasi === "tidak_bisa"
+                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${d.status_konfirmasi === "bisa"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                    : d.status_konfirmasi === "tidak_bisa"
                                       ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
                                       : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-                                  }`}
+                                    }`}
                                 >
                                   {d.status_konfirmasi === "bisa"
                                     ? "Bisa Mengajar"
                                     : d.status_konfirmasi === "tidak_bisa"
-                                    ? "Tidak Bisa Mengajar"
-                                    : "Menunggu"}
+                                      ? "Tidak Bisa Mengajar"
+                                      : "Menunggu"}
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-center">
                                 <span
-                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                                    hadir
-                                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                                      : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                                  }`}
+                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${hadir
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                    : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                    }`}
                                 >
                                   {hadir ? "Hadir" : "Tidak Hadir"}
                                 </span>
@@ -4506,24 +4577,22 @@ export default function DosenAbsensiPraktikumPage() {
                                   readOnly={isDosenAbsensiSaved}
                                   disabled={!canEditCatatan}
                                   placeholder="Catatan..."
-                                  className={`w-full text-sm border rounded-md px-3 py-2 dark:text-gray-100 dark:placeholder-gray-400 ${
-                                    canEditDosenAbsensi &&
+                                  className={`w-full text-sm border rounded-md px-3 py-2 dark:text-gray-100 dark:placeholder-gray-400 ${canEditDosenAbsensi &&
                                     !isDosenAbsensiSubmitted &&
                                     d.status_konfirmasi === "bisa" &&
                                     !isDosenAbsensiSaved
-                                      ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                                      : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed opacity-60"
-                                  } ${
-                                    isDosenAbsensiSaved
+                                    ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                                    : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed opacity-60"
+                                    } ${isDosenAbsensiSaved
                                       ? "pointer-events-none"
                                       : ""
-                                  }`}
+                                    }`}
                                   title={
                                     d.status_konfirmasi === "tidak_bisa"
                                       ? "Dosen sudah konfirmasi tidak bisa mengajar"
                                       : isDosenAbsensiSaved
-                                      ? "Data sudah disimpan, tidak bisa diubah"
-                                      : ""
+                                        ? "Data sudah disimpan, tidak bisa diubah"
+                                        : ""
                                   }
                                 />
                               </td>
@@ -4648,24 +4717,22 @@ export default function DosenAbsensiPraktikumPage() {
                                           savingDosenAbsensi || !canEditHadir
                                         }
                                         className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
-                                      ${
-                                        hadir
-                                          ? "border-brand-500 bg-brand-500"
-                                          : "border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700"
-                                      } ${
-                                          isDosenAbsensiSaved
+                                      ${hadir
+                                            ? "border-brand-500 bg-brand-500"
+                                            : "border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700"
+                                          } ${isDosenAbsensiSaved
                                             ? "opacity-50 cursor-not-allowed pointer-events-none"
                                             : ""
-                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                                         style={{ outline: "none" }}
                                         title={
                                           d.status_konfirmasi === "tidak_bisa"
                                             ? "Dosen sudah konfirmasi tidak bisa mengajar"
                                             : d.status_konfirmasi !== "bisa"
-                                            ? "Dosen belum konfirmasi bisa mengajar"
-                                            : isDosenAbsensiSaved
-                                            ? "Data sudah disimpan, tidak bisa diubah"
-                                            : ""
+                                              ? "Dosen belum konfirmasi bisa mengajar"
+                                              : isDosenAbsensiSaved
+                                                ? "Data sudah disimpan, tidak bisa diubah"
+                                                : ""
                                         }
                                       />
                                       {hadir && (
@@ -4774,11 +4841,10 @@ export default function DosenAbsensiPraktikumPage() {
                                 <button
                                   key={i}
                                   onClick={() => setPageDosen(pageNum)}
-                                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition ${
-                                    pageDosen === pageNum
-                                      ? "bg-brand-500 text-white"
-                                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                  }`}
+                                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition ${pageDosen === pageNum
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    }`}
                                 >
                                   {pageNum}
                                 </button>
@@ -4891,24 +4957,23 @@ export default function DosenAbsensiPraktikumPage() {
                             return adaDosenMenunggu;
                           })()
                         }
-                        className={`px-6 py-3 rounded-xl text-white text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
-                          isDosenAbsensiSaved
-                            ? "bg-green-500 hover:bg-green-600"
-                            : "bg-blue-500 hover:bg-blue-600"
-                        }`}
+                        className={`px-6 py-3 rounded-xl text-white text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${isDosenAbsensiSaved
+                          ? "bg-green-500 hover:bg-green-600"
+                          : "bg-blue-500 hover:bg-blue-600"
+                          }`}
                         title={
                           isDosenAbsensiSaved
                             ? "Data sudah disimpan"
                             : (() => {
-                                const adaDosenMenunggu = dosenList.some(
-                                  (d) =>
-                                    !d.status_konfirmasi ||
-                                    d.status_konfirmasi === "belum_konfirmasi"
-                                );
-                                return adaDosenMenunggu
-                                  ? "Tidak dapat menyimpan karena masih ada dosen yang menunggu konfirmasi"
-                                  : "Simpan data absensi dosen";
-                              })()
+                              const adaDosenMenunggu = dosenList.some(
+                                (d) =>
+                                  !d.status_konfirmasi ||
+                                  d.status_konfirmasi === "belum_konfirmasi"
+                              );
+                              return adaDosenMenunggu
+                                ? "Tidak dapat menyimpan karena masih ada dosen yang menunggu konfirmasi"
+                                : "Simpan data absensi dosen";
+                            })()
                         }
                       >
                         {savingDosenAbsensi && (
@@ -4920,8 +4985,8 @@ export default function DosenAbsensiPraktikumPage() {
                         {savingDosenAbsensi
                           ? "Menyimpan..."
                           : isDosenAbsensiSaved
-                          ? "Tersimpan"
-                          : "Simpan"}
+                            ? "Tersimpan"
+                            : "Simpan"}
                       </button>
                       <button
                         onClick={handleOpenConfirmDosenModal}
@@ -4989,8 +5054,8 @@ export default function DosenAbsensiPraktikumPage() {
                           isDosenAbsensiSubmitted
                             ? "Absensi sudah disubmit"
                             : !isDosenAbsensiSaved
-                            ? "Simpan data terlebih dahulu untuk mengaktifkan tombol Submit Dosen"
-                            : (() => {
+                              ? "Simpan data terlebih dahulu untuk mengaktifkan tombol Submit Dosen"
+                              : (() => {
                                 // 1. Cek apakah ada dosen yang masih menunggu konfirmasi
                                 const adaDosenMenunggu = dosenList.some(
                                   (d) =>
@@ -5115,11 +5180,10 @@ export default function DosenAbsensiPraktikumPage() {
                   </button>
                   <button
                     onClick={confirmChange}
-                    className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition ${
-                      pendingChange?.desired
-                        ? "bg-green-600 hover:bg-green-700"
-                        : "bg-red-500 hover:bg-red-600"
-                    }`}
+                    className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition ${pendingChange?.desired
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-red-500 hover:bg-red-600"
+                      }`}
                   >
                     {pendingChange?.desired
                       ? "Ya, Tandai Hadir"
@@ -5309,11 +5373,10 @@ export default function DosenAbsensiPraktikumPage() {
                     }
                   }}
                   disabled={savingDosenAbsensi}
-                  className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
-                    signatureConfirmAction === "save"
-                      ? "bg-brand-500 hover:bg-brand-600"
-                      : "bg-red-500 hover:bg-red-600"
-                  }`}
+                  className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${signatureConfirmAction === "save"
+                    ? "bg-brand-500 hover:bg-brand-600"
+                    : "bg-red-500 hover:bg-red-600"
+                    }`}
                 >
                   {signatureConfirmAction === "save" ? "Simpan" : "Hapus"}
                 </button>
@@ -5331,13 +5394,12 @@ export default function DosenAbsensiPraktikumPage() {
             animate={{ opacity: 1, y: 0, x: 0 }}
             exit={{ opacity: 0, y: -50, x: 0 }}
             transition={{ duration: 0.3 }}
-            className={`fixed top-4 right-4 z-[100000] max-w-sm w-full mx-4 ${
-              toastMessage.type === "success"
-                ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                : toastMessage.type === "error"
+            className={`fixed top-4 right-4 z-[100000] max-w-sm w-full mx-4 ${toastMessage.type === "success"
+              ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+              : toastMessage.type === "error"
                 ? "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                 : "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-            } rounded-lg shadow-lg p-4 flex items-start gap-3`}
+              } rounded-lg shadow-lg p-4 flex items-start gap-3`}
           >
             <div className="flex-shrink-0 mt-0.5">
               {toastMessage.type === "success" ? (
@@ -5386,13 +5448,12 @@ export default function DosenAbsensiPraktikumPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p
-                className={`text-sm font-medium ${
-                  toastMessage.type === "success"
-                    ? "text-green-800 dark:text-green-300"
-                    : toastMessage.type === "error"
+                className={`text-sm font-medium ${toastMessage.type === "success"
+                  ? "text-green-800 dark:text-green-300"
+                  : toastMessage.type === "error"
                     ? "text-red-800 dark:text-red-300"
                     : "text-blue-800 dark:text-blue-300"
-                }`}
+                  }`}
               >
                 {toastMessage.message}
               </p>
@@ -5402,13 +5463,12 @@ export default function DosenAbsensiPraktikumPage() {
               className="flex-shrink-0 p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors"
             >
               <svg
-                className={`w-4 h-4 ${
-                  toastMessage.type === "success"
-                    ? "text-green-600 dark:text-green-400"
-                    : toastMessage.type === "error"
+                className={`w-4 h-4 ${toastMessage.type === "success"
+                  ? "text-green-600 dark:text-green-400"
+                  : toastMessage.type === "error"
                     ? "text-red-600 dark:text-red-400"
                     : "text-blue-600 dark:text-blue-400"
-                }`}
+                  }`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -5581,7 +5641,7 @@ export default function DosenAbsensiPraktikumPage() {
                     } catch (err: any) {
                       showToast(
                         err?.response?.data?.message ||
-                          "Gagal menyimpan tanda tangan. Silakan coba lagi.",
+                        "Gagal menyimpan tanda tangan. Silakan coba lagi.",
                         "error"
                       );
                     } finally {
