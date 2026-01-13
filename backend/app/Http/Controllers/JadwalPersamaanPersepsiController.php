@@ -19,7 +19,8 @@ class JadwalPersamaanPersepsiController extends Controller
     // List semua jadwal Persamaan Persepsi untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalPersamaanPersepsi::with(['ruangan', 'mataKuliah'])
+        $jadwal = JadwalPersamaanPersepsi::WithoutSemesterFilter()
+            ->with(['mataKuliah', 'dosen', 'ruangan'])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')

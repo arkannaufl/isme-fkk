@@ -108,9 +108,8 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->post('/users/import-tim
 // Route untuk laporan jadwal mengajar dosen
 Route::middleware('auth:sanctum')->get('/users/{id}/jadwal-mengajar', [UserController::class, 'getJadwalMengajar']);
 
-// Email verification routes for dosen
-Route::middleware(['auth:sanctum', 'validate.token', 'role:dosen'])->get('/users/{id}/email-status', [UserController::class, 'getEmailStatus']);
-Route::middleware(['auth:sanctum', 'validate.token', 'role:dosen'])->put('/users/{id}/update-email', [UserController::class, 'updateEmail']);
+// Route untuk laporan jadwal mengajar dosen
+Route::middleware('auth:sanctum')->get('/users/{id}/jadwal-mengajar', [UserController::class, 'getJadwalMengajar']);
 
 Route::middleware('auth:sanctum')->post('/ruangan/import', [RuanganController::class, 'importRuangan']);
 
@@ -127,6 +126,8 @@ Route::middleware('auth:sanctum')->get('/ruangan/options', [RuanganController::c
 Route::middleware('auth:sanctum')->apiResource('ruangan', RuanganController::class);
 
 Route::middleware('auth:sanctum')->put('/mata-kuliah/{kode}/update-kode', [MataKuliahController::class, 'updateKode']);
+Route::middleware('auth:sanctum')->post('/mata-kuliah/assign-to-year', [MataKuliahController::class, 'assignToYear']);
+Route::middleware('auth:sanctum')->post('/mata-kuliah/detach-from-year', [MataKuliahController::class, 'detachFromYear']);
 Route::middleware('auth:sanctum')->apiResource('mata-kuliah', MataKuliahController::class);
 Route::middleware('auth:sanctum')->get('/mata-kuliah-dosen', [MataKuliahController::class, 'getMataKuliahDosen']);
 Route::middleware('auth:sanctum')->get('/mata-kuliah-dosen/{kode}/jadwal', [MataKuliahController::class, 'getJadwalDosenMataKuliah']);
@@ -791,9 +792,10 @@ Route::middleware(['auth:sanctum', 'role:mahasiswa'])->group(function () {
 });
 
 // Email verification routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'validate.token'])->group(function () {
     Route::get('/users/{id}/email-status', [UserController::class, 'getEmailStatus']);
     Route::put('/users/{id}/verify-email', [UserController::class, 'verifyEmail']);
+    Route::put('/users/{id}/update-email', [UserController::class, 'updateEmail']);
 });
 
 // Report routes untuk export Excel

@@ -90,10 +90,10 @@ class ProportionalDistributionController extends Controller
 
             if (!$distribution) {
                 return response()->json([
-                    'success' => false,
+                    'success' => true,
                     'message' => 'No proportional distribution found',
                     'data' => null
-                ], 404);
+                ], 200);
             }
 
             return response()->json([

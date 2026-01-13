@@ -521,8 +521,8 @@ export default function Dosen() {
       .get("/users?role=dosen&per_page=1000")
       .then((res) => {
         // Handle pagination response
-        const usersData = Array.isArray(res.data) 
-          ? res.data 
+        const usersData = Array.isArray(res.data)
+          ? res.data
           : (res.data?.data || []);
         setData(usersData);
         setLoading(false);
@@ -744,12 +744,12 @@ export default function Dosen() {
     const keahlianArray =
       typeof d.keahlian === "string"
         ? d.keahlian
-            .split(",")
-            .map((item) => item.trim())
-            .filter((item) => item !== "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item !== "")
         : Array.isArray(d.keahlian)
-        ? d.keahlian.map((item) => item.trim()).filter((item) => item !== "")
-        : [];
+          ? d.keahlian.map((item) => item.trim()).filter((item) => item !== "")
+          : [];
 
     return keahlianArray.some((k) => k.toLowerCase().includes("standby"));
   };
@@ -760,12 +760,12 @@ export default function Dosen() {
     const dosenKompetensiArray =
       typeof d.kompetensi === "string"
         ? d.kompetensi
-            .split(",")
-            .map((item) => item.trim())
-            .filter((item) => item !== "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item !== "")
         : Array.isArray(d.kompetensi)
-        ? d.kompetensi.map((item) => item.trim()).filter((item) => item !== "")
-        : [];
+          ? d.kompetensi.map((item) => item.trim()).filter((item) => item !== "")
+          : [];
     const matchKompetensi =
       filterKompetensi.length === 0 ||
       filterKompetensi.some((selectedComp) =>
@@ -775,12 +775,12 @@ export default function Dosen() {
     const dosenKeahlianArray =
       typeof d.keahlian === "string"
         ? d.keahlian
-            .split(",")
-            .map((item) => item.trim())
-            .filter((item) => item !== "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item !== "")
         : Array.isArray(d.keahlian)
-        ? d.keahlian.map((item) => item.trim()).filter((item) => item !== "")
-        : [];
+          ? d.keahlian.map((item) => item.trim()).filter((item) => item !== "")
+          : [];
     const matchKeahlian =
       filterKeahlian.length === 0 ||
       filterKeahlian.some((selectedK) =>
@@ -801,14 +801,14 @@ export default function Dosen() {
       data.flatMap((d) =>
         typeof d.kompetensi === "string"
           ? d.kompetensi
-              .split(",")
-              .map((item) => item.trim())
-              .filter((item) => item !== "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter((item) => item !== "")
           : Array.isArray(d.kompetensi)
-          ? d.kompetensi
+            ? d.kompetensi
               .map((item) => item.trim())
               .filter((item) => item !== "")
-          : []
+            : []
       )
     )
   ).sort();
@@ -820,18 +820,18 @@ export default function Dosen() {
       data.flatMap((d) =>
         typeof d.keahlian === "string"
           ? d.keahlian
-              .split(",")
-              .map((item) => item.trim())
-              .filter(
-                (item) => item !== "" && !item.toLowerCase().includes("standby")
-              )
+            .split(",")
+            .map((item) => item.trim())
+            .filter(
+              (item) => item !== "" && !item.toLowerCase().includes("standby")
+            )
           : Array.isArray(d.keahlian)
-          ? d.keahlian
+            ? d.keahlian
               .map((item) => item.trim())
               .filter(
                 (item) => item !== "" && !item.toLowerCase().includes("standby")
               )
-          : []
+            : []
       )
     )
   ).sort();
@@ -915,8 +915,8 @@ export default function Dosen() {
         const keahlianArray = Array.isArray(form.keahlian)
           ? form.keahlian
           : typeof form.keahlian === "string"
-          ? [form.keahlian]
-          : [];
+            ? [form.keahlian]
+            : [];
 
         // Validasi keahlian untuk setiap mata kuliah di sections
         for (const section of peranSections) {
@@ -1067,7 +1067,7 @@ export default function Dosen() {
       });
       // Handle pagination response
       if (Array.isArray(res.data)) {
-      setData(res.data);
+        setData(res.data);
       } else if (res.data?.data && Array.isArray(res.data.data)) {
         setData(res.data.data);
       } else {
@@ -1106,7 +1106,7 @@ export default function Dosen() {
   const handleEdit = (d: UserDosen) => {
     // Reset modalError saat membuka modal edit
     setModalError("");
-    
+
     // Pastikan kompetensi dan keahlian selalu array
     let kompetensiArr: string[] = [];
     if (Array.isArray(d.kompetensi)) {
@@ -1250,10 +1250,10 @@ export default function Dosen() {
     try {
       if (selectedDeleteNid) {
         await api.delete(`/users/${selectedDeleteNid}`);
-        const res = await api.get("/users?role=dosen");
+        const res = await api.get("/users?role=dosen&per_page=1000");
         // Handle pagination response
         if (Array.isArray(res.data)) {
-        setData(res.data);
+          setData(res.data);
         } else if (res.data?.data && Array.isArray(res.data.data)) {
           setData(res.data.data);
         } else {
@@ -1369,9 +1369,8 @@ export default function Dosen() {
           const nuptk = newRow.nuptk || "";
 
           if (nid && nidn) {
-            newRow["NID / NIDN / NUPTK"] = `${nid} / ${nidn}${
-              nuptk ? ` / ${nuptk}` : ""
-            }`;
+            newRow["NID / NIDN / NUPTK"] = `${nid} / ${nidn}${nuptk ? ` / ${nuptk}` : ""
+              }`;
           } else {
             newRow["NID / NIDN / NUPTK"] = nid || nidn || nuptk || "-";
           }
@@ -1426,26 +1425,26 @@ export default function Dosen() {
         const kompetensiArray =
           typeof row.kompetensi === "string"
             ? row.kompetensi
-                .split(",")
-                .map((item: string) => item.trim())
-                .filter((item: string) => item !== "")
+              .split(",")
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
             : Array.isArray(row.kompetensi)
-            ? row.kompetensi
+              ? row.kompetensi
                 .map((item: string) => item.trim())
                 .filter((item: string) => item !== "")
-            : [];
+              : [];
 
         const keahlianArray =
           typeof row.keahlian === "string"
             ? row.keahlian
-                .split(",")
-                .map((item: string) => item.trim())
-                .filter((item: string) => item !== "")
+              .split(",")
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
             : Array.isArray(row.keahlian)
-            ? row.keahlian
+              ? row.keahlian
                 .map((item: string) => item.trim())
                 .filter((item: string) => item !== "")
-            : [];
+              : [];
 
         // Construct the object with exact column names as expected by the backend's Excel import
         // Note: role is not a column in the Excel template, so don't include it here for Excel export.
@@ -1485,8 +1484,8 @@ export default function Dosen() {
       // After successful import, re-fetch the entire list of users
       const updatedDataRes = await api.get("/users?role=dosen&per_page=1000");
       // Handle pagination response
-      const usersData = Array.isArray(updatedDataRes.data) 
-        ? updatedDataRes.data 
+      const usersData = Array.isArray(updatedDataRes.data)
+        ? updatedDataRes.data
         : (updatedDataRes.data?.data || []);
       setData(usersData);
       if (res.status === 200) {
@@ -1995,10 +1994,10 @@ export default function Dosen() {
     setIsDeleting(true);
     try {
       await Promise.all(selectedRows.map((id) => api.delete(`/users/${id}`)));
-      const res = await api.get("/users?role=dosen");
+      const res = await api.get("/users?role=dosen&per_page=1000");
       // Handle pagination response
       if (Array.isArray(res.data)) {
-      setData(res.data);
+        setData(res.data);
       } else if (res.data?.data && Array.isArray(res.data.data)) {
         setData(res.data.data);
       } else {
@@ -2271,8 +2270,8 @@ export default function Dosen() {
       const keahlianArray = Array.isArray(form.keahlian)
         ? form.keahlian
         : typeof form.keahlian === "string"
-        ? [form.keahlian]
-        : [];
+          ? [form.keahlian]
+          : [];
       // Validasi untuk mata kuliah pertama di sections (untuk display)
       const firstSection = peranSections.find((s) => s.mataKuliahKode);
       if (firstSection) {
@@ -2622,8 +2621,7 @@ export default function Dosen() {
 
     if (!hasMatchingKeahlian) {
       setKeahlianValidationMessage(
-        `Keahlian tidak sesuai yang dibutuhkan. Mata kuliah "${
-          mataKuliah.nama
+        `Keahlian tidak sesuai yang dibutuhkan. Mata kuliah "${mataKuliah.nama
         }" membutuhkan: ${mataKuliah.keahlian_required.join(", ")}`
       );
       return false;
@@ -2667,11 +2665,11 @@ export default function Dosen() {
                   pbl.mata_kuliah_kode || item.mata_kuliah?.kode || "",
                 mataKuliah: item.mata_kuliah
                   ? {
-                      kode: item.mata_kuliah.kode || "",
-                      nama: item.mata_kuliah.nama || "",
-                      semester: item.mata_kuliah.semester || 0,
-                      blok: item.mata_kuliah.blok || 0,
-                    }
+                    kode: item.mata_kuliah.kode || "",
+                    nama: item.mata_kuliah.nama || "",
+                    semester: item.mata_kuliah.semester || 0,
+                    blok: item.mata_kuliah.blok || 0,
+                  }
                   : undefined,
               };
             }
@@ -2900,15 +2898,9 @@ export default function Dosen() {
               semester = backendMataKuliah.semester;
               blok = backendMataKuliah.blok || 1;
             } else {
-              // PERBAIKAN: Fallback mapping yang benar sesuai dengan data yang di-generate
-              // PBL ID = Blok number, semester = dari data yang sebenarnya
-              if (pblIdNum >= 1 && pblIdNum <= 4) {
-                // Jika PBL ID 1-4, berarti blok 1-4, tapi semester harus dari data yang sebenarnya
-                // JANGAN hardcode semester, gunakan data yang ada
-                mataKuliahKode = `MKB10${pblIdNum}`; // Format kode mata kuliah
-                blok = pblIdNum; // Blok = PBL ID
-                // Semester harus dari data yang sebenarnya, bukan hardcode
-              }
+              // Jika tidak ditemukan di backendMataKuliah, kita tidak bisa menebak kode mata kuliah.
+              // Logika hardcode MKB10x dihapus karena format kode sudah dinamis.
+              // PBL orphan tidak akan ditampilkan.
             }
           }
 
@@ -2985,18 +2977,18 @@ export default function Dosen() {
   // Fetch data dosen saat component mount
   useEffect(() => {
     let isMounted = true; // Flag to prevent state updates if component unmounts
-    
+
     const fetchData = async () => {
       try {
         // Loading is already true from initial state, so we don't need to set it again
-        const res = await api.get("/users?role=dosen");
-        
+        const res = await api.get("/users?role=dosen&per_page=1000");
+
         // Only update state if component is still mounted
         if (!isMounted) return;
-        
+
         // Handle pagination response
         if (Array.isArray(res.data)) {
-        setData(res.data);
+          setData(res.data);
         } else if (res.data?.data && Array.isArray(res.data.data)) {
           setData(res.data.data);
         } else {
@@ -3007,17 +2999,17 @@ export default function Dosen() {
         await fetchAssignmentData();
       } catch (error) {
         if (isMounted) {
-        setError("Gagal memuat data dosen");
+          setError("Gagal memuat data dosen");
         }
       } finally {
         if (isMounted) {
-        setLoading(false);
+          setLoading(false);
         }
       }
     };
 
     fetchData();
-    
+
     // Cleanup function to prevent state updates after unmount
     return () => {
       isMounted = false;
@@ -3117,17 +3109,17 @@ export default function Dosen() {
                 <ul className="list-disc pl-5 text-sm text-red-600">
                   {cellErrors.length > 0
                     ? cellErrors.map((err, idx) => (
-                        <li key={idx}>
-                          {err.message} (Baris {err.row + 2}, Kolom{" "}
-                          {err.field.toUpperCase()}):{" "}
-                          {previewData.find((r) => r.nid === err.nid)?.[
-                            err.field
-                          ] || ""}
-                        </li>
-                      ))
+                      <li key={idx}>
+                        {err.message} (Baris {err.row + 2}, Kolom{" "}
+                        {err.field.toUpperCase()}):{" "}
+                        {previewData.find((r) => r.nid === err.nid)?.[
+                          err.field
+                        ] || ""}
+                      </li>
+                    ))
                     : validationErrors.map((err, idx) => (
-                        <li key={idx}>{err}</li>
-                      ))}
+                      <li key={idx}>{err}</li>
+                    ))}
                 </ul>
               </div>
             </div>
@@ -3183,15 +3175,14 @@ export default function Dosen() {
                             return (
                               <td
                                 key={colKey}
-                                className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${
-                                  cellErrors.some(
-                                    (error) =>
-                                      error.row === globalRowIdx &&
-                                      error.field === colKey
-                                  )
-                                    ? "bg-red-100 dark:bg-red-900/30"
-                                    : ""
-                                }`}
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${cellErrors.some(
+                                  (error) =>
+                                    error.row === globalRowIdx &&
+                                    error.field === colKey
+                                )
+                                  ? "bg-red-100 dark:bg-red-900/30"
+                                  : ""
+                                  }`}
                                 title={
                                   cellErrors.find(
                                     (error) =>
@@ -3211,7 +3202,7 @@ export default function Dosen() {
                                     className="w-full px-1 border-none outline-none text-xs md:text-sm"
                                     value={
                                       previewData[editingCell.row][
-                                        editingCell.key
+                                      editingCell.key
                                       ] || ""
                                     }
                                     onChange={(e) => {
@@ -3286,11 +3277,10 @@ export default function Dosen() {
                   {/* Always show first page */}
                   <button
                     onClick={() => setPreviewPage(1)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      previewPage === 1
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${previewPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     1
                   </button>
@@ -3318,11 +3308,10 @@ export default function Dosen() {
                       <button
                         key={i}
                         onClick={() => setPreviewPage(pageNum)}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                          previewPage === pageNum
-                            ? "bg-brand-500 text-white"
-                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        }`}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${previewPage === pageNum
+                          ? "bg-brand-500 text-white"
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          }`}
                       >
                         {pageNum}
                       </button>
@@ -3340,11 +3329,10 @@ export default function Dosen() {
                   {previewTotalPages > 1 && (
                     <button
                       onClick={() => setPreviewPage(previewTotalPages)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        previewPage === previewTotalPages
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${previewPage === previewTotalPages
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {previewTotalPages}
                     </button>
@@ -3378,10 +3366,9 @@ export default function Dosen() {
             </button>
             <button
               className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs flex items-center justify-center min-w-[160px] transition
-                ${
-                  isSaving || loading
-                    ? "bg-emerald-800 text-white opacity-60 cursor-not-allowed"
-                    : "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
+                ${isSaving || loading
+                  ? "bg-emerald-800 text-white opacity-60 cursor-not-allowed"
+                  : "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
                 }`}
               onClick={handleSubmitImport}
               disabled={isSaving || loading}
@@ -3487,10 +3474,9 @@ export default function Dosen() {
                 >
                   <Listbox.Option
                     className={({ active }) =>
-                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                        active
-                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                          : "text-gray-900 dark:text-gray-100"
+                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                        ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                        : "text-gray-900 dark:text-gray-100"
                       }`
                     }
                     value="all_kompetensi" // Changed value to a string
@@ -3498,11 +3484,10 @@ export default function Dosen() {
                     {({ selected: _selected }) => (
                       <div className="flex items-center justify-between">
                         <span
-                          className={`block truncate ${
-                            filterKompetensi.length === 0
-                              ? "font-medium"
-                              : "font-normal" // Check if filterKompetensi is empty for 'selected' state
-                          }`}
+                          className={`block truncate ${filterKompetensi.length === 0
+                            ? "font-medium"
+                            : "font-normal" // Check if filterKompetensi is empty for 'selected' state
+                            }`}
                         >
                           Semua Kompetensi
                         </span>
@@ -3511,10 +3496,9 @@ export default function Dosen() {
                           aria-checked={filterKompetensi.length === 0} // Check if filterKompetensi is empty for aria-checked
                           role="checkbox"
                           className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500
-                            ${
-                              filterKompetensi.length === 0
-                                ? "bg-brand-500 border-brand-500"
-                                : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            ${filterKompetensi.length === 0
+                              ? "bg-brand-500 border-brand-500"
+                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
                             }
                             cursor-pointer`}
                         >
@@ -3537,10 +3521,9 @@ export default function Dosen() {
                     <Listbox.Option
                       key={kompetensiIdx}
                       className={({ active }) =>
-                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                          active
-                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                            : "text-gray-900 dark:text-gray-100"
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                          : "text-gray-900 dark:text-gray-100"
                         }`
                       }
                       value={kompetensi}
@@ -3548,9 +3531,8 @@ export default function Dosen() {
                       {({ selected: _selected }) => (
                         <div className="flex items-center justify-between">
                           <span
-                            className={`block truncate ${
-                              _selected ? "font-medium" : "font-normal"
-                            }`}
+                            className={`block truncate ${_selected ? "font-medium" : "font-normal"
+                              }`}
                           >
                             {kompetensi}
                           </span>
@@ -3561,10 +3543,9 @@ export default function Dosen() {
                               aria-checked={_selected}
                               role="checkbox"
                               className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500
-                                ${
-                                  _selected
-                                    ? "bg-brand-500 border-brand-500"
-                                    : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                                ${_selected
+                                  ? "bg-brand-500 border-brand-500"
+                                  : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
                                 }
                                 cursor-pointer`}
                             >
@@ -3601,12 +3582,12 @@ export default function Dosen() {
                     {filterKeahlian.length === 0
                       ? "Semua Keahlian"
                       : filterKeahlian
-                          .map((k) =>
-                            typeof k === "string"
-                              ? k.replace(/^\[|\]$/g, "")
-                              : String(k)
-                          )
-                          .join(", ")}
+                        .map((k) =>
+                          typeof k === "string"
+                            ? k.replace(/^\[|\]$/g, "")
+                            : String(k)
+                        )
+                        .join(", ")}
                   </span>
                   <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                     <FontAwesomeIcon
@@ -3627,10 +3608,9 @@ export default function Dosen() {
                   <Listbox.Options static>
                     <Listbox.Option
                       className={({ active }) =>
-                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                          active
-                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                            : "text-gray-900 dark:text-gray-100"
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                          : "text-gray-900 dark:text-gray-100"
                         }`
                       }
                       value="all_keahlian"
@@ -3638,11 +3618,10 @@ export default function Dosen() {
                       {({ selected: _selected }) => (
                         <div className="flex items-center justify-between">
                           <span
-                            className={`block truncate ${
-                              filterKeahlian.length === 0
-                                ? "font-medium"
-                                : "font-normal"
-                            }`}
+                            className={`block truncate ${filterKeahlian.length === 0
+                              ? "font-medium"
+                              : "font-normal"
+                              }`}
                           >
                             Semua Keahlian
                           </span>
@@ -3650,11 +3629,10 @@ export default function Dosen() {
                             type="button"
                             aria-checked={filterKeahlian.length === 0}
                             role="checkbox"
-                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                              filterKeahlian.length === 0
-                                ? "bg-brand-500 border-brand-500"
-                                : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                            } cursor-pointer`}
+                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${filterKeahlian.length === 0
+                              ? "bg-brand-500 border-brand-500"
+                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                              } cursor-pointer`}
                           >
                             {filterKeahlian.length === 0 && (
                               <svg
@@ -3675,10 +3653,9 @@ export default function Dosen() {
                       <Listbox.Option
                         key={idx}
                         className={({ active }) =>
-                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                            active
-                              ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                              : "text-gray-900 dark:text-gray-100"
+                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                            : "text-gray-900 dark:text-gray-100"
                           }`
                         }
                         value={keahlian}
@@ -3686,9 +3663,8 @@ export default function Dosen() {
                         {({ selected: _selected }) => (
                           <div className="flex items-center justify-between">
                             <span
-                              className={`block truncate ${
-                                _selected ? "font-medium" : "font-normal"
-                              }`}
+                              className={`block truncate ${_selected ? "font-medium" : "font-normal"
+                                }`}
                             >
                               {keahlian}
                             </span>
@@ -3697,11 +3673,10 @@ export default function Dosen() {
                                 type="button"
                                 aria-checked={_selected}
                                 role="checkbox"
-                                className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                                  _selected
-                                    ? "bg-brand-500 border-brand-500"
-                                    : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                                } cursor-pointer`}
+                                className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${_selected
+                                  ? "bg-brand-500 border-brand-500"
+                                  : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                                  } cursor-pointer`}
                               >
                                 {_selected && (
                                   <svg
@@ -3739,8 +3714,8 @@ export default function Dosen() {
                     {filterStatus === "all"
                       ? "Semua Kategori"
                       : filterStatus === "standby"
-                      ? "Standby"
-                      : "Reguler"}
+                        ? "Standby"
+                        : "Reguler"}
                   </span>
                   <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                     <FontAwesomeIcon
@@ -3761,10 +3736,9 @@ export default function Dosen() {
                   <Listbox.Options static>
                     <Listbox.Option
                       className={({ active }) =>
-                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                          active
-                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                            : "text-gray-900 dark:text-gray-100"
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                          : "text-gray-900 dark:text-gray-100"
                         }`
                       }
                       value="all"
@@ -3772,9 +3746,8 @@ export default function Dosen() {
                       {({ selected }) => (
                         <div className="flex items-center justify-between">
                           <span
-                            className={`block truncate ${
-                              selected ? "font-medium" : "font-normal"
-                            }`}
+                            className={`block truncate ${selected ? "font-medium" : "font-normal"
+                              }`}
                           >
                             Semua Kategori
                           </span>
@@ -3800,10 +3773,9 @@ export default function Dosen() {
                     </Listbox.Option>
                     <Listbox.Option
                       className={({ active }) =>
-                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                          active
-                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                            : "text-gray-900 dark:text-gray-100"
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                          : "text-gray-900 dark:text-gray-100"
                         }`
                       }
                       value="standby"
@@ -3811,9 +3783,8 @@ export default function Dosen() {
                       {({ selected }) => (
                         <div className="flex items-center justify-between">
                           <span
-                            className={`block truncate ${
-                              selected ? "font-medium" : "font-normal"
-                            }`}
+                            className={`block truncate ${selected ? "font-medium" : "font-normal"
+                              }`}
                           >
                             Standby
                           </span>
@@ -3839,10 +3810,9 @@ export default function Dosen() {
                     </Listbox.Option>
                     <Listbox.Option
                       className={({ active }) =>
-                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                          active
-                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                            : "text-gray-900 dark:text-gray-100"
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                          : "text-gray-900 dark:text-gray-100"
                         }`
                       }
                       value="reguler"
@@ -3850,9 +3820,8 @@ export default function Dosen() {
                       {({ selected }) => (
                         <div className="flex items-center justify-between">
                           <span
-                            className={`block truncate ${
-                              selected ? "font-medium" : "font-normal"
-                            }`}
+                            className={`block truncate ${selected ? "font-medium" : "font-normal"
+                              }`}
                           >
                             Reguler
                           </span>
@@ -3955,14 +3924,13 @@ export default function Dosen() {
                         );
                       }
                     }}
-                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                      filteredAndSearchedData.length > 0 &&
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${filteredAndSearchedData.length > 0 &&
                       filteredAndSearchedData.every((d) =>
                         selectedRows.includes(String(d.id || d.nid))
                       )
-                        ? "bg-brand-500 border-brand-500"
-                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                    } cursor-pointer`}
+                      ? "bg-brand-500 border-brand-500"
+                      : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                      } cursor-pointer`}
                   >
                     {filteredAndSearchedData.length > 0 &&
                       filteredAndSearchedData.every((d) =>
@@ -4100,11 +4068,10 @@ export default function Dosen() {
                             ]);
                           }
                         }}
-                        className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                          selectedRows.includes(String(d.id || d.nid))
-                            ? "bg-brand-500 border-brand-500"
-                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                        } cursor-pointer`}
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedRows.includes(String(d.id || d.nid))
+                          ? "bg-brand-500 border-brand-500"
+                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                          } cursor-pointer`}
                       >
                         {selectedRows.includes(String(d.id || d.nid)) && (
                           <svg
@@ -4203,21 +4170,21 @@ export default function Dosen() {
                       {(() => {
                         const koordinatorPeran = Array.isArray(d.dosen_peran)
                           ? d.dosen_peran
-                              .filter((p) => p.tipe_peran === "koordinator")
-                              .filter(
-                                (p, index, self) =>
-                                  // HILANGKAN DUPLIKASI: Unique berdasarkan kombinasi mata_kuliah_kode + blok + semester
-                                  index ===
-                                  self.findIndex(
-                                    (peran) =>
-                                      peran.mata_kuliah_kode ===
-                                        p.mata_kuliah_kode &&
-                                      String(peran.blok || "") ===
-                                        String(p.blok || "") &&
-                                      String(peran.semester || "") ===
-                                        String(p.semester || "")
-                                  )
-                              )
+                            .filter((p) => p.tipe_peran === "koordinator")
+                            .filter(
+                              (p, index, self) =>
+                                // HILANGKAN DUPLIKASI: Unique berdasarkan kombinasi mata_kuliah_kode + blok + semester
+                                index ===
+                                self.findIndex(
+                                  (peran) =>
+                                    peran.mata_kuliah_kode ===
+                                    p.mata_kuliah_kode &&
+                                    String(peran.blok || "") ===
+                                    String(p.blok || "") &&
+                                    String(peran.semester || "") ===
+                                    String(p.semester || "")
+                                )
+                            )
                           : [];
 
                         if (koordinatorPeran.length > 0) {
@@ -4270,8 +4237,8 @@ export default function Dosen() {
                                             (p.tipe_peran === "koordinator"
                                               ? "Koordinator"
                                               : p.tipe_peran === "tim_blok"
-                                              ? "Tim Blok"
-                                              : "-")}
+                                                ? "Tim Blok"
+                                                : "-")}
                                         </div>
                                       </div>
                                     </li>
@@ -4321,21 +4288,21 @@ export default function Dosen() {
                       {(() => {
                         const timBlokPeran = Array.isArray(d.dosen_peran)
                           ? d.dosen_peran
-                              .filter((p) => p.tipe_peran === "tim_blok")
-                              .filter(
-                                (p, index, self) =>
-                                  // HILANGKAN DUPLIKASI: Unique berdasarkan kombinasi mata_kuliah_kode + blok + semester
-                                  index ===
-                                  self.findIndex(
-                                    (peran) =>
-                                      peran.mata_kuliah_kode ===
-                                        p.mata_kuliah_kode &&
-                                      String(peran.blok || "") ===
-                                        String(p.blok || "") &&
-                                      String(peran.semester || "") ===
-                                        String(p.semester || "")
-                                  )
-                              )
+                            .filter((p) => p.tipe_peran === "tim_blok")
+                            .filter(
+                              (p, index, self) =>
+                                // HILANGKAN DUPLIKASI: Unique berdasarkan kombinasi mata_kuliah_kode + blok + semester
+                                index ===
+                                self.findIndex(
+                                  (peran) =>
+                                    peran.mata_kuliah_kode ===
+                                    p.mata_kuliah_kode &&
+                                    String(peran.blok || "") ===
+                                    String(p.blok || "") &&
+                                    String(peran.semester || "") ===
+                                    String(p.semester || "")
+                                )
+                            )
                           : [];
 
                         if (timBlokPeran.length > 0) {
@@ -4388,8 +4355,8 @@ export default function Dosen() {
                                             (p.tipe_peran === "koordinator"
                                               ? "Koordinator"
                                               : p.tipe_peran === "tim_blok"
-                                              ? "Tim Blok"
-                                              : "-")}
+                                                ? "Tim Blok"
+                                                : "-")}
                                         </div>
                                       </div>
                                     </li>
@@ -4746,11 +4713,10 @@ export default function Dosen() {
               {/* Always show first page */}
               <button
                 onClick={() => setPage(1)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                  page === 1
-                    ? "bg-brand-500 text-white"
-                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                }`}
+                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === 1
+                  ? "bg-brand-500 text-white"
+                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
               >
                 1
               </button>
@@ -4778,11 +4744,10 @@ export default function Dosen() {
                   <button
                     key={i}
                     onClick={() => setPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      page === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === pageNum
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -4800,11 +4765,10 @@ export default function Dosen() {
               {totalPages > 1 && (
                 <button
                   onClick={() => setPage(totalPages)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    page === totalPages
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === totalPages
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {totalPages}
                 </button>
@@ -4825,11 +4789,10 @@ export default function Dosen() {
         <button
           disabled={selectedRows.length === 0 || isDeleting}
           onClick={() => setShowDeleteModalBulk(true)}
-          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-            selectedRows.length === 0 || isDeleting
-              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-              : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${selectedRows.length === 0 || isDeleting
+            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+            : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+            }`}
         >
           {isDeleting
             ? "Menghapus..."
@@ -5020,11 +4983,10 @@ export default function Dosen() {
                           type="button"
                           onClick={() => setPeranUtama("standby")}
                           className={`px-5 py-2 rounded-xl font-semibold text-sm transition focus:outline-none
-        ${
-          peranUtama === "standby"
-            ? "bg-green-500 text-white dark:bg-green-500"
-            : "bg-transparent text-gray-700 dark:text-white opacity-70"
-        }`}
+        ${peranUtama === "standby"
+                              ? "bg-green-500 text-white dark:bg-green-500"
+                              : "bg-transparent text-gray-700 dark:text-white opacity-70"
+                            }`}
                           style={{ minWidth: 60 }}
                         >
                           Standby
@@ -5035,11 +4997,10 @@ export default function Dosen() {
                           className={`
         px-5 py-2 rounded-xl text-sm transition focus:outline-none
         font-semibold
-        ${
-          peranUtama === "aktif"
-            ? "bg-green-500 text-white dark:bg-green-500"
-            : "bg-transparent text-gray-700 dark:text-white opacity-70"
-        }`}
+        ${peranUtama === "aktif"
+                              ? "bg-green-500 text-white dark:bg-green-500"
+                              : "bg-transparent text-gray-700 dark:text-white opacity-70"
+                            }`}
                           style={{ minWidth: 60 }}
                         >
                           Aktif
@@ -5088,10 +5049,9 @@ export default function Dosen() {
                                       <Listbox.Options static>
                                         <Listbox.Option
                                           className={({ active }) =>
-                                            `relative cursor-default select-none py-2 pl-4 pr-4 ${
-                                              active
-                                                ? "bg-brand-100 text-brand-900"
-                                                : "text-gray-900 dark:text-gray-100"
+                                            `relative cursor-default select-none py-2 pl-4 pr-4 ${active
+                                              ? "bg-brand-100 text-brand-900"
+                                              : "text-gray-900 dark:text-gray-100"
                                             }`
                                           }
                                           value="none"
@@ -5100,10 +5060,9 @@ export default function Dosen() {
                                         </Listbox.Option>
                                         <Listbox.Option
                                           className={({ active }) =>
-                                            `relative cursor-default select-none py-2 pl-4 pr-4 ${
-                                              active
-                                                ? "bg-brand-100 text-brand-900"
-                                                : "text-gray-900 dark:text-gray-100"
+                                            `relative cursor-default select-none py-2 pl-4 pr-4 ${active
+                                              ? "bg-brand-100 text-brand-900"
+                                              : "text-gray-900 dark:text-gray-100"
                                             }`
                                           }
                                           value="peran"
@@ -5202,16 +5161,16 @@ export default function Dosen() {
                                                     <span className="block truncate">
                                                       {section.mataKuliahKode
                                                         ? (() => {
-                                                            const matkul =
-                                                              matkulList.find(
-                                                                (mk) =>
-                                                                  mk.kode ===
-                                                                  section.mataKuliahKode
-                                                              );
-                                                            return matkul
-                                                              ? `Blok ${matkul.blok}: ${matkul.nama}`
-                                                              : section.mataKuliahKode;
-                                                          })()
+                                                          const matkul =
+                                                            matkulList.find(
+                                                              (mk) =>
+                                                                mk.kode ===
+                                                                section.mataKuliahKode
+                                                            );
+                                                          return matkul
+                                                            ? `Blok ${matkul.blok}: ${matkul.nama}`
+                                                            : section.mataKuliahKode;
+                                                        })()
                                                         : "Pilih Blok"}
                                                     </span>
                                                     <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
@@ -5258,7 +5217,7 @@ export default function Dosen() {
                                                             (acc, mk) => {
                                                               if (
                                                                 !acc[
-                                                                  mk.semester
+                                                                mk.semester
                                                                 ]
                                                               )
                                                                 acc[
@@ -5296,10 +5255,9 @@ export default function Dosen() {
                                                                     className={({
                                                                       active,
                                                                     }) =>
-                                                                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                                                        active
-                                                                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                                                          : "text-gray-900 dark:text-gray-100"
+                                                                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                                                                        ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                                                                        : "text-gray-900 dark:text-gray-100"
                                                                       }`
                                                                     }
                                                                     value={
@@ -5311,11 +5269,10 @@ export default function Dosen() {
                                                                     }) => (
                                                                       <div className="flex items-center justify-between">
                                                                         <span
-                                                                          className={`block truncate ${
-                                                                            selected
-                                                                              ? "font-medium"
-                                                                              : "font-normal"
-                                                                          }`}
+                                                                          className={`block truncate ${selected
+                                                                            ? "font-medium"
+                                                                            : "font-normal"
+                                                                            }`}
                                                                         >
                                                                           Blok{" "}
                                                                           {
@@ -5405,7 +5362,7 @@ export default function Dosen() {
                                                     >
                                                       <Listbox.Options static>
                                                         {sectionOptions.length ===
-                                                        0 ? (
+                                                          0 ? (
                                                           <Listbox.Option
                                                             className="relative cursor-default select-none py-2.5 pl-4 pr-4 text-gray-400 dark:text-gray-500"
                                                             value=""
@@ -5433,10 +5390,9 @@ export default function Dosen() {
                                                                   className={({
                                                                     active,
                                                                   }) =>
-                                                                    `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                                                      isDisabled
-                                                                        ? "opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-500"
-                                                                        : active
+                                                                    `relative cursor-default select-none py-2.5 pl-4 pr-4 ${isDisabled
+                                                                      ? "opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-500"
+                                                                      : active
                                                                         ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
                                                                         : "text-gray-900 dark:text-gray-100"
                                                                     }`
@@ -5454,11 +5410,10 @@ export default function Dosen() {
                                                                     <div className="flex items-center justify-between">
                                                                       <div className="flex flex-col">
                                                                         <span
-                                                                          className={`block truncate ${
-                                                                            selected
-                                                                              ? "font-medium"
-                                                                              : "font-normal"
-                                                                          }`}
+                                                                          className={`block truncate ${selected
+                                                                            ? "font-medium"
+                                                                            : "font-normal"
+                                                                            }`}
                                                                         >
                                                                           {
                                                                             peran.originalName
@@ -5584,21 +5539,21 @@ export default function Dosen() {
                             Array.isArray(form.kompetensi)
                               ? form.kompetensi
                               : typeof form.kompetensi === "string"
-                              ? (form.kompetensi || "")
+                                ? (form.kompetensi || "")
                                   .split(",")
                                   .map((k) => k.trim())
                                   .filter((k) => k !== "")
-                              : []
+                                : []
                           }
                           onChange={(newSelection) => {
                             // Cek apakah keahlian mengandung standby
                             const hasStandby = Array.isArray(form.keahlian)
                               ? form.keahlian.some(
-                                  (k) => k.toLowerCase() === "standby"
-                                )
+                                (k) => k.toLowerCase() === "standby"
+                              )
                               : (form.keahlian || "")
-                                  .toLowerCase()
-                                  .includes("standby");
+                                .toLowerCase()
+                                .includes("standby");
 
                             // Jika standby, kompetensi harus kosong
                             if (hasStandby) {
@@ -5617,13 +5572,13 @@ export default function Dosen() {
                           disabled={
                             Array.isArray(form.keahlian)
                               ? form.keahlian.some(
-                                  (k) => k.toLowerCase() === "standby"
-                                )
+                                (k) => k.toLowerCase() === "standby"
+                              )
                               : typeof form.keahlian === "string"
-                              ? (form.keahlian || "")
+                                ? (form.keahlian || "")
                                   .toLowerCase()
                                   .includes("standby")
-                              : false
+                                : false
                           }
                         >
                           {({ open }) => (
@@ -5631,11 +5586,11 @@ export default function Dosen() {
                               <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
                                 <span className="block truncate">
                                   {Array.isArray(form.kompetensi) &&
-                                  form.kompetensi.length === 0
+                                    form.kompetensi.length === 0
                                     ? "Pilih Kompetensi"
                                     : Array.isArray(form.kompetensi)
-                                    ? form.kompetensi.join(", ")
-                                    : ""}
+                                      ? form.kompetensi.join(", ")
+                                      : ""}
                                 </span>
                                 <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                                   <FontAwesomeIcon
@@ -5667,10 +5622,9 @@ export default function Dosen() {
                                       <Listbox.Option
                                         key={kompetensi}
                                         className={({ active }) =>
-                                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                            active
-                                              ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                              : "text-gray-900 dark:text-gray-100"
+                                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                                            : "text-gray-900 dark:text-gray-100"
                                           }`
                                         }
                                         value={kompetensi}
@@ -5678,11 +5632,10 @@ export default function Dosen() {
                                         {({ selected }) => (
                                           <div className="flex items-center justify-between">
                                             <span
-                                              className={`block truncate ${
-                                                selected
-                                                  ? "font-medium"
-                                                  : "font-normal"
-                                              }`}
+                                              className={`block truncate ${selected
+                                                ? "font-medium"
+                                                : "font-normal"
+                                                }`}
                                             >
                                               {kompetensi}
                                             </span>
@@ -5738,14 +5691,14 @@ export default function Dosen() {
                                   kompetensi: Array.isArray(prev.kompetensi)
                                     ? [...prev.kompetensi, newKompetensi.trim()]
                                     : prev.kompetensi
-                                    ? [
+                                      ? [
                                         ...prev.kompetensi
                                           .split(",")
                                           .map((k) => k.trim())
                                           .filter((k) => k !== ""),
                                         newKompetensi.trim(),
                                       ]
-                                    : [newKompetensi.trim()],
+                                      : [newKompetensi.trim()],
                                 }));
                                 setNewKompetensi("");
                               }
@@ -5770,11 +5723,11 @@ export default function Dosen() {
                             Array.isArray(form.keahlian)
                               ? form.keahlian
                               : typeof form.keahlian === "string"
-                              ? (form.keahlian || "")
+                                ? (form.keahlian || "")
                                   .split(",")
                                   .map((k) => k.trim())
                                   .filter((k) => k !== "")
-                              : []
+                                : []
                           }
                           onChange={(newSelection) => {
                             // Validasi standby: jika ada "standby", harus HANYA "standby"
@@ -5804,11 +5757,11 @@ export default function Dosen() {
                               <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
                                 <span className="block truncate">
                                   {Array.isArray(form.keahlian) &&
-                                  form.keahlian.length === 0
+                                    form.keahlian.length === 0
                                     ? "Pilih Keahlian"
                                     : Array.isArray(form.keahlian)
-                                    ? form.keahlian.join(", ")
-                                    : ""}
+                                      ? form.keahlian.join(", ")
+                                      : ""}
                                 </span>
                                 <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                                   <FontAwesomeIcon
@@ -5840,10 +5793,9 @@ export default function Dosen() {
                                       <Listbox.Option
                                         key={keahlian}
                                         className={({ active }) =>
-                                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                            active
-                                              ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                              : "text-gray-900 dark:text-gray-100"
+                                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                                            : "text-gray-900 dark:text-gray-100"
                                           }`
                                         }
                                         value={keahlian}
@@ -5851,11 +5803,10 @@ export default function Dosen() {
                                         {({ selected }) => (
                                           <div className="flex items-center justify-between">
                                             <span
-                                              className={`block truncate ${
-                                                selected
-                                                  ? "font-medium"
-                                                  : "font-normal"
-                                              }`}
+                                              className={`block truncate ${selected
+                                                ? "font-medium"
+                                                : "font-normal"
+                                                }`}
                                             >
                                               {keahlian}
                                             </span>
@@ -5903,7 +5854,7 @@ export default function Dosen() {
                                   newKeahlian.trim()
                                 ) &&
                                 newKeahlian.trim().toLowerCase() !==
-                                  "standby" &&
+                                "standby" &&
                                 newKeahlian.trim() !== "Standby"
                               ) {
                                 setAvailableKeahlian((prev) =>
@@ -5914,14 +5865,14 @@ export default function Dosen() {
                                   keahlian: Array.isArray(prev.keahlian)
                                     ? [...prev.keahlian, newKeahlian.trim()]
                                     : prev.keahlian
-                                    ? [
+                                      ? [
                                         ...prev.keahlian
                                           .split(",")
                                           .map((k) => k.trim())
                                           .filter((k) => k !== ""),
                                         newKeahlian.trim(),
                                       ]
-                                    : [newKeahlian.trim()],
+                                      : [newKeahlian.trim()],
                                 }));
                                 setNewKeahlian("");
                               }
@@ -5974,9 +5925,8 @@ export default function Dosen() {
                     </button>
                     <button
                       onClick={handleAdd}
-                      className={`px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition flex items-center justify-center ${
-                        !isFormValid ? "opacity-60 cursor-not-allowed" : ""
-                      }`}
+                      className={`px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition flex items-center justify-center ${!isFormValid ? "opacity-60 cursor-not-allowed" : ""
+                        }`}
                       disabled={!isFormValid || isSaving}
                     >
                       {isSaving ? (

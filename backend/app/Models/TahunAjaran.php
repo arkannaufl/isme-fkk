@@ -24,6 +24,11 @@ class TahunAjaran extends Model
         return $this->hasMany(Semester::class);
     }
 
+    public function mataKuliah()
+    {
+        return $this->belongsToMany(MataKuliah::class, 'mata_kuliah_tahun_ajaran', 'tahun_ajaran_id', 'mata_kuliah_kode');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

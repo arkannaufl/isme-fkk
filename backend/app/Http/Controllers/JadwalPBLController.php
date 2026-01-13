@@ -20,7 +20,8 @@ class JadwalPBLController extends Controller
     // List semua jadwal PBL untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalPBL::with(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
+        $jadwal = JadwalPBL::WithoutSemesterFilter()
+            ->with(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')
@@ -727,7 +728,7 @@ class JadwalPBLController extends Controller
                     'tipe_pbl' => $jadwal->pbl_tipe ?? 'PBL 1',
                     'kelompok' => $jadwal->kelompokKecilAntara ? $jadwal->kelompokKecilAntara->nama_kelompok : ($jadwal->kelompokKecil ? $jadwal->kelompokKecil->nama_kelompok : 'Unknown'),
                     'x50' => $jadwal->jumlah_sesi ?? 2,
-                    'tanggal' => $jadwal->tanggal,
+                    'tanggal' => is_string($jadwal->tanggal) ? $jadwal->tanggal : $jadwal->tanggal->format('Y-m-d'),
                     'waktu_mulai' => $jadwal->jam_mulai,
                     'jam_mulai' => $jadwal->jam_mulai,
                     'jam_selesai' => $jadwal->jam_selesai,
@@ -824,9 +825,9 @@ class JadwalPBLController extends Controller
 
                 return [
                     'id' => $item->id,
-                    'tanggal' => $item->tanggal,
-                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
-                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                    'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                     'modul' => $modulName,
                     'topik' => $item->modulPBL->topik ?? 'N/A',
                     'tipe_pbl' => $item->pbl_tipe ?? 'N/A',

@@ -23,7 +23,8 @@ class JadwalSeminarPlenoController extends Controller
     // List semua jadwal Seminar Pleno untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalSeminarPleno::with(['ruangan', 'mataKuliah', 'kelompokBesar', 'kelompokBesarAntara'])
+        $jadwal = JadwalSeminarPleno::WithoutSemesterFilter()
+            ->with(['mataKuliah', 'dosen', 'ruangan', 'kelompokBesarAntara'])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')
@@ -73,11 +74,18 @@ class JadwalSeminarPlenoController extends Controller
             $j->kelompok_besar_id = $j->kelompok_besar_id ?? null;
             $j->kelompok_besar_antara_id = $j->kelompok_besar_antara_id ?? null;
 
-            // Set kelompok_besar object if relasi exists
+            // Set kelompok_besar object if relasi exists or if it's a semester number
             if ($j->kelompokBesar) {
                 $j->kelompok_besar = (object) [
                     'id' => $j->kelompokBesar->id,
                     'semester' => $j->kelompokBesar->semester,
+                    'nama_kelompok' => $j->kelompokBesar->nama_kelompok ?? 'Semester ' . $j->kelompokBesar->semester
+                ];
+            } elseif ($j->kelompok_besar_id) {
+                $j->kelompok_besar = (object) [
+                    'id' => $j->kelompok_besar_id,
+                    'semester' => $j->kelompok_besar_id,
+                    'nama_kelompok' => 'Semester ' . $j->kelompok_besar_id
                 ];
             } else {
                 $j->kelompok_besar = null;
@@ -112,7 +120,7 @@ class JadwalSeminarPlenoController extends Controller
             'ruangan_id' => 'nullable|exists:ruangan,id',
             'use_ruangan' => 'required|boolean',
             'topik' => 'nullable|string',
-            'kelompok_besar_id' => 'nullable|exists:kelompok_besar,id',
+            'kelompok_besar_id' => 'nullable|integer|min:1',
             'kelompok_besar_antara_id' => 'nullable|exists:kelompok_besar_antara,id',
         ]);
 
@@ -181,8 +189,8 @@ class JadwalSeminarPlenoController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
-        // Set status_konfirmasi otomatis menjadi 'bisa' untuk Seminar Pleno (tidak perlu konfirmasi)
-        $data['status_konfirmasi'] = 'bisa';
+        // For Seminar Pleno, let it default to 'belum_konfirmasi'
+        // $data['status_konfirmasi'] = 'bisa';
 
         $jadwal = JadwalSeminarPleno::create($data);
 
@@ -289,6 +297,9 @@ class JadwalSeminarPlenoController extends Controller
             }
         }
 
+        // Kirim notifikasi ke mahasiswa
+        $this->sendNotificationToMahasiswa($jadwal);
+
         return response()->json($jadwal, Response::HTTP_CREATED);
     }
 
@@ -309,7 +320,7 @@ class JadwalSeminarPlenoController extends Controller
             'ruangan_id' => 'nullable|exists:ruangan,id',
             'use_ruangan' => 'required|boolean',
             'topik' => 'nullable|string',
-            'kelompok_besar_id' => 'nullable|exists:kelompok_besar,id',
+            'kelompok_besar_id' => 'nullable|integer|min:1',
             'kelompok_besar_antara_id' => 'nullable|exists:kelompok_besar_antara,id',
         ]);
 
@@ -377,8 +388,8 @@ class JadwalSeminarPlenoController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
-        // Set status_konfirmasi otomatis menjadi 'bisa' untuk Seminar Pleno (tidak perlu konfirmasi)
-        $data['status_konfirmasi'] = 'bisa';
+        // For Seminar Pleno, let it default to 'belum_konfirmasi' or its previous status
+        // $data['status_konfirmasi'] = 'bisa';
 
         $jadwal->update($data);
 
@@ -402,6 +413,9 @@ class JadwalSeminarPlenoController extends Controller
             $dosenNames = User::whereIn('id', $jadwal->dosen_ids)->pluck('name')->toArray();
             $jadwal->dosen_names = implode(', ', $dosenNames);
         }
+
+        // Kirim notifikasi ke mahasiswa
+        $this->sendNotificationToMahasiswa($jadwal, true);
 
         return response()->json($jadwal);
     }
@@ -587,25 +601,10 @@ class JadwalSeminarPlenoController extends Controller
                 }
 
                 if (empty($rowErrors)) {
-                    // Handle kelompok_besar_id: bisa berupa ID atau semester
+                    // Handle kelompok_besar_id: simpan nomor semester langsung (konsep Kuliah Besar)
                     $kelompokBesarId = null;
                     if (isset($row['kelompok_besar_id']) && $row['kelompok_besar_id'] !== null) {
-                        $inputKelompokBesarId = $row['kelompok_besar_id'];
-
-                        // Cek apakah ini ID sebenarnya (cek di database)
-                        $kelompokBesarById = KelompokBesar::find($inputKelompokBesarId);
-                        if ($kelompokBesarById) {
-                            // Jika ditemukan sebagai ID, gunakan ID tersebut
-                            $kelompokBesarId = $kelompokBesarById->id;
-                        } else {
-                            // Jika tidak ditemukan sebagai ID, coba sebagai semester
-                            $kelompokBesarBySemester = KelompokBesar::where('semester', $inputKelompokBesarId)->first();
-                            if ($kelompokBesarBySemester) {
-                                // Ambil ID pertama dari semester tersebut
-                                $kelompokBesarId = $kelompokBesarBySemester->id;
-                            }
-                            // Jika tidak ditemukan juga, biarkan null (opsional)
-                        }
+                        $kelompokBesarId = (int)$row['kelompok_besar_id'];
                     }
 
                     // Simpan koordinator_ids dan dosen_ids terpisah untuk insert ke database
@@ -756,6 +755,11 @@ class JadwalSeminarPlenoController extends Controller
                     }
 
                     $created[] = $jadwal;
+                }
+
+                // Kirim notifikasi ke mahasiswa untuk semua jadwal yang baru diimport
+                foreach ($created as $newJadwal) {
+                    $this->sendNotificationToMahasiswa($newJadwal);
                 }
 
                 // Commit transaction jika semua berhasil
@@ -1594,26 +1598,27 @@ class JadwalSeminarPlenoController extends Controller
             ]);
 
             // Filter berdasarkan kelompok besar
-            // PENTING: kelompok_besar_id di jadwal menyimpan semester (bukan ID)
-            // Bisa berupa integer (semester) atau null
-            $query->where(function ($q) use ($semesterMahasiswa, $kelompokBesarAntaraId) {
-                // Filter untuk semester reguler: kelompok_besar_id = semester mahasiswa
-                if ($semesterMahasiswa && $semesterMahasiswa !== 'Antara') {
-                    // Match dengan kelompok_besar_id yang menyimpan semester
-                    // Handle berbagai format: integer, string, atau null dengan fallback ke mata kuliah
-                    $q->where(function ($subQ) use ($semesterMahasiswa) {
-                        // Match langsung dengan semester
-                        $subQ->where('kelompok_besar_id', $semesterMahasiswa)
-                             // Atau jika kelompok_besar_id null, cek semester dari mata kuliah
-                             ->orWhere(function ($fallbackQ) use ($semesterMahasiswa) {
-                                 $fallbackQ->whereNull('kelompok_besar_id')
-                                           ->whereHas('mataKuliah', function ($mkQ) use ($semesterMahasiswa) {
-                                               $mkQ->where('semester', $semesterMahasiswa)
-                                                   ->where('semester', '!=', 'Antara');
-                                           });
-                             });
-                    });
-                }
+        // PENTING: kelompok_besar_id di jadwal bisa menyimpan semester (int) atau ID foreign key
+        $query->where(function ($q) use ($semesterMahasiswa, $kelompokBesarAntaraId) {
+            // Filter untuk semester reguler
+            if ($semesterMahasiswa && $semesterMahasiswa !== 'Antara') {
+                $q->where(function ($subQ) use ($semesterMahasiswa) {
+                    // 1. Match langsung dengan nomor semester (new design)
+                    $subQ->where('kelompok_besar_id', $semesterMahasiswa)
+                         // 2. Atau match dengan ID KelompokBesar yang memiliki semester tersebut (original design)
+                         ->orWhereIn('kelompok_besar_id', function($kbQ) use ($semesterMahasiswa) {
+                             $kbQ->select('id')->from('kelompok_besar')->where('semester', $semesterMahasiswa);
+                         })
+                         // 3. Atau jika kelompok_besar_id null, cek semester dari mata kuliah (fallback)
+                         ->orWhere(function ($fallbackQ) use ($semesterMahasiswa) {
+                             $fallbackQ->whereNull('kelompok_besar_id')
+                                       ->whereHas('mataKuliah', function ($mkQ) use ($semesterMahasiswa) {
+                                           $mkQ->where('semester', $semesterMahasiswa)
+                                               ->where('semester', '!=', 'Antara');
+                                       });
+                         });
+                });
+            }
 
                 // Filter untuk semester antara: kelompok_besar_antara_id = ID kelompok antara mahasiswa
                 if ($kelompokBesarAntaraId) {
@@ -1628,6 +1633,10 @@ class JadwalSeminarPlenoController extends Controller
                         $q->where('semester', 'Antara');
                     } elseif ($semesterType === 'reguler') {
                         $q->where('semester', '!=', 'Antara');
+                    } elseif ($semesterType === 'ganjil') {
+                        $q->whereIn('semester', [1, 3, 5, 7]);
+                    } elseif ($semesterType === 'genap') {
+                        $q->whereIn('semester', [2, 4, 6, 8]);
                     }
                 });
             }
@@ -1688,6 +1697,22 @@ class JadwalSeminarPlenoController extends Controller
                         'semester' => $jadwal->kelompokBesar->semester,
                         'nama_kelompok' => "Semester {$jadwal->kelompokBesar->semester}",
                     ];
+                } elseif ($jadwal->kelompok_besar_id) {
+                    // Cek apakah ini ID atau semester
+                    $kbDirect = KelompokBesar::find($jadwal->kelompok_besar_id);
+                    if ($kbDirect) {
+                        $kelompokBesar = (object) [
+                            'id' => $kbDirect->id,
+                            'semester' => $kbDirect->semester,
+                            'nama_kelompok' => $kbDirect->nama_kelompok ?? "Semester {$kbDirect->semester}",
+                        ];
+                    } else {
+                        $kelompokBesar = (object) [
+                            'id' => $jadwal->kelompok_besar_id,
+                            'semester' => $jadwal->kelompok_besar_id,
+                            'nama_kelompok' => "Semester {$jadwal->kelompok_besar_id}",
+                        ];
+                    }
                 } elseif ($jadwal->kelompokBesarAntara) {
                     $kelompokBesar = (object) [
                         'id' => $jadwal->kelompokBesarAntara->id,
@@ -1695,22 +1720,53 @@ class JadwalSeminarPlenoController extends Controller
                     ];
                 }
 
+                // Get per-dosen confirmation statuses from RiwayatKonfirmasiDosen
+                $allAffectedDosenIds = array_merge($koordinatorIds, $dosenIds);
+                $statuses = \App\Models\RiwayatKonfirmasiDosen::where('jadwal_type', 'seminar_pleno')
+                    ->where('jadwal_id', $jadwal->id)
+                    ->whereIn('dosen_id', $allAffectedDosenIds)
+                    ->get()
+                    ->keyBy('dosen_id');
+
+                // Use overall schedule status as fallback for legacy confirmations
+                $fallbackStatus = $jadwal->status_konfirmasi ?? 'belum_konfirmasi';
+
+                // Combine koordinator and pengampu into a single dosen array for modal display
+                $dosenArray = [];
+                foreach ($koordinatorList as $d) {
+                    $dosenArray[] = [
+                        'id' => $d->id,
+                        'name' => $d->name,
+                        'role' => 'koordinator',
+                        'status_konfirmasi' => $statuses->has($d->id) ? $statuses[$d->id]->status_konfirmasi : $fallbackStatus
+                    ];
+                }
+                foreach ($pengampuList as $d) {
+                    $dosenArray[] = [
+                        'id' => $d->id,
+                        'name' => $d->name,
+                        'role' => 'pengampu',
+                        'status_konfirmasi' => $statuses->has($d->id) ? $statuses[$d->id]->status_konfirmasi : $fallbackStatus
+                    ];
+                }
+
                 return (object) [
                     'id' => $jadwal->id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
                     'mata_kuliah_nama' => $jadwal->mataKuliah->nama ?? 'Unknown',
-                    'tanggal' => $jadwal->tanggal,
-                    'jam_mulai' => $jadwal->jam_mulai,
-                    'jam_selesai' => $jadwal->jam_selesai,
+                    'tanggal' => date('d-m-Y', strtotime($jadwal->tanggal)),
+                    'jam_mulai' => str_replace(':', '.', substr($jadwal->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($jadwal->jam_selesai, 0, 5)),
                     'topik' => $jadwal->topik,
                     'koordinator_names' => implode(', ', $koordinatorNames),
                     'pengampu_names' => implode(', ', $pengampuNames),
+                    'dosen' => $dosenArray,
                     'ruangan' => $jadwal->ruangan ? (object) [
                         'id' => $jadwal->ruangan->id,
                         'nama' => $jadwal->ruangan->nama,
                     ] : null,
                     'use_ruangan' => $jadwal->use_ruangan ?? true,
-                    'status_konfirmasi' => 'bisa', // Seminar Pleno tidak perlu konfirmasi
+                    'status_konfirmasi' => $jadwal->status_konfirmasi ?? 'belum_konfirmasi',
                     'jumlah_sesi' => $jadwal->jumlah_sesi ?? 1,
                     'semester_type' => $semesterType,
                     'kelompok_besar' => $kelompokBesar,
@@ -1761,6 +1817,27 @@ class JadwalSeminarPlenoController extends Controller
             'status_konfirmasi' => $request->status,
             'alasan_konfirmasi' => $request->alasan
         ]);
+
+        // Save to RiwayatKonfirmasiDosen for per-dosen tracking
+        \App\Models\RiwayatKonfirmasiDosen::updateOrCreate(
+            [
+                'dosen_id' => $request->dosen_id,
+                'jadwal_id' => $id,
+                'jadwal_type' => 'seminar_pleno'
+            ],
+            [
+                'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                'mata_kuliah_nama' => $jadwal->mataKuliah->nama ?? 'Unknown',
+                'tanggal' => $jadwal->tanggal,
+                'jam_mulai' => $jadwal->jam_mulai,
+                'jam_selesai' => $jadwal->jam_selesai,
+                'ruangan' => $jadwal->ruangan->nama ?? null,
+                'topik' => $jadwal->topik,
+                'status_konfirmasi' => $request->status,
+                'alasan_konfirmasi' => $request->alasan,
+                'waktu_konfirmasi' => now()
+            ]
+        );
 
         // Get dosen info
         $dosen = User::find($request->dosen_id);
@@ -1944,6 +2021,129 @@ class JadwalSeminarPlenoController extends Controller
             Log::info("Reschedule notification sent for Seminar Pleno jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
             Log::error("Error sending reschedule notification: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Kirim notifikasi ke mahasiswa terkait jadwal Seminar Pleno
+     */
+    private function sendNotificationToMahasiswa($jadwal, $isUpdate = false)
+    {
+        try {
+            $mataKuliah = $jadwal->mataKuliah;
+            if (!$mataKuliah) {
+                return;
+            }
+
+            $mahasiswaIds = [];
+
+            // Jika ada kelompok_besar_antara_id (Semester Antara)
+            if ($jadwal->kelompok_besar_antara_id) {
+                $kelompokAntara = KelompokBesarAntara::find($jadwal->kelompok_besar_antara_id);
+                if ($kelompokAntara && !empty($kelompokAntara->mahasiswa_ids)) {
+                    $ids = is_array($kelompokAntara->mahasiswa_ids) ? $kelompokAntara->mahasiswa_ids : json_decode($kelompokAntara->mahasiswa_ids, true);
+                    if (is_array($ids)) {
+                        $mahasiswaIds = array_merge($mahasiswaIds, $ids);
+                    }
+                }
+            } else {
+            // Semester reguler - ambil dari kelompok besar atau semester mata kuliah
+            // kelompok_besar_id di jadwal bisa menyimpan semester (int) atau ID foreign key
+            $semester = $jadwal->kelompok_besar_id;
+            
+            // Jika itu ID, ambil semester dari tabel
+            if ($semester) {
+                $kb = KelompokBesar::find($semester);
+                if ($kb) {
+                    $semester = $kb->semester;
+                }
+            }
+            
+            // Jika masih null, ambil dari mata kuliah
+            if (!$semester) {
+                $semester = $mataKuliah->semester ?? null;
+            }
+
+            if ($semester && $semester !== 'Antara') {
+                $mahasiswaIds = KelompokBesar::where('semester', (int)$semester)
+                    ->pluck('mahasiswa_id')
+                    ->toArray();
+
+                // Juga check users table sebagai fallback
+                $fallbackIds = User::where('role', 'mahasiswa')
+                    ->where('semester', (int)$semester)
+                    ->pluck('id')
+                    ->toArray();
+
+                $mahasiswaIds = array_unique(array_merge($mahasiswaIds, $fallbackIds));
+            }
+        }
+
+        if (empty($mahasiswaIds)) {
+            Log::warning("No mahasiswa found for Seminar Pleno notification. Semester: {$semester}");
+            return;
+        }
+
+        $mahasiswaList = User::whereIn('id', $mahasiswaIds)->get();
+        $title = $isUpdate ? 'Update Jadwal Seminar Pleno' : 'Jadwal Seminar Pleno Baru';
+        $actionWord = $isUpdate ? 'telah diperbarui' : 'telah ditambahkan';
+
+        $currentUser = Auth::user();
+
+        foreach ($mahasiswaList as $mahasiswa) {
+            Notification::create([
+                'user_id' => $mahasiswa->id,
+                'type' => 'info',
+                'title' => $title,
+                'message' => "Jadwal Seminar Pleno {$mataKuliah->nama} {$actionWord}: " . date('d/m/Y', strtotime($jadwal->tanggal)) . " jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}.",
+                'is_read' => false,
+                'data' => [
+                    'jadwal_type' => 'seminar_pleno',
+                    'jadwal_id' => $jadwal->id,
+                    'mata_kuliah_kode' => $mataKuliah->kode,
+                    'mata_kuliah_nama' => $mataKuliah->nama,
+                    'tanggal' => $jadwal->tanggal,
+                    'jam_mulai' => $jadwal->jam_mulai,
+                    'jam_selesai' => $jadwal->jam_selesai,
+                    'topik' => $jadwal->topik,
+                    'ruangan' => $jadwal->ruangan->nama ?? 'Tidak ada',
+                    'created_by' => $currentUser ? $currentUser->name : 'Admin',
+                    'created_by_role' => $currentUser ? $currentUser->role : 'admin',
+                    'sender_name' => $currentUser ? $currentUser->name : 'Admin',
+                    'sender_role' => $currentUser ? $currentUser->role : 'admin'
+                ]
+            ]);
+        }
+
+            Log::info("Seminar Pleno notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
+
+        // Kirim WhatsApp (Broadcast)
+        if (count($mahasiswaList) > 0) {
+            $wablasService = app(\App\Services\WablasService::class);
+            if ($wablasService->isEnabled()) {
+                $messages = [];
+                foreach ($mahasiswaList as $mahasiswa) {
+                    if ($mahasiswa->whatsapp_phone || $mahasiswa->telp) {
+                        $phone = $mahasiswa->whatsapp_phone ?? $mahasiswa->telp;
+                        $messages[] = [
+                            'phone' => $phone,
+                            'message' => "Halo {$mahasiswa->name},\n\n{$title} untuk mata kuliah *{$mataKuliah->nama}* {$actionWord}:\n\n- Tanggal: " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n- Waktu: {$jadwal->jam_mulai} - {$jadwal->jam_selesai}\n- Ruangan: " . ($jadwal->ruangan->nama ?? 'Tidak ada') . "\n- Topik: " . ($jadwal->topik ?? '-') . "\n\nSilakan cek dashboard ISME Anda untuk detail lebih lanjut.",
+                        ];
+                    }
+                }
+
+                if (!empty($messages)) {
+                    // Kirim bulk jika banyak, atau satu per satu
+                    if (count($messages) > 1) {
+                        $wablasService->sendBulkMessage($messages);
+                    } else {
+                        $wablasService->sendMessage($messages[0]['phone'], $messages[0]['message']);
+                    }
+                }
+            }
+        }
+        } catch (\Exception $e) {
+            Log::error("Error sending Seminar Pleno notifications to mahasiswa: " . $e->getMessage());
         }
     }
 
@@ -2206,13 +2406,22 @@ class JadwalSeminarPlenoController extends Controller
                     $semester = $jadwal->kelompok_besar_id ?? ($jadwal->mataKuliah->semester ?? null);
 
                     if ($semester && $semester !== 'Antara') {
-                        $kelompokBesar = KelompokBesar::where('semester', $semester)->get();
+                        // Ambil mahasiswa dari KelompokBesar
+                        $mahasiswaIds = \App\Models\KelompokBesar::where('semester', (int)$semester)
+                            ->pluck('mahasiswa_id')
+                            ->toArray();
 
-                        if ($kelompokBesar->isNotEmpty()) {
-                            $mahasiswaIds = $kelompokBesar->pluck('mahasiswa_id')->toArray();
+                        // Ambil mahasiswa dari users table sebagai fallback
+                        $fallbackIds = \App\Models\User::where('role', 'mahasiswa')
+                            ->where('semester', (int)$semester)
+                            ->pluck('id')
+                            ->toArray();
 
-                            $mahasiswaList = User::where('role', 'mahasiswa')
-                                ->whereIn('id', $mahasiswaIds)
+                        $allMahasiswaIds = array_unique(array_merge($mahasiswaIds, $fallbackIds));
+
+                        if (!empty($allMahasiswaIds)) {
+                            $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
+                                ->whereIn('id', $allMahasiswaIds)
                                 ->get();
                             $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
                         }

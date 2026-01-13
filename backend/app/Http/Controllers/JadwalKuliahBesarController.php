@@ -23,7 +23,8 @@ class JadwalKuliahBesarController extends Controller
     // List semua jadwal kuliah besar untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalKuliahBesar::with(['mataKuliah', 'dosen', 'ruangan', 'kelompokBesarAntara'])
+        $jadwal = JadwalKuliahBesar::WithoutSemesterFilter()
+            ->with(['mataKuliah', 'dosen', 'ruangan', 'kelompokBesarAntara'])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')
@@ -1814,9 +1815,9 @@ class JadwalKuliahBesarController extends Controller
             $mappedJadwal = $jadwal->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'tanggal' => $item->tanggal,
-                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
-                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                    'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                     'materi' => $item->materi ?? 'N/A',
                     'topik' => $item->topik ?? 'N/A',
                     'mata_kuliah_kode' => $item->mata_kuliah_kode,
@@ -2751,16 +2752,46 @@ class JadwalKuliahBesarController extends Controller
                 $isSemesterAntara = $jadwal->mataKuliah && $jadwal->mataKuliah->semester === 'Antara';
 
                 if (!$isSemesterAntara) {
-                    $semester = $jadwal->kelompok_besar_id ?? ($jadwal->mataKuliah->semester ?? null);
+                    $semester = null;
+
+                    // Ambil semester dari kelompok_besar_id
+                    if ($jadwal->kelompok_besar_id) {
+                        $kelompokBesarModel = KelompokBesar::find($jadwal->kelompok_besar_id);
+                        if ($kelompokBesarModel) {
+                            $semester = $kelompokBesarModel->semester;
+                        } else {
+                            $semester = $jadwal->kelompok_besar_id;
+                        }
+                    } elseif ($jadwal->mataKuliah && $jadwal->mataKuliah->semester) {
+                        $semester = $jadwal->mataKuliah->semester;
+                    }
 
                     if ($semester && $semester !== 'Antara') {
-                        $kelompokBesar = KelompokBesar::where('semester', $semester)->get();
+                        $semesterInt = is_numeric($semester) ? (int)$semester : $semester;
+
+                        $kelompokBesar = KelompokBesar::where(function ($q) use ($semesterInt, $semester) {
+                            $q->where('semester', $semesterInt)
+                                ->orWhere('semester', $semester);
+                        })->get();
 
                         if ($kelompokBesar->isNotEmpty()) {
                             $mahasiswaIds = $kelompokBesar->pluck('mahasiswa_id')->toArray();
 
                             $mahasiswaList = User::where('role', 'mahasiswa')
                                 ->whereIn('id', $mahasiswaIds)
+                                ->get();
+                            $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
+                        } else {
+                            // FALLBACK: Ambil langsung dari tabel users jika kelompok_besar kosong
+                            Log::info('Falling back to users table for student validation', [
+                                'semester' => $semester,
+                                'jadwal_id' => $jadwalId
+                            ]);
+                            $mahasiswaList = User::where('role', 'mahasiswa')
+                                ->where(function ($q) use ($semesterInt, $semester) {
+                                    $q->where('semester', $semesterInt)
+                                        ->orWhere('semester', $semester);
+                                })
                                 ->get();
                             $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
                         }

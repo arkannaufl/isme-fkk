@@ -53,7 +53,17 @@ export default function TahunAjaran() {
     null
   );
   const [isSaving, setIsSaving] = useState(false);
+
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Confirmation Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingActivation, setPendingActivation] = useState<{
+    type: 'tahun_ajaran' | 'semester';
+    id: number;
+    name: string;
+  } | null>(null);
+  const [updateStudentSemester, setUpdateStudentSemester] = useState(true); // Default Yes
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -93,7 +103,7 @@ export default function TahunAjaran() {
   // Memoize handler
   const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
+
     if (name === 'tahun') {
       // Auto-complete tahun ajaran format
       if (value.length === 4 && /^\d{4}$/.test(value)) {
@@ -142,7 +152,7 @@ export default function TahunAjaran() {
       setError("Tahun ajaran yang sedang aktif tidak dapat dihapus. Silakan aktifkan tahun ajaran lain terlebih dahulu.");
       return;
     }
-    
+
     setSelectedDeleteId(id);
     setShowDeleteModal(true);
   }, [data]);
@@ -180,100 +190,98 @@ export default function TahunAjaran() {
     setModalError(null);
   }, []);
 
+
+
+  const handleActivateClick = (type: 'tahun_ajaran' | 'semester', id: number, name: string) => {
+    setPendingActivation({ type, id, name });
+    setUpdateStudentSemester(true); // Default check "Update Semester"
+    setShowConfirmModal(true);
+  };
+
+  const processActivation = async () => {
+    if (!pendingActivation) return;
+
+    setShowConfirmModal(false);
+    const { type, id } = pendingActivation;
+    const updateSemester = updateStudentSemester;
+
+    // Clear pending state
+    setPendingActivation(null);
+
+    // Call respective handler with update flag
+    if (type === 'tahun_ajaran') {
+      await handleActivate(id, updateSemester);
+    } else {
+      await handleSemesterActivate(id, updateSemester);
+    }
+  };
+
+  const cancelActivation = () => {
+    setShowConfirmModal(false);
+    setPendingActivation(null);
+  };
+
   const handleActivate = useCallback(
-    async (id: number) => {
+    async (id: number, updateSemester: boolean) => {
       setSuccess(null);
       setError(null);
       setLoadingTahunAjaranId(id);
-      const prevData = [...data];
-      setData((prev) =>
-        prev.map((t) => {
-          if (t.id === id) {
-            return {
-              ...t,
-              aktif: true,
-              semesters: t.semesters.map((s, i) => ({
-                ...s,
-                aktif: s.jenis === "Ganjil" || i === 0,
-              })),
-            };
-          } else {
-            return {
-              ...t,
-              aktif: false,
-              semesters: t.semesters.map((s) => ({ ...s, aktif: false })),
-            };
-          }
-        })
-      );
-      setExpandedRows([id]);
+
+      // Optimistic update omitted for complexity with API response sync
+      // We rely on loading state
+
       try {
-        const response = await api.post(`/tahun-ajaran/${id}/activate`);
+        const response = await api.post(`/tahun-ajaran/${id}/activate`, {
+          update_student_semester: updateSemester
+        });
         setSuccess("Status tahun ajaran berhasil diubah.");
-        setData((prev) =>
-          prev.map((t) => {
-            if (t.id === id) {
-              return { ...response.data, semesters: response.data.semesters };
-            } else {
-              return {
-                ...t,
-                aktif: false,
-                semesters: t.semesters.map((s) => ({ ...s, aktif: false })),
-              };
-            }
-          })
-        );
-      } catch (error) {
-        setError("Gagal mengaktifkan tahun ajaran.");
-        setData(prevData);
+
+        // Refresh full data to get updated semester statuses
+        fetchData();
+
+      } catch (error: any) {
+        console.error("Error activating academic year:", error);
+        if (error.response?.status === 500) {
+          setError("Gagal mengaktifkan tahun ajaran. Terjadi konflik data. Jika Anda memindahkan periode ke semester yang sudah pernah aktif sebelumnya, pastikan untuk memilih 'No' pada opsi 'Update Semester Mahasiswa'.");
+        } else {
+          setError(handleApiError(error, "Mengaktifkan tahun ajaran"));
+        }
+        fetchData();
       } finally {
         setLoadingTahunAjaranId(null);
       }
     },
-    [data]
+    [fetchData]
   );
 
   const handleSemesterActivate = useCallback(
-    async (semesterId: number) => {
+    async (semesterId: number, updateSemester: boolean) => {
       setSuccess(null);
       setError(null);
       setLoadingSemesterId(semesterId);
-      const prevData = [...data];
-      setData((prev) =>
-        prev.map((t) => ({
-          ...t,
-          semesters: t.semesters.map((s) => ({
-            ...s,
-            aktif: s.id === semesterId,
-          })),
-        }))
-      );
+
       try {
-        const response = await api.post(`/semesters/${semesterId}/activate`);
+        const response = await api.post(`/semesters/${semesterId}/activate`, {
+          update_student_semester: updateSemester
+        });
         setSuccess("Status semester berhasil diubah.");
-        const updatedTahunAjaran = response.data.tahun_ajaran;
-        setData((prev) =>
-          prev.map((t) => {
-            if (t.id === updatedTahunAjaran.id) {
-              return { ...t, semesters: updatedTahunAjaran.semesters };
-            } else {
-              return {
-                ...t,
-                semesters: t.semesters.map((s) => ({ ...s, aktif: false })),
-              };
-            }
-          })
-        );
+
+        // Refresh full data
+        fetchData();
+
       } catch (error: any) {
         console.error('Error activating semester:', error);
-        console.error('Error details:', handleApiError(error, 'Mengaktifkan semester'));
-        setError(handleApiError(error, 'Mengaktifkan semester'));
-        setData(prevData);
+        if (error.response?.status === 500) {
+          setError("Gagal mengaktifkan semester. Terjadi konflik data. Jika Anda memindahkan periode ke semester yang sudah pernah aktif sebelumnya, pastikan untuk memilih 'No' pada opsi 'Update Semester Mahasiswa' agar tidak terjadi tabrakan data.");
+        } else {
+          setError(handleApiError(error, 'Mengaktifkan semester'));
+        }
+        fetchData();
       } finally {
         setLoadingSemesterId(null);
       }
     },
-    [data]
+    [fetchData]
   );
 
   const toggleRowExpansion = useCallback((id: number) => {
@@ -299,11 +307,19 @@ export default function TahunAjaran() {
         idx,
         toggleRowExpansion,
         expandedRows,
+        handleActivateClick,
+        loadingTahunAjaranId,
+        handleDelete,
+        handleSemesterActivateClick
       }: {
         t: TahunAjaran;
         idx: number;
         toggleRowExpansion: (id: number) => void;
         expandedRows: number[];
+        handleActivateClick: (type: 'tahun_ajaran' | 'semester', id: number, name: string) => void;
+        loadingTahunAjaranId: number | null;
+        handleDelete: (id: number) => void;
+        handleSemesterActivateClick: (type: 'tahun_ajaran' | 'semester', id: number, name: string) => void;
       }) {
         return (
           <React.Fragment key={t.id}>
@@ -354,15 +370,13 @@ export default function TahunAjaran() {
                         );
                         return;
                       }
-                      handleActivate(t.id);
+                      handleActivateClick('tahun_ajaran', t.id, t.tahun);
                     }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 outline-none ${
-                      t.aktif ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-700"
-                    } ${
-                      loadingTahunAjaranId === t.id
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 outline-none ${t.aktif ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-700"
+                      } ${loadingTahunAjaranId === t.id
                         ? "opacity-60 cursor-wait"
                         : ""
-                    } ${t.aktif ? "cursor-not-allowed" : ""}`}
+                      } ${t.aktif ? "cursor-not-allowed" : ""}`}
                     disabled={loadingTahunAjaranId === t.id}
                   >
                     {loadingTahunAjaranId === t.id ? (
@@ -389,19 +403,17 @@ export default function TahunAjaran() {
                       </span>
                     ) : null}
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition duration-200 ${
-                        t.aktif ? "translate-x-6" : "translate-x-1"
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition duration-200 ${t.aktif ? "translate-x-6" : "translate-x-1"
+                        }`}
                     />
                   </button>
                   <button
                     onClick={() => handleDelete(t.id)}
                     disabled={t.aktif}
-                    className={`inline-flex items-center gap-1 px-2 py-1 text-sm font-medium transition ${
-                      t.aktif 
-                        ? 'text-gray-400 cursor-not-allowed' 
-                        : 'text-red-500 hover:text-red-700 dark:hover:text-red-300'
-                    }`}
+                    className={`inline-flex items-center gap-1 px-2 py-1 text-sm font-medium transition ${t.aktif
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-red-500 hover:text-red-700 dark:hover:text-red-300'
+                      }`}
                     title={t.aktif ? "Tahun ajaran aktif tidak dapat dihapus" : "Delete"}
                   >
                     <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
@@ -434,11 +446,10 @@ export default function TahunAjaran() {
                         {t.semesters.map((semester) => (
                           <div
                             key={`${t.id}-${semester.id}`}
-                            className={`p-4 rounded-xl border transition-all ${
-                              semester.aktif
-                                ? "border-brand-300 bg-brand-50/50 dark:bg-brand-900/10 shadow-xs"
-                                : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                            } bg-white dark:bg-gray-800`}
+                            className={`p-4 rounded-xl border transition-all ${semester.aktif
+                              ? "border-brand-300 bg-brand-50/50 dark:bg-brand-900/10 shadow-xs"
+                              : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                              } bg-white dark:bg-gray-800`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
@@ -448,11 +459,10 @@ export default function TahunAjaran() {
                                     Semester {semester.jenis}
                                   </h4>
                                   <p
-                                    className={`text-xs ${
-                                      semester.aktif
-                                        ? "text-brand-600 dark:text-brand-400"
-                                        : "text-gray-500 dark:text-gray-400"
-                                    }`}
+                                    className={`text-xs ${semester.aktif
+                                      ? "text-brand-600 dark:text-brand-400"
+                                      : "text-gray-500 dark:text-gray-400"
+                                      }`}
                                   >
                                     {semester.aktif ? "Aktif" : "Nonaktif"}
                                   </p>
@@ -468,26 +478,22 @@ export default function TahunAjaran() {
                                     );
                                     return;
                                   }
-                                  handleSemesterActivate(semester.id);
+                                  handleSemesterActivateClick('semester', semester.id, `Semester ${semester.jenis}`);
                                 }}
                                 disabled={
                                   !t.aktif || loadingSemesterId === semester.id
                                 }
-                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 outline-none ${
-                                  semester.aktif
-                                    ? "bg-brand-500"
-                                    : "bg-gray-200 dark:bg-gray-700"
-                                } ${
-                                  !t.aktif
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 outline-none ${semester.aktif
+                                  ? "bg-brand-500"
+                                  : "bg-gray-200 dark:bg-gray-700"
+                                  } ${!t.aktif
                                     ? "opacity-50 cursor-not-allowed"
                                     : ""
-                                } ${
-                                  loadingSemesterId === semester.id
+                                  } ${loadingSemesterId === semester.id
                                     ? "opacity-60 cursor-wait"
                                     : ""
-                                } ${
-                                  semester.aktif ? "cursor-not-allowed" : ""
-                                }`}
+                                  } ${semester.aktif ? "cursor-not-allowed" : ""
+                                  }`}
                               >
                                 {loadingSemesterId === semester.id ? (
                                   <span className="absolute left-1/2 -translate-x-1/2">
@@ -513,11 +519,10 @@ export default function TahunAjaran() {
                                   </span>
                                 ) : null}
                                 <span
-                                  className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition duration-200 ${
-                                    semester.aktif
-                                      ? "translate-x-5"
-                                      : "translate-x-1"
-                                  }`}
+                                  className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition duration-200 ${semester.aktif
+                                    ? "translate-x-5"
+                                    : "translate-x-1"
+                                    }`}
                                 />
                               </button>
                             </div>
@@ -659,6 +664,10 @@ export default function TahunAjaran() {
                     key={t.id}
                     toggleRowExpansion={toggleRowExpansion}
                     expandedRows={expandedRows}
+                    handleActivateClick={handleActivateClick}
+                    loadingTahunAjaranId={loadingTahunAjaranId}
+                    handleDelete={handleDelete}
+                    handleSemesterActivateClick={handleActivateClick}
                   />
                 ))
               ) : (
@@ -745,9 +754,8 @@ export default function TahunAjaran() {
                       <button
                         onClick={handleAdd}
                         disabled={!form.tahun.trim() || isSaving}
-                        className={`px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition flex items-center justify-center min-w-[160px] ${
-                          isSaving ? "opacity-60 cursor-not-allowed" : ""
-                        }`}
+                        className={`px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition flex items-center justify-center min-w-[160px] ${isSaving ? "opacity-60 cursor-not-allowed" : ""
+                          }`}
                       >
                         {isSaving ? (
                           <>
@@ -841,9 +849,8 @@ export default function TahunAjaran() {
                     </button>
                     <button
                       onClick={confirmDelete}
-                      className={`px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center${
-                        isDeleting ? "opacity-60 cursor-not-allowed" : ""
-                      }`}
+                      className={`px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center${isDeleting ? "opacity-60 cursor-not-allowed" : ""
+                        }`}
                       disabled={isDeleting}
                     >
                       {isDeleting ? (
@@ -876,6 +883,92 @@ export default function TahunAjaran() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Activation Modal */}
+      <AnimatePresence>
+        {showConfirmModal && pendingActivation && (
+          <div className="fixed inset-0 z-[100002] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100002] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={cancelActivation}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-2xl z-[100003] border border-gray-100 dark:border-gray-800"
+            >
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                Konfirmasi Aktivasi
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                Anda akan mengaktifkan <span className="font-semibold text-brand-600 dark:text-brand-400">{pendingActivation.name}</span>.
+                Apakah Anda ingin memperbarui semester mahasiswa secara otomatis?
+              </p>
+
+              <div className="mb-6 space-y-3">
+                <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${updateStudentSemester ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                  <div className="flex items-center h-5">
+                    <input
+                      type="radio"
+                      name="update_semester"
+                      checked={updateStudentSemester}
+                      onChange={() => setUpdateStudentSemester(true)}
+                      className="focus:ring-brand-500 h-4 w-4 text-brand-600 border-gray-300"
+                    />
+                  </div>
+                  <div className="ml-3 text-sm">
+                    <span className={`block font-medium ${updateStudentSemester ? 'text-brand-800 dark:text-brand-300' : 'text-gray-900 dark:text-gray-100'}`}>
+                      Ya, Perbarui Semester Mahasiswa
+                    </span>
+                    <span className={`block mt-1 ${updateStudentSemester ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                      Semester mahasiswa akan <b>disesuaikan (Naik/Turun)</b> mengikut tahun ajaran ini. <br />
+                      - Jika maju tahun: Mahasiswa naik semester/lulus.<br />
+                      - Jika mundur tahun: Mahasiswa akan turun semester.
+                    </span>
+                  </div>
+                </label>
+
+                <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${!updateStudentSemester ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                  <div className="flex items-center h-5">
+                    <input
+                      type="radio"
+                      name="update_semester"
+                      checked={!updateStudentSemester}
+                      onChange={() => setUpdateStudentSemester(false)}
+                      className="focus:ring-brand-500 h-4 w-4 text-brand-600 border-gray-300"
+                    />
+                  </div>
+                  <div className="ml-3 text-sm">
+                    <span className={`block font-medium ${!updateStudentSemester ? 'text-brand-800 dark:text-brand-300' : 'text-gray-900 dark:text-gray-100'}`}>
+                      Tidak, Hanya Aktifkan Saja
+                    </span>
+                    <span className={`block mt-1 ${!updateStudentSemester ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                      Semester mahasiswa tidak akan berubah. Pilih ini jika hanya ingin mengganti periode aktif tanpa mempengaruhi data mahasiswa.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={cancelActivation}
+                  className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={processActivation}
+                  className="px-6 py-2 rounded-lg bg-brand-500 text-white font-medium shadow-theme-xs hover:bg-brand-600 transition"
+                >
+                  Simpan & Aktifkan
+                </button>
               </div>
             </motion.div>
           </div>

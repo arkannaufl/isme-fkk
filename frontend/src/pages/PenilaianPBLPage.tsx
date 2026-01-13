@@ -168,7 +168,7 @@ export default function PenilaianPBLPage() {
     // Tambahkan jadwal_id sebagai query parameter jika ada
     const penilaianUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
     const absensiUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
-    
+
     Promise.all([
       api.get(penilaianUrl),
       api.get(absensiUrl)
@@ -182,7 +182,7 @@ export default function PenilaianPBLPage() {
         const data = penilaianRes.data.penilaian || [];
         const pen: Penilaian = {};
         data.forEach((row: any) => {
-          
+
           // Pastikan mahasiswa_npm adalah string untuk konsistensi
           const npmKey = String(row.mahasiswa_npm);
           // Gunakan nilai dari database, hanya set default jika benar-benar null/undefined
@@ -205,7 +205,7 @@ export default function PenilaianPBLPage() {
           }
           if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
         });
-        
+
         // Set default tanggal ke tanggal sekarang jika belum ada tanggal_paraf
         const firstRowWithTanggal = data.find((r: any) => r.tanggal_paraf);
         if (!firstRowWithTanggal?.tanggal_paraf) {
@@ -213,13 +213,13 @@ export default function PenilaianPBLPage() {
           const todayFormatted = today.toISOString().split('T')[0];
           setTanggalParaf(todayFormatted);
         }
-        
+
         // Set nama tutor dari dosen pengampu (selalu ambil dari backend, bukan dari database)
         const namaDosenPengampu = penilaianRes.data.nama_dosen_pengampu;
         if (namaDosenPengampu) {
           setNamaTutor(namaDosenPengampu);
         }
-        
+
         setPenilaian(pen);
         setNamaModul(penilaianRes.data.nama_modul || ""); // Ambil nama modul dari response API
         setIsPBL2(penilaianRes.data.is_pbl_2 || false); // Set status PBL 2 dari backend
@@ -279,16 +279,16 @@ export default function PenilaianPBLPage() {
           });
         }
         setAbsensi(abs);
-        
+
         // Simpan data awal sebagai referensi untuk deteksi perubahan
         // Ambil tanggal paraf dari data pertama yang memiliki tanggal_paraf, atau gunakan tanggal sekarang
-        const initialTanggalParaf = firstRowWithTanggal?.tanggal_paraf 
-          ? firstRowWithTanggal.tanggal_paraf.split('T')[0] 
+        const initialTanggalParaf = firstRowWithTanggal?.tanggal_paraf
+          ? firstRowWithTanggal.tanggal_paraf.split('T')[0]
           : (new Date().toISOString().split('T')[0]);
         const initialSignatureParaf = firstRowWithTanggal?.signature_paraf || null;
         // Nama tutor selalu dari dosen pengampu (bukan dari database)
         const initialNamaTutor = namaDosenPengampu || "";
-        
+
         initialDataRef.current = {
           penilaian: pen,
           absensi: abs,
@@ -329,19 +329,19 @@ export default function PenilaianPBLPage() {
     }
 
     const initial = initialDataRef.current;
-    
+
     // Bandingkan penilaian
     const penilaianChanged = JSON.stringify(penilaian) !== JSON.stringify(initial.penilaian);
-    
+
     // Bandingkan absensi
     const absensiChanged = JSON.stringify(absensi) !== JSON.stringify(initial.absensi);
-    
+
     // Bandingkan tanggal paraf, signature, dan nama tutor
-    const otherChanged = 
+    const otherChanged =
       tanggalParaf !== initial.tanggalParaf ||
       signatureParaf !== initial.signatureParaf ||
       namaTutor !== initial.namaTutor;
-    
+
     const hasChanges = penilaianChanged || absensiChanged || otherChanged;
     setHasUnsavedChanges(hasChanges);
   }, [penilaian, absensi, tanggalParaf, signatureParaf, namaTutor, loading, saving, canEdit]);
@@ -452,13 +452,13 @@ export default function PenilaianPBLPage() {
       };
       // Tambahkan jadwal_id sebagai query parameter jika ada
       const storeUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
-      
+
       await api.post(storeUrl, payload);
 
       // Update penilaian submitted status - untuk semua role, karena backend sudah update status
-        setPenilaianSubmitted(true);
+      setPenilaianSubmitted(true);
       setIncludeInReport(true);
-      
+
       // Update canEdit berdasarkan role
       const user = getUser();
       if (user) {
@@ -470,7 +470,7 @@ export default function PenilaianPBLPage() {
       setSuccess(
         `Absensi dan penilaian ${isPBL2 ? "PBL 2" : "PBL 1"} berhasil disimpan!`
       );
-      
+
       // Update initial data ref setelah save berhasil
       if (initialDataRef.current) {
         initialDataRef.current = {
@@ -585,7 +585,7 @@ export default function PenilaianPBLPage() {
       };
       // Tambahkan jadwal_id sebagai query parameter jika ada
       const absensiUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
-      
+
       await api.post(absensiUrl, payload);
       return true;
     } catch (error: any) {
@@ -830,9 +830,8 @@ export default function PenilaianPBLPage() {
 
       // Tanggal paraf di bawah kiri
       const tglRow = ttdBoxRow + 2;
-      sheet.getCell(`A${tglRow}`).value = `Jakarta, ${
-        tanggalParaf || "...................."
-      }`;
+      sheet.getCell(`A${tglRow}`).value = `Jakarta, ${tanggalParaf || "...................."
+        }`;
       sheet.getCell(`A${tglRow}`).alignment = { horizontal: "left" };
       sheet.getCell(`A${tglRow}`).font = { italic: true };
 
@@ -897,8 +896,8 @@ export default function PenilaianPBLPage() {
         <th>NPM</th>
         <th>NAMA</th>
         ${Object.keys(KRITERIA)
-          .map((k) => `<th>${k}</th>`)
-          .join("")}
+        .map((k) => `<th>${k}</th>`)
+        .join("")}
         <th>JUMLAH</th>
         <th>TOTAL NILAI</th>
         ${isPBL2 ? "<th>Peta Konsep (0-100)</th>" : ""}
@@ -914,15 +913,14 @@ export default function PenilaianPBLPage() {
         <td>${m.npm}</td>
         <td style="text-align:left;">${m.nama}</td>
         ${Object.keys(KRITERIA)
-          .map((k) => `<td>${(nilai as Record<string, number>)[k] ?? ""}</td>`)
-          .join("")}
+            .map((k) => `<td>${(nilai as Record<string, number>)[k] ?? ""}</td>`)
+            .join("")}
         <td>${hitungJumlah(m.npm)}</td>
         <td><strong>${hitungTotalNilai(m.npm)}</strong></td>
-        ${
-          isPBL2
+        ${isPBL2
             ? `<td>${(nilai as Record<string, number>)?.petaKonsep ?? ""}</td>`
             : ""
-        }
+          }
       </tr>`;
       })
       .join("");
@@ -934,8 +932,8 @@ export default function PenilaianPBLPage() {
           <h3>KETERANGAN</h3>
           <ul>
             ${Object.entries(KRITERIA)
-              .map(([k, v]) => `<li><strong>${k}:</strong> ${v}</li>`)
-              .join("")}
+        .map(([k, v]) => `<li><strong>${k}:</strong> ${v}</li>`)
+        .join("")}
           </ul>
         </div>
         <div class="info-col">
@@ -953,23 +951,20 @@ export default function PenilaianPBLPage() {
     const htmlParaf = `
       <div style="width:420px; margin:48px 0 0 auto; display:flex; justify-content:flex-end; align-items:flex-start; gap:32px;">
         <div style="width:200px;">
-          <div style="margin-bottom:8px;">Jakarta, ${
-            tanggalParaf || "...................."
-          }</div>
+          <div style="margin-bottom:8px;">Jakarta, ${tanggalParaf || "...................."
+      }</div>
           <div style="font-weight:normal; margin-top:5px; margin-bottom:20px;">TUTOR</div>
-          <div style="width:100%; text-align:center; font-size:14px; font-weight:normal; min-height:24px; margin-top:8px;">${
-            namaTutor || ""
-          }</div>
+          <div style="width:100%; text-align:center; font-size:14px; font-weight:normal; min-height:24px; margin-top:8px;">${namaTutor || ""
+      }</div>
           <div style="width:100%; border-bottom:2px dotted #ccc; margin:0 0 8px 0;"></div>
         </div>
         <div style="width:160px;">
           <div style="font-weight:normal; margin-bottom:9px; text-align:center;">PARAF</div>
           <div style="width:100%; height:60px; margin-bottom:0; ">
-            ${
-              signatureParaf
-                ? `<img src='${signatureParaf}' style='width:100%; height:60px; object-fit:contain; ' alt='TTD Paraf' />`
-                : ""
-            }
+            ${signatureParaf
+        ? `<img src='${signatureParaf}' style='width:100%; height:60px; object-fit:contain; ' alt='TTD Paraf' />`
+        : ""
+      }
           </div>
           <div style="width:100%; border-bottom:2px dotted #ccc; margin-top:5;"></div>
           
@@ -1120,11 +1115,10 @@ export default function PenilaianPBLPage() {
           <div className="text-center mb-4">
             <div className="flex justify-center gap-2 mb-2">
               <span
-                className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                  isPBL2
-                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                    : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                }`}
+                className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${isPBL2
+                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                  : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  }`}
               >
                 {isPBL2
                   ? "PBL 2 (Dengan Peta Konsep)"
@@ -1314,11 +1308,11 @@ export default function PenilaianPBLPage() {
                             onChange={(e) =>
                               handleAbsensiChange(m.npm, e.target.checked)
                             }
-                            className={`w-5 h-5 appearance-none rounded-md border-2 ${
-                              absensi[m.npm]?.hadir
-                                ? "border-brand-500 bg-brand-500"
-                                : "border-brand-500 bg-transparent"
-                            } transition-colors duration-150 focus:ring-2 focus:ring-brand-300 dark:focus:ring-brand-600 relative`}
+                            disabled={!canEdit}
+                            className={`w-5 h-5 appearance-none rounded-md border-2 ${absensi[m.npm]?.hadir
+                              ? "border-brand-500 bg-brand-500"
+                              : "border-brand-500 bg-transparent"
+                              } transition-colors duration-150 focus:ring-2 focus:ring-brand-300 dark:focus:ring-brand-600 relative ${!canEdit ? 'cursor-not-allowed opacity-60' : ''}`}
                             style={{ outline: "none" }}
                           />
                           {absensi[m.npm]?.hadir && (
@@ -1343,53 +1337,51 @@ export default function PenilaianPBLPage() {
                           }
                           disabled={!canEdit}
                           placeholder="Catatan..."
-                          className={`w-full text-center border rounded-md p-1 text-xs dark:text-gray-100 dark:placeholder-gray-400 ${
-                            canEdit
-                              ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
-                              : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
-                          }`}
+                          className={`w-full text-center border rounded-md p-1 text-xs dark:text-gray-100 dark:placeholder-gray-400 ${canEdit
+                            ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                            : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                            }`}
                         />
                       </td>
                       {Object.keys(KRITERIA).map((key) => {
                         const nilai = penilaian[m.npm]?.[key as keyof typeof KRITERIA];
                         return (
-                        <td
-                          key={key}
-                          className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200"
-                        >
-                          <input
-                            type="number"
-                            min="0"
-                            max="5"
-                            value={
-                              nilai !== null && nilai !== undefined ? nilai : ""
-                            }
-                            onChange={(e) =>
-                              handleInputChange(
-                                m.npm,
-                                key as keyof typeof KRITERIA,
-                                e.target.value
-                              )
-                            }
-                            disabled={!canEdit}
-                            className={`w-12 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
-                              canEdit
+                          <td
+                            key={key}
+                            className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200"
+                          >
+                            <input
+                              type="number"
+                              min="0"
+                              max="5"
+                              value={
+                                nilai !== null && nilai !== undefined ? nilai : ""
+                              }
+                              onChange={(e) =>
+                                handleInputChange(
+                                  m.npm,
+                                  key as keyof typeof KRITERIA,
+                                  e.target.value
+                                )
+                              }
+                              disabled={!canEdit}
+                              className={`w-12 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${canEdit
                                 ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
                                 : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
-                            }`}
-                          />
-                        </td>
-                      )})}
+                                }`}
+                            />
+                          </td>
+                        )
+                      })}
                       <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
                         {hitungJumlah(m.npm)}
                       </td>
                       <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200 font-medium">
                         <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            hitungTotalNilai(m.npm) > 0
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                          }`}
+                          className={`px-2 py-1 rounded text-xs ${hitungTotalNilai(m.npm) > 0
+                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                            : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                            }`}
                         >
                           {hitungTotalNilai(m.npm)}
                         </span>
@@ -1409,11 +1401,10 @@ export default function PenilaianPBLPage() {
                               )
                             }
                             disabled={!canEdit}
-                            className={`w-20 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
-                              !canEdit
-                                ? "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
-                                : "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
-                            }`}
+                            className={`w-20 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${!canEdit
+                              ? "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                              : "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                              }`}
                             placeholder="0-100 (Optional)"
                           />
                         </td>
@@ -1480,7 +1471,8 @@ export default function PenilaianPBLPage() {
                   type="date"
                   value={tanggalParaf}
                   onChange={(e) => setTanggalParaf(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
+                  disabled={!canEdit}
+                  className={`border rounded px-2 py-1 text-xs dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${!canEdit ? 'cursor-not-allowed opacity-60' : ''}`}
                 />
               </span>
               <span className="text-xs mb-5 dark:text-gray-200">TUTOR</span>
@@ -1525,23 +1517,26 @@ export default function PenilaianPBLPage() {
                 <button
                   type="button"
                   onClick={handleClearParaf}
-                  className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
+                  disabled={!canEdit}
+                  className={`text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600 ${!canEdit ? 'cursor-not-allowed opacity-50' : ''}`}
                 >
                   Clear
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveParaf}
-                  className="text-xs px-2 py-1 border rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-700 dark:hover:bg-blue-600 dark:text-gray-100 dark:border-gray-600"
+                  disabled={!canEdit}
+                  className={`text-xs px-2 py-1 border rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-700 dark:hover:bg-blue-600 dark:text-gray-100 dark:border-gray-600 ${!canEdit ? 'cursor-not-allowed opacity-50' : ''}`}
                 >
                   Simpan
                 </button>
-                <label className="text-xs px-2 py-1 border rounded bg-green-100 hover:bg-green-200 dark:bg-green-700 dark:hover:bg-green-600 dark:text-gray-100 dark:border-gray-600 cursor-pointer">
+                <label className={`text-xs px-2 py-1 border rounded bg-green-100 hover:bg-green-200 dark:bg-green-700 dark:hover:bg-green-600 dark:text-gray-100 dark:border-gray-600 cursor-pointer ${!canEdit ? 'cursor-not-allowed opacity-50 pointer-events-none' : ''}`}>
                   Upload TTD
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleUploadSignature(e)}
+                    disabled={!canEdit}
                     className="hidden"
                   />
                 </label>
@@ -1569,8 +1564,8 @@ export default function PenilaianPBLPage() {
               {saving
                 ? "Menyimpan..."
                 : canEdit
-                ? "Simpan Absensi & Penilaian"
-                : "Penilaian Sudah Disubmit"}
+                  ? "Simpan Absensi & Penilaian"
+                  : "Penilaian Sudah Disubmit"}
             </button>
           </div>
         </div>

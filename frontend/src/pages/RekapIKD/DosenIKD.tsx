@@ -1654,10 +1654,12 @@ const DosenIKD: React.FC = () => {
                                                           {buktiFisik.file_name}
                                                         </span>
                                                       </button>
-                                                      {/* Delete button - hanya dosen yang bisa hapus file sendiri */}
+                                                      {/* Delete button - hanya dosen yang bisa hapus file sendiri, dan hanya untuk file yang belum diverifikasi atau status perbaiki */}
                                                       {isDosen &&
                                                         dosen.id ===
-                                                        user?.id && (
+                                                        user?.id &&
+                                                        buktiFisik.status_verifikasi !== "salah" &&
+                                                        buktiFisik.status_verifikasi !== "benar" && (
                                                           <button
                                                             onClick={() =>
                                                               handleDeleteClick(

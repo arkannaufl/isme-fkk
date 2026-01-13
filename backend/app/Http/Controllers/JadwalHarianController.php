@@ -9,6 +9,7 @@ use App\Models\JadwalKuliahBesar;
 use App\Models\JadwalPraktikum;
 use App\Models\JadwalJurnalReading;
 use App\Models\JadwalAgendaKhusus;
+use App\Models\JadwalSeminarPleno;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -27,9 +28,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => $item->tanggal,
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => $item->jenis_baris,
                         'agenda' => $item->agenda,
@@ -53,9 +54,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => $item->tanggal,
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -79,9 +80,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => $item->tanggal,
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -105,9 +106,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => $item->tanggal,
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -125,15 +126,30 @@ class JadwalHarianController extends Controller
                     ];
                 });
 
-            $praktikum = JadwalPraktikum::with(['mataKuliah', 'ruangan'])
+            $praktikum = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen' => function($q) {
+                $q->withPivot('status_konfirmasi', 'alasan_konfirmasi');
+            }])
                 ->get()
                 ->map(function ($item) {
+                    $dosenList = $item->dosen->map(function($d) {
+                        return [
+                            'id' => $d->id,
+                            'name' => $d->name,
+                            'status_konfirmasi' => $d->pivot->status_konfirmasi ?? 'belum_konfirmasi'
+                        ];
+                    });
+                    
+                    $firstStatus = 'belum_konfirmasi';
+                    if ($item->dosen->isNotEmpty()) {
+                        $firstStatus = $item->dosen->first()->pivot->status_konfirmasi ?? 'belum_konfirmasi';
+                    }
+
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => $item->tanggal,
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -143,9 +159,10 @@ class JadwalHarianController extends Controller
                         'kelompok_besar_id' => null,
                         'kelompok_besar_antara_id' => null,
                         'use_ruangan' => true,
-                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_konfirmasi' => $firstStatus,
                         'mata_kuliah' => $item->mataKuliah,
-                        'dosen' => null,
+                        'dosen' => $item->dosen, // Keep the full relation for details
+                        'dosen_list' => $dosenList,
                         'ruangan' => $item->ruangan,
                         'jenis_jadwal' => 'praktikum'
                     ];
@@ -157,9 +174,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => $item->tanggal,
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -177,6 +194,35 @@ class JadwalHarianController extends Controller
                     ];
                 });
 
+            $seminarPleno = JadwalSeminarPleno::with(['mataKuliah', 'ruangan'])
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'mata_kuliah_kode' => $item->mata_kuliah_kode,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
+                        'jumlah_sesi' => $item->jumlah_sesi,
+                        'jenis_baris' => 'materi',
+                        'agenda' => null,
+                        'materi' => $item->topik,
+                        'dosen_id' => null,
+                        'ruangan_id' => $item->ruangan_id,
+                        'kelompok_besar_id' => $item->kelompok_besar_id,
+                        'kelompok_besar_antara_id' => $item->kelompok_besar_antara_id,
+                        'use_ruangan' => $item->use_ruangan,
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'mata_kuliah' => $item->mataKuliah,
+                        'dosen' => null,
+                        'dosen_ids' => $item->dosen_ids,
+                        'koordinator_ids' => $item->koordinator_ids,
+                        'dosen_names' => $item->getDosenNamesAttribute(),
+                        'ruangan' => $item->ruangan,
+                        'jenis_jadwal' => 'seminar_pleno'
+                    ];
+                });
+
             // Combine all schedules
             $allSchedules = collect()
                 ->merge($nonBlokNonCSR)
@@ -185,6 +231,7 @@ class JadwalHarianController extends Controller
                 ->merge($kuliahBesar)
                 ->merge($praktikum)
                 ->merge($jurnalReading)
+                ->merge($seminarPleno)
                 ->sortBy(['tanggal', 'jam_mulai'])
                 ->values();
 
@@ -222,9 +269,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => is_string($item->tanggal) ? $item->tanggal : $item->tanggal->format('Y-m-d'),
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => $item->jenis_baris,
                         'agenda' => $item->agenda,
@@ -253,9 +300,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => is_string($item->tanggal) ? $item->tanggal : $item->tanggal->format('Y-m-d'),
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -283,9 +330,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => is_string($item->tanggal) ? $item->tanggal : $item->tanggal->format('Y-m-d'),
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -314,9 +361,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => is_string($item->tanggal) ? $item->tanggal : $item->tanggal->format('Y-m-d'),
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -338,16 +385,31 @@ class JadwalHarianController extends Controller
             $allSchedules = $allSchedules->concat($kuliahBesar);
 
             // Get JadwalPraktikum
-            $praktikum = JadwalPraktikum::with(['mataKuliah', 'ruangan'])
+            $praktikum = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen' => function($q) {
+                $q->withPivot('status_konfirmasi', 'alasan_konfirmasi');
+            }])
                 ->where('mata_kuliah_kode', $actualKode)
                 ->get()
                 ->map(function ($item) {
+                    $dosenList = $item->dosen->map(function($d) {
+                        return [
+                            'id' => $d->id,
+                            'name' => $d->name,
+                            'status_konfirmasi' => $d->pivot->status_konfirmasi ?? 'belum_konfirmasi'
+                        ];
+                    });
+
+                    $firstStatus = 'belum_konfirmasi';
+                    if ($item->dosen->isNotEmpty()) {
+                        $firstStatus = $item->dosen->first()->pivot->status_konfirmasi ?? 'belum_konfirmasi';
+                    }
+
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => is_string($item->tanggal) ? $item->tanggal : $item->tanggal->format('Y-m-d'),
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -357,9 +419,10 @@ class JadwalHarianController extends Controller
                         'kelompok_besar_id' => null,
                         'kelompok_besar_antara_id' => null,
                         'use_ruangan' => true,
-                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_konfirmasi' => $firstStatus,
                         'mata_kuliah' => $item->mataKuliah,
-                        'dosen' => null,
+                        'dosen' => $item->dosen, // Full relation
+                        'dosen_list' => $dosenList,
                         'ruangan' => $item->ruangan,
                         'jenis_jadwal' => 'praktikum',
                         'jenis_jadwal_display' => 'Praktikum'
@@ -375,9 +438,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => is_string($item->tanggal) ? $item->tanggal : $item->tanggal->format('Y-m-d'),
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'materi',
                         'agenda' => null,
@@ -406,9 +469,9 @@ class JadwalHarianController extends Controller
                     return [
                         'id' => $item->id,
                         'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                        'tanggal' => is_string($item->tanggal) ? $item->tanggal : $item->tanggal->format('Y-m-d'),
-                        'jam_mulai' => $item->jam_mulai,
-                        'jam_selesai' => $item->jam_selesai,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                         'jumlah_sesi' => $item->jumlah_sesi,
                         'jenis_baris' => 'agenda',
                         'agenda' => $item->agenda,
@@ -428,6 +491,37 @@ class JadwalHarianController extends Controller
                 });
             $allSchedules = $allSchedules->concat($agendaKhusus);
 
+            // Get JadwalSeminarPleno
+            $seminarPleno = JadwalSeminarPleno::with(['mataKuliah', 'ruangan'])
+                ->where('mata_kuliah_kode', $actualKode)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'mata_kuliah_kode' => $item->mata_kuliah_kode,
+                        'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                        'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                        'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
+                        'jumlah_sesi' => $item->jumlah_sesi,
+                        'jenis_baris' => 'materi',
+                        'agenda' => null,
+                        'materi' => $item->topik,
+                        'dosen_id' => null,
+                        'ruangan_id' => $item->ruangan_id,
+                        'kelompok_besar_id' => $item->kelompok_besar_id,
+                        'kelompok_besar_antara_id' => $item->kelompok_besar_antara_id,
+                        'use_ruangan' => true,
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'mata_kuliah' => $item->mataKuliah,
+                        'dosen' => null,
+                        'dosen_names' => $item->getDosenNamesAttribute(),
+                        'ruangan' => $item->ruangan,
+                        'jenis_jadwal' => 'seminar_pleno',
+                        'jenis_jadwal_display' => 'Seminar Pleno'
+                    ];
+                });
+            $allSchedules = $allSchedules->concat($seminarPleno);
+
             // Sort all schedules by date and time
             $sortedSchedules = $allSchedules->sortBy(function ($item) {
                 return \Carbon\Carbon::parse($item['tanggal'] . ' ' . $item['jam_mulai']);
@@ -442,6 +536,7 @@ class JadwalHarianController extends Controller
                 'praktikum' => $praktikum->count(),
                 'jurnal_reading' => $jurnalReading->count(),
                 'agenda_khusus' => $agendaKhusus->count(),
+                'seminar_pleno' => $seminarPleno->count(),
                 'total' => $sortedSchedules->count()
             ]);
 
@@ -456,6 +551,7 @@ class JadwalHarianController extends Controller
                     'praktikum' => $praktikum->count(),
                     'jurnal_reading' => $jurnalReading->count(),
                     'agenda_khusus' => $agendaKhusus->count(),
+                    'seminar_pleno' => $seminarPleno->count(),
                     'total' => $sortedSchedules->count()
                 ]
             ]);
@@ -527,7 +623,14 @@ class JadwalHarianController extends Controller
                     return $item->dosen && collect($item->dosen)->contains('id', $dosenId);
                 })
                 ->map(function ($item) use ($dosenId) {
-                    $dosen = collect($item->dosen)->firstWhere('id', $dosenId);
+                    $dosen = collect($item->dosen)->firstWhere('id', (int)$dosenId);
+                    $status = 'belum_konfirmasi';
+                    if ($dosen && isset($dosen->pivot)) {
+                        $status = $dosen->pivot->status_konfirmasi ?? 'belum_konfirmasi';
+                    } elseif ($dosen && is_array($dosen) && isset($dosen['pivot'])) {
+                        $status = $dosen['pivot']['status_konfirmasi'] ?? 'belum_konfirmasi';
+                    }
+
                     return [
                         'id' => $item->id,
                         'type' => 'praktikum',
@@ -536,7 +639,7 @@ class JadwalHarianController extends Controller
                         'ruangan' => $item->ruangan->nama ?? 'N/A',
                         'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
                         'topik' => $item->materi ?? 'N/A',
-                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'status_konfirmasi' => $status,
                         'status_reschedule' => $item->status_reschedule,
                         'semester_type' => $item->semester_type,
                     ];
@@ -605,6 +708,38 @@ class JadwalHarianController extends Controller
                     ];
                 });
             $todaySchedules = $todaySchedules->concat($nonBlokSchedules);
+
+            // Get Seminar Pleno schedules for today
+            $seminarPlenoSchedules = \App\Models\JadwalSeminarPleno::with(['mataKuliah', 'ruangan'])
+                ->where('tanggal', $today)
+                ->get()
+                ->filter(function ($item) use ($dosenId) {
+                    $koordinatorIds = is_array($item->koordinator_ids) ? $item->koordinator_ids : json_decode($item->koordinator_ids, true) ?? [];
+                    $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true) ?? [];
+                    return in_array((int)$dosenId, array_map('intval', $koordinatorIds)) || 
+                           in_array((int)$dosenId, array_map('intval', $dosenIds));
+                })
+                ->map(function ($item) use ($dosenId) {
+                    // Get individual confirmation status for this dosen from RiwayatKonfirmasiDosen
+                    $konfirmasi = \App\Models\RiwayatKonfirmasiDosen::where('jadwal_type', 'seminar_pleno')
+                        ->where('jadwal_id', $item->id)
+                        ->where('dosen_id', $dosenId)
+                        ->first();
+                    
+                    return [
+                        'id' => $item->id,
+                        'type' => 'seminar_pleno',
+                        'mata_kuliah' => $item->mataKuliah->nama ?? 'N/A',
+                        'dosen' => $item->getDosenNamesAttribute(),
+                        'ruangan' => $item->ruangan->nama ?? 'N/A',
+                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                        'topik' => $item->topik ?? 'N/A',
+                        'status_konfirmasi' => $konfirmasi ? $konfirmasi->status_konfirmasi : 'belum_konfirmasi',
+                        'status_reschedule' => null,
+                        'semester_type' => $item->mataKuliah && $item->mataKuliah->semester === 'Antara' ? 'antara' : 'reguler',
+                    ];
+                });
+            $todaySchedules = $todaySchedules->concat($seminarPlenoSchedules);
 
             // Sort by time - extract start time for sorting
             $sortedSchedules = $todaySchedules->sortBy(function ($item) {

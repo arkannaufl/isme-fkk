@@ -85,8 +85,13 @@ class JadwalSeminarPleno extends Model
      */
     public function getDosenNamesAttribute()
     {
-        if ($this->dosen_ids && is_array($this->dosen_ids)) {
-            $dosenNames = User::whereIn('id', $this->dosen_ids)->pluck('name')->toArray();
+        $allIds = array_unique(array_merge(
+            is_array($this->dosen_ids) ? $this->dosen_ids : [],
+            is_array($this->koordinator_ids) ? $this->koordinator_ids : []
+        ));
+
+        if (!empty($allIds)) {
+            $dosenNames = User::whereIn('id', $allIds)->pluck('name')->toArray();
             return implode(', ', $dosenNames);
         }
         return '';

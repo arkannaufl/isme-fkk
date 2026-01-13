@@ -255,15 +255,9 @@ const getNavItems = (userRole?: string): NavItem[] => {
       roles: ["super_admin", "tim_akademik"],
     },
     {
-      icon: <ListIcon />,
-      name: "Mata Kuliah",
-      path: "/mata-kuliah-mahasiswa",
-      roles: ["mahasiswa"],
-    },
-    {
-      icon: <PieChartIcon />,
-      name: "Nilai Akademik",
-      path: "/nilai-mahasiswa",
+      icon: <AcademicIcon />,
+      name: "Absen",
+      path: "/akademik-mahasiswa",
       roles: ["mahasiswa"],
     },
     {
@@ -276,12 +270,6 @@ const getNavItems = (userRole?: string): NavItem[] => {
       icon: <PetaBlokIcon />,
       name: "Peta Blok",
       path: "/peta-blok",
-      roles: ["mahasiswa"],
-    },
-    {
-      icon: <DetailKeabsenanIcon />,
-      name: "Detail Keabsenan",
-      path: "/detail-mahasiswa-keabsenan",
       roles: ["mahasiswa"],
     },
     {

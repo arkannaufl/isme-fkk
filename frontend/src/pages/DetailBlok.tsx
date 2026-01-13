@@ -22630,21 +22630,16 @@ export default function DetailBlok() {
                         ) : (
                           <Select
                             options={uniqueKelompok}
-                            isMulti
                             value={
-                              Array.isArray(form.kelompok)
-                                ? uniqueKelompok.filter((opt) =>
-                                  form.kelompok.includes(opt.value)
-                                )
-                                : uniqueKelompok.filter(
-                                  (opt) => opt.value === form.kelompok
-                                )
+                              uniqueKelompok.find(
+                                (opt) => opt.value === form.kelompok
+                              ) || null
                             }
-                            onChange={(newValue) => {
-                              const selectedValues = newValue
-                                ? newValue.map((opt) => opt.value)
-                                : [];
-                              setForm((f) => ({ ...f, kelompok: selectedValues }));
+                            onChange={(opt) => {
+                              setForm((f) => ({
+                                ...f,
+                                kelompok: opt ? opt.value : "",
+                              }));
                             }}
                             placeholder="Pilih Kelompok"
                             isClearable

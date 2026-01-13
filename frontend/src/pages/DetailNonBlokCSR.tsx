@@ -308,7 +308,7 @@ export default function DetailNonBlokCSR() {
   const [showModal, setShowModal] = useState(false);
   const [jadwalCSR, setJadwalCSR] = useState<JadwalCSR[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // State untuk dropdown options
   const [kelompokKecilList, setKelompokKecilList] = useState<KelompokKecilOption[]>([]);
   const [kategoriList, setKategoriList] = useState<KategoriOption[]>([]);
@@ -319,7 +319,7 @@ export default function DetailNonBlokCSR() {
   // Pagination state for CSR schedule
   const [csrPage, setCsrPage] = useState(1);
   const [csrPageSize, setCsrPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  
+
   const [form, setForm] = useState<{
     jenis_csr: 'reguler' | 'responsi' | '';
     tanggal: string;
@@ -350,7 +350,7 @@ export default function DetailNonBlokCSR() {
   const [selectedDeleteIndex, setSelectedDeleteIndex] = useState<number | null>(null);
   const [selectedKategoriValue, setSelectedKategoriValue] = useState<string | null>(null); // State untuk value dropdown
   const [selectedKeahlian, setSelectedKeahlian] = useState<string | null>(null); // State untuk keahlian yang dipilih
-  
+
   // Memoized ruangan options untuk optimisasi performa
   const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
 
@@ -373,7 +373,7 @@ export default function DetailNonBlokCSR() {
   const [showCSRTemplateSelectionModal, setShowCSRTemplateSelectionModal] = useState(false);
   const [showCSRImportModal, setShowCSRImportModal] = useState(false);
   const [showCSRSIAKADImportModal, setShowCSRSIAKADImportModal] = useState(false);
-  
+
   // State untuk Template Aplikasi
   const [csrImportFile, setCSRImportFile] = useState<File | null>(null);
   const [csrImportData, setCSRImportData] = useState<JadwalCSRType[]>([]);
@@ -385,7 +385,7 @@ export default function DetailNonBlokCSR() {
   const [csrImportedCount, setCSRImportedCount] = useState(0);
   const [isCSRImporting, setIsCSRImporting] = useState(false);
   const csrFileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // State untuk Template SIAKAD
   const [csrSiakadImportFile, setCSRSiakadImportFile] = useState<File | null>(null);
   const [csrSiakadImportData, setCSRSiakadImportData] = useState<JadwalCSRType[]>([]);
@@ -428,7 +428,7 @@ export default function DetailNonBlokCSR() {
         { id: 1, nama_kelompok: "1" },
         { id: 2, nama_kelompok: "2" }
       ];
-      
+
       const ruanganTersedia = ruanganList.length > 0 ? ruanganList.slice(0, 2) : [
         { id: 1, nama: "Ruangan 1" },
         { id: 2, nama: "Ruangan 2" }
@@ -439,7 +439,7 @@ export default function DetailNonBlokCSR() {
         { id: 2, name: "Dosen 2" }
       ];
 
-      const keahlianTersedia = kategoriList.length > 0 ? kategoriList.flatMap(kategori => 
+      const keahlianTersedia = kategoriList.length > 0 ? kategoriList.flatMap(kategori =>
         (kategori.keahlian_required || []).slice(0, 1)
       ).slice(0, 2) : ["Kardiologi", "Neurologi"];
 
@@ -461,21 +461,21 @@ export default function DetailNonBlokCSR() {
       // Generate tanggal dalam rentang mata kuliah
       const tanggalMulai = data?.tanggal_mulai;
       const tanggalAkhir = data?.tanggal_akhir;
-      
+
       let contohTanggal1 = "2024-01-15";
       let contohTanggal2 = "2024-01-16";
-      
+
       if (tanggalMulai && tanggalAkhir) {
         const mulai = new Date(tanggalMulai);
         const akhir = new Date(tanggalAkhir);
         const selisihHari = Math.floor((akhir.getTime() - mulai.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         // Contoh tanggal 1: 1/4 dari rentang
         const hari1 = Math.floor(selisihHari * 0.25);
         const contoh1 = new Date(mulai);
         contoh1.setDate(contoh1.getDate() + hari1);
         contohTanggal1 = contoh1.toISOString().split('T')[0];
-        
+
         // Contoh tanggal 2: 3/4 dari rentang
         const hari2 = Math.floor(selisihHari * 0.75);
         const contoh2 = new Date(mulai);
@@ -509,12 +509,12 @@ export default function DetailNonBlokCSR() {
 
       // Buat workbook
       const wb = XLSX.utils.book_new();
-      
+
       // Sheet 1: Template CSR dengan header yang eksplisit
       const ws = XLSX.utils.json_to_sheet(templateData, {
         header: ['Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
       });
-      
+
       // Set lebar kolom
       const colWidths = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
@@ -527,7 +527,7 @@ export default function DetailNonBlokCSR() {
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
       ];
       ws['!cols'] = colWidths;
-      
+
       XLSX.utils.book_append_sheet(wb, ws, 'Template CSR');
 
       // Sheet 2: Tips dan Info
@@ -553,13 +553,13 @@ export default function DetailNonBlokCSR() {
         ...jamOptions.map(jam => [`• ${jam}`]),
         [''],
         ['👥 KELOMPOK KECIL YANG TERSEDIA:'],
-        ...(kelompokKecilWithCount && kelompokKecilWithCount.length > 0 ? 
+        ...(kelompokKecilWithCount && kelompokKecilWithCount.length > 0 ?
           kelompokKecilWithCount
-            .map(kelompok => [`• Kelompok ${kelompok.nama_kelompok} (${kelompok.jumlah_anggota} mahasiswa)`]) : 
+            .map(kelompok => [`• Kelompok ${kelompok.nama_kelompok} (${kelompok.jumlah_anggota} mahasiswa)`]) :
           [['• Belum ada data kelompok kecil']]),
         [''],
         ['🎯 KEAHLIAN YANG TERSEDIA:'],
-        ...kategoriList.flatMap(kategori => 
+        ...kategoriList.flatMap(kategori =>
           (kategori.keahlian_required || []).slice(0, 3).map(keahlian => [`• ${keahlian} (${kategori.nomor_csr})`])
         ),
         [''],
@@ -635,20 +635,20 @@ export default function DetailNonBlokCSR() {
   // Helper function untuk konversi format waktu - optimized with useCallback
   const convertTimeFormat = useCallback((timeStr: string) => {
     if (!timeStr || timeStr.trim() === '') return '';
-    
+
     // Hapus spasi dan konversi ke string
     const time = timeStr.toString().trim();
-    
+
     // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
     if (time.match(/^\d{2}[:.]\d{2}$/)) {
       return time.replace('.', ':');
     }
-    
+
     // Cek apakah format H:MM atau H.MM (1 digit jam)
     if (time.match(/^\d{1}[:.]\d{2}$/)) {
       return '0' + time.replace('.', ':');
     }
-    
+
     return time;
   }, []);
 
@@ -660,23 +660,23 @@ export default function DetailNonBlokCSR() {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
-          
+
           // Ambil sheet pertama
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          
+
           // Konversi ke JSON
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          
+
           if (jsonData.length < 2) {
             reject(new Error('File Excel kosong atau tidak memiliki header'));
             return;
           }
-          
+
           // Ambil header (baris pertama)
           const headers = jsonData[0] as string[];
           const headerStr = headers.join(' ').toLowerCase();
-          
+
           // Deteksi format berdasarkan header
           // Format export template aplikasi: memiliki 'No' di awal, tanpa 'Jam Selesai' dan 'Sesi'
           // Format template download: tidak memiliki 'No' di awal
@@ -684,17 +684,17 @@ export default function DetailNonBlokCSR() {
           const hasNo = headerStr.includes('no') && headers[0]?.toLowerCase().includes('no');
           const hasJamSelesai = headerStr.includes('jam selesai');
           const hasSesi = headerStr.includes('sesi');
-          
+
           // Jika ada 'No' di kolom pertama dan tidak ada 'Jam Selesai' dan 'Sesi', maka ini format export template aplikasi
           if (hasNo && !hasJamSelesai && !hasSesi) {
             format = 'export';
           }
-          
+
           // Ambil data (baris kedua dan seterusnya)
-          const dataRows = jsonData.slice(1).filter(row => 
+          const dataRows = jsonData.slice(1).filter(row =>
             row && Array.isArray(row) && row.some(cell => cell !== undefined && cell !== '')
           );
-          
+
           resolve({ data: dataRows, headers, format });
         } catch (error) {
           reject(error);
@@ -709,7 +709,7 @@ export default function DetailNonBlokCSR() {
   const handleCSRImportExcel = async (file: File) => {
     try {
       const { data: excelData, headers, format } = await readCSRExcelFile(file);
-      
+
       if (excelData.length === 0) {
         setCSRImportErrors(['File Excel kosong atau tidak memiliki data']);
         setShowCSRImportModal(true);
@@ -723,15 +723,15 @@ export default function DetailNonBlokCSR() {
       } else {
         expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
       }
-      
+
       // Normalize headers untuk perbandingan (trim spasi dan case insensitive)
       const normalizedHeaders = headers.map(h => h?.toString().trim().toLowerCase() || '');
       const normalizedExpected = expectedHeaders.map(h => h.trim().toLowerCase());
-      
-      const headerMatch = normalizedExpected.every(expected => 
+
+      const headerMatch = normalizedExpected.every(expected =>
         normalizedHeaders.some(header => header === expected || header.includes(expected))
       );
-      
+
       if (!headerMatch) {
         setCSRImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.']);
         setShowCSRImportModal(true);
@@ -741,7 +741,7 @@ export default function DetailNonBlokCSR() {
       // Konversi data Excel ke format yang diinginkan berdasarkan format yang dideteksi
       const convertedData: JadwalCSRType[] = excelData.map((row: any[], index: number) => {
         let tanggal, jamMulai, jenisCSR, kelompokKecilNama, topik, keahlianNama, dosenNama, ruanganNama;
-        
+
         if (format === 'export') {
           // Format export: No, Tanggal, Jam Mulai, Jenis CSR, Kelompok Kecil, Topik, Keahlian, Dosen, Ruangan
           tanggal = row[1]?.toString();
@@ -820,7 +820,7 @@ export default function DetailNonBlokCSR() {
       });
 
       setCSRImportData(convertedData);
-      
+
       // Validasi data setelah konversi
       const { cellErrors } = validateCSRExcelData(convertedData);
       setCSRCellErrors(cellErrors);
@@ -837,12 +837,12 @@ export default function DetailNonBlokCSR() {
     if (!tanggal) {
       return `Tanggal wajib diisi (Baris ${rowNumber}, Kolom TANGGAL)`;
     }
-    
+
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(tanggal)) {
       return `Format tanggal harus YYYY-MM-DD (Baris ${rowNumber}, Kolom TANGGAL)`;
     }
-    
+
     // Validasi rentang tanggal mata kuliah
     const tanggalMulai = data?.tanggal_mulai ? new Date(data.tanggal_mulai) : null;
     const tanggalAkhir = data?.tanggal_akhir ? new Date(data.tanggal_akhir) : null;
@@ -851,7 +851,7 @@ export default function DetailNonBlokCSR() {
     if (tanggalMulai && tanggalAkhir && (tanggalJadwal < tanggalMulai || tanggalJadwal > tanggalAkhir)) {
       return `Tanggal di luar rentang mata kuliah (Baris ${rowNumber}, Kolom TANGGAL)`;
     }
-    
+
     return null;
   };
 
@@ -860,26 +860,26 @@ export default function DetailNonBlokCSR() {
     if (!jam) {
       return `${fieldName} wajib diisi (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
     }
-    
+
     if (!/^\d{1,2}[.:]\d{2}$/.test(jam)) {
       return `Format ${fieldName} harus HH:MM atau HH.MM (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
     }
-    
+
     // Validasi jam sesuai dengan opsi yang tersedia
     const normalizeTimeForComparison = (time: string): string => {
       if (!time) return time;
       return time.replace('.', ':');
     };
-    
+
     const isTimeValid = (inputTime: string): boolean => {
       const normalizedInput = normalizeTimeForComparison(inputTime);
       return jamOptions.some(option => normalizeTimeForComparison(option) === normalizedInput);
     };
-    
+
     if (!isTimeValid(jam)) {
       return `${fieldName} "${jam}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')} (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
     }
-    
+
     return null;
   };
 
@@ -950,10 +950,10 @@ export default function DetailNonBlokCSR() {
           if (row.kategori_id) {
             const kategori = kategoriList.find(k => k.id === row.kategori_id);
             if (kategori && kategori.keahlian_required && !kategori.keahlian_required.includes(dosen.keahlian)) {
-              errors.push({ 
-                row: rowNumber, 
-                field: 'dosen_id', 
-                message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)` 
+              errors.push({
+                row: rowNumber,
+                field: 'dosen_id',
+                message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)`
               });
             }
           }
@@ -979,10 +979,10 @@ export default function DetailNonBlokCSR() {
     try {
       setIsCSRImporting(true);
       setCSRImportErrors([]);
-      
+
       // Validasi data terlebih dahulu
       const { cellErrors } = validateCSRExcelData(csrImportData);
-      
+
       if (cellErrors.length > 0) {
         setCSRCellErrors(cellErrors);
         setIsCSRImporting(false);
@@ -994,14 +994,14 @@ export default function DetailNonBlokCSR() {
         // Normalize jam format - pastikan menggunakan format HH.MM
         let jamMulai = row.jam_mulai;
         let jamSelesai = row.jam_selesai;
-        
+
         if (jamMulai && jamMulai.includes(':')) {
           jamMulai = jamMulai.replace(':', '.');
         }
         if (jamSelesai && jamSelesai.includes(':')) {
           jamSelesai = jamSelesai.replace(':', '.');
         }
-        
+
         // Pastikan format jam valid sebelum dikirim
         if (jamMulai && !/^\d{1,2}\.\d{2}$/.test(jamMulai)) {
           jamMulai = '';
@@ -1009,7 +1009,7 @@ export default function DetailNonBlokCSR() {
         if (jamSelesai && !/^\d{1,2}\.\d{2}$/.test(jamSelesai)) {
           jamSelesai = '';
         }
-        
+
         const transformedRow = {
           jenis_csr: row.jenis_csr,
           tanggal: row.tanggal,
@@ -1029,10 +1029,10 @@ export default function DetailNonBlokCSR() {
           siakad_metode: row.siakad_metode || null,
           siakad_dosen_pengganti: row.siakad_dosen_pengganti || null
         };
-        
+
         return transformedRow;
       });
-      
+
       // Kirim ke backend
       const response = await api.post(`/csr/jadwal/${kode}/import`, {
         data: transformedData
@@ -1048,7 +1048,7 @@ export default function DetailNonBlokCSR() {
         setCSRCellErrors([]);
         setCSREditingCell(null);
         setCSRImportPage(1);
-        
+
         // Refresh data
         await fetchBatchData();
       } else {
@@ -1090,7 +1090,7 @@ export default function DetailNonBlokCSR() {
   const handleCSRImportExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
       setCSRImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
       setShowCSRImportModal(true);
@@ -1128,23 +1128,23 @@ export default function DetailNonBlokCSR() {
   const handleCSREditCell = (rowIndex: number, field: string, value: any) => {
     const updatedData = [...csrImportData];
     updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
-    
+
     // Jika mengedit jenis_csr atau jam_mulai, hitung ulang jam selesai dan jumlah sesi
     if (field === 'jenis_csr' || field === 'jam_mulai') {
       const jenisCSR = field === 'jenis_csr' ? value : updatedData[rowIndex].jenis_csr;
       const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
       const jumlahSesi = jenisCSR === 'reguler' ? CSR_REGULER_SESSIONS : CSR_RESPONSI_SESSIONS;
       const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
-      
+
       updatedData[rowIndex] = {
         ...updatedData[rowIndex],
         jam_selesai: jamSelesai,
         jumlah_sesi: jumlahSesi
       };
     }
-    
+
     setCSRImportData(updatedData);
-    
+
     // Re-validate data after edit
     const { cellErrors } = validateCSRExcelData(updatedData);
     setCSRCellErrors(cellErrors);
@@ -1155,7 +1155,7 @@ export default function DetailNonBlokCSR() {
     const actualIndex = (csrImportPage - 1) * csrImportPageSize + rowIndex;
     const isEditing = csrEditingCell?.row === actualIndex && csrEditingCell?.key === field;
     const hasError = csrCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
-    
+
     return (
       <td
         className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${hasError ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
@@ -1182,7 +1182,7 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit kelompok kecil
   const handleCSRKelompokKecilEdit = (rowIndex: number, value: string) => {
     const kelompokKecil = kelompokKecilList.find(k => k.nama_kelompok === value);
-    
+
     // Update data dan validasi sekaligus
     const updatedData = [...csrImportData];
     updatedData[rowIndex] = {
@@ -1190,9 +1190,9 @@ export default function DetailNonBlokCSR() {
       kelompok_kecil_id: kelompokKecil?.id || 0,
       nama_kelompok: value
     };
-    
+
     setCSRImportData(updatedData);
-    
+
     // Re-validate
     const { cellErrors } = validateCSRExcelData(updatedData);
     setCSRCellErrors(cellErrors);
@@ -1201,7 +1201,7 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit dosen
   const handleCSRDosenEdit = (rowIndex: number, value: string) => {
     const dosen = dosenList.find(d => d.name === value);
-    
+
     // Update data dan validasi sekaligus
     const updatedData = [...csrImportData];
     updatedData[rowIndex] = {
@@ -1209,9 +1209,9 @@ export default function DetailNonBlokCSR() {
       dosen_id: dosen?.id || 0,
       nama_dosen: value
     };
-    
+
     setCSRImportData(updatedData);
-    
+
     // Re-validate
     const { cellErrors } = validateCSRExcelData(updatedData);
     setCSRCellErrors(cellErrors);
@@ -1220,7 +1220,7 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit ruangan
   const handleCSRRuanganEdit = (rowIndex: number, value: string) => {
     const ruangan = ruanganList.find(r => r.nama === value);
-    
+
     // Update data dan validasi sekaligus
     const updatedData = [...csrImportData];
     updatedData[rowIndex] = {
@@ -1228,9 +1228,9 @@ export default function DetailNonBlokCSR() {
       ruangan_id: ruangan?.id || 0,
       nama_ruangan: value
     };
-    
+
     setCSRImportData(updatedData);
-    
+
     // Re-validate
     const { cellErrors } = validateCSRExcelData(updatedData);
     setCSRCellErrors(cellErrors);
@@ -1239,7 +1239,7 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit keahlian
   const handleCSRKeahlianEdit = (rowIndex: number, value: string) => {
     const kategori = kategoriList.find(k => k.keahlian_required?.includes(value));
-    
+
     // Update data dan validasi sekaligus
     const updatedData = [...csrImportData];
     updatedData[rowIndex] = {
@@ -1247,21 +1247,21 @@ export default function DetailNonBlokCSR() {
       kategori_id: kategori?.id || 0,
       nama_keahlian: value
     };
-    
+
     setCSRImportData(updatedData);
-    
+
     // Re-validate
     const { cellErrors } = validateCSRExcelData(updatedData);
     setCSRCellErrors(cellErrors);
   };
 
   // ==================== SIAKAD TEMPLATE FUNCTIONS ====================
-  
+
   // Validate SIAKAD template format
   const validateCSRSIAKADTemplateFormat = async (file: File): Promise<boolean> => {
     try {
       const { headers } = await readCSRExcelFile(file);
-      
+
       const requiredHeaders = [
         'Tanggal\n(YYYY-MM-DD)',
         'Waktu Mulai\n(Lihat Daftar Waktu Mulai)',
@@ -1269,27 +1269,27 @@ export default function DetailNonBlokCSR() {
         'Topik',
         'Ruang\n(Lihat Daftar Ruang)'
       ];
-      
+
       // Function to check header with various line break formats
       const checkHeaderExists = (requiredHeader: string) => {
         // Check original format
         if (headers.includes(requiredHeader)) return true;
-        
+
         // Check format without line break
         const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
         if (headers.includes(withoutLineBreak)) return true;
-        
+
         // Check format with \r\n
         const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
         if (headers.includes(withWindowsLineBreak)) return true;
-        
+
         // Check format with \r\n and without parenthetical
         const withWindowsLineBreakNoParenthetical = withWindowsLineBreak.replace(/\([^)]*\)/g, '');
         if (headers.includes(withWindowsLineBreakNoParenthetical.trim())) return true;
-        
+
         return false;
       };
-      
+
       const isValid = requiredHeaders.every(header => checkHeaderExists(header));
       return isValid;
     } catch (error) {
@@ -1305,22 +1305,22 @@ export default function DetailNonBlokCSR() {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
-          
+
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          
+
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          
+
           if (jsonData.length < 2) {
             reject(new Error('File Excel kosong atau tidak memiliki header'));
             return;
           }
-          
+
           const headers = jsonData[0] as string[];
-          const dataRows = jsonData.slice(1).filter(row => 
+          const dataRows = jsonData.slice(1).filter(row =>
             row && Array.isArray(row) && row.some(cell => cell !== undefined && cell !== '')
           );
-          
+
           resolve({ data: dataRows, headers });
         } catch (error) {
           reject(error);
@@ -1342,7 +1342,7 @@ export default function DetailNonBlokCSR() {
       }
 
       const { data: excelData, headers } = await readCSRSIAKADExcelFile(file);
-      
+
       if (excelData.length === 0) {
         setCSRSiakadImportErrors(['File Excel kosong atau tidak memiliki data']);
         return;
@@ -1443,7 +1443,7 @@ export default function DetailNonBlokCSR() {
       });
 
       setCSRSiakadImportData(convertedData);
-      
+
       // Validate data
       const { cellErrors } = validateCSRSIAKADExcelData(convertedData);
       setCSRSiakadCellErrors(cellErrors);
@@ -1502,10 +1502,10 @@ export default function DetailNonBlokCSR() {
         if (dosen && row.kategori_id) {
           const kategori = kategoriList.find(k => k.id === row.kategori_id);
           if (kategori && kategori.keahlian_required && !kategori.keahlian_required.includes(dosen.keahlian)) {
-            errors.push({ 
-              row: rowNumber, 
-              field: 'dosen_id', 
-              message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)` 
+            errors.push({
+              row: rowNumber,
+              field: 'dosen_id',
+              message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)`
             });
           }
         }
@@ -1524,23 +1524,23 @@ export default function DetailNonBlokCSR() {
   const handleCSRSiakadCellEdit = (rowIndex: number, field: string, value: any) => {
     const updatedData = [...csrSiakadImportData];
     updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
-    
+
     // Auto-recalculate jam_selesai when jenis_csr or jam_mulai changes
     if (field === 'jenis_csr' || field === 'jam_mulai') {
       const jenisCSR = field === 'jenis_csr' ? value : updatedData[rowIndex].jenis_csr;
       const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
       const jumlahSesi = jenisCSR === 'reguler' ? CSR_REGULER_SESSIONS : CSR_RESPONSI_SESSIONS;
       const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
-      
+
       updatedData[rowIndex] = {
         ...updatedData[rowIndex],
         jam_selesai: jamSelesai,
         jumlah_sesi: jumlahSesi
       };
     }
-    
+
     setCSRSiakadImportData(updatedData);
-    
+
     // Re-validate
     const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
     setCSRSiakadCellErrors(cellErrors);
@@ -1549,16 +1549,16 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit kelompok kecil SIAKAD
   const handleCSRSiakadKelompokKecilEdit = (rowIndex: number, value: string) => {
     const kelompokKecil = kelompokKecilList.find(k => k.nama_kelompok === value);
-    
+
     const updatedData = [...csrSiakadImportData];
     updatedData[rowIndex] = {
       ...updatedData[rowIndex],
       kelompok_kecil_id: kelompokKecil?.id || 0,
       nama_kelompok: value
     };
-    
+
     setCSRSiakadImportData(updatedData);
-    
+
     const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
     setCSRSiakadCellErrors(cellErrors);
   };
@@ -1566,16 +1566,16 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit keahlian SIAKAD
   const handleCSRSiakadKeahlianEdit = (rowIndex: number, value: string) => {
     const kategori = kategoriList.find(k => k.keahlian_required?.includes(value));
-    
+
     const updatedData = [...csrSiakadImportData];
     updatedData[rowIndex] = {
       ...updatedData[rowIndex],
       kategori_id: kategori?.id || 0,
       nama_keahlian: value
     };
-    
+
     setCSRSiakadImportData(updatedData);
-    
+
     const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
     setCSRSiakadCellErrors(cellErrors);
   };
@@ -1583,16 +1583,16 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit dosen SIAKAD
   const handleCSRSiakadDosenEdit = (rowIndex: number, value: string) => {
     const dosen = dosenList.find(d => d.name === value);
-    
+
     const updatedData = [...csrSiakadImportData];
     updatedData[rowIndex] = {
       ...updatedData[rowIndex],
       dosen_id: dosen?.id || 0,
       nama_dosen: value
     };
-    
+
     setCSRSiakadImportData(updatedData);
-    
+
     const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
     setCSRSiakadCellErrors(cellErrors);
   };
@@ -1600,16 +1600,16 @@ export default function DetailNonBlokCSR() {
   // Handler untuk edit ruangan SIAKAD
   const handleCSRSiakadRuanganEdit = (rowIndex: number, value: string) => {
     const ruangan = ruanganList.find(r => r.nama === value);
-    
+
     const updatedData = [...csrSiakadImportData];
     updatedData[rowIndex] = {
       ...updatedData[rowIndex],
       ruangan_id: ruangan?.id || 0,
       nama_ruangan: value
     };
-    
+
     setCSRSiakadImportData(updatedData);
-    
+
     const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
     setCSRSiakadCellErrors(cellErrors);
   };
@@ -1619,10 +1619,10 @@ export default function DetailNonBlokCSR() {
     try {
       setIsCSRSiakadImporting(true);
       setCSRSiakadImportErrors([]);
-      
+
       // Validate data
       const { cellErrors } = validateCSRSIAKADExcelData(csrSiakadImportData);
-      
+
       if (cellErrors.length > 0) {
         setCSRSiakadCellErrors(cellErrors);
         setIsCSRSiakadImporting(false);
@@ -1633,14 +1633,14 @@ export default function DetailNonBlokCSR() {
       const transformedData = csrSiakadImportData.map((row) => {
         let jamMulai = row.jam_mulai;
         let jamSelesai = row.jam_selesai;
-        
+
         if (jamMulai && jamMulai.includes(':')) {
           jamMulai = jamMulai.replace(':', '.');
         }
         if (jamSelesai && jamSelesai.includes(':')) {
           jamSelesai = jamSelesai.replace(':', '.');
         }
-        
+
         return {
           jenis_csr: row.jenis_csr,
           tanggal: row.tanggal,
@@ -1661,7 +1661,7 @@ export default function DetailNonBlokCSR() {
           siakad_dosen_pengganti: row.siakad_dosen_pengganti || null
         };
       });
-      
+
       // Send to backend
       const response = await api.post(`/csr/jadwal/${kode}/import`, {
         data: transformedData
@@ -1670,7 +1670,7 @@ export default function DetailNonBlokCSR() {
       if (response.data.success) {
         setCSRSiakadImportedCount(transformedData.length);
         setShowCSRSIAKADImportModal(false);
-        
+
         // Cleanup
         setCSRSiakadImportData([]);
         setCSRSiakadImportFile(null);
@@ -1678,7 +1678,7 @@ export default function DetailNonBlokCSR() {
         setCSRSiakadCellErrors([]);
         setCSRSiakadEditingCell(null);
         setCSRSiakadImportPage(1);
-        
+
         // Refresh data
         await fetchBatchData();
       } else {
@@ -1717,7 +1717,7 @@ export default function DetailNonBlokCSR() {
   const handleCSRSiakadImportExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
       setCSRSiakadImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
       return;
@@ -1773,7 +1773,7 @@ export default function DetailNonBlokCSR() {
   async function handleTambahJadwal() {
     setErrorForm('');
     setErrorBackend('');
-    
+
     if (!form.jenis_csr || !form.tanggal || !form.jam_mulai || !form.jam_selesai || !form.dosen_id || !form.ruangan_id || !form.kelompok_kecil_id || !form.kategori_id || !form.topik) {
       setErrorForm('Semua field harus diisi!');
       return;
@@ -1783,22 +1783,22 @@ export default function DetailNonBlokCSR() {
 
     setIsSaving(true);
     try {
-    if (editIndex !== null) {
+      if (editIndex !== null) {
         // Update existing jadwal
         const jadwalToUpdate = jadwalCSR[editIndex];
         await api.put(`/csr/jadwal/${kode}/${jadwalToUpdate.id}`, form);
-        
+
         // Refresh data dengan batch API
         await fetchBatchData();
-    } else {
+      } else {
         // Create new jadwal
         await api.post(`/csr/jadwal/${kode}`, form);
-        
+
         // Refresh data dengan batch API
         await fetchBatchData();
       }
-      
-    setShowModal(false);
+
+      setShowModal(false);
       setForm({
         jenis_csr: '',
         tanggal: '',
@@ -1813,7 +1813,7 @@ export default function DetailNonBlokCSR() {
       });
       setSelectedKategoriValue(null);
       setSelectedKeahlian(null);
-    setEditIndex(null);
+      setEditIndex(null);
     } catch (error: any) {
       // Handle error dari API response dengan lebih spesifik
       if (error.response?.data?.message) {
@@ -1834,7 +1834,7 @@ export default function DetailNonBlokCSR() {
     }
 
     const row = jadwalCSR[idx];
-    
+
     // Validasi bahwa row ada dan memiliki ID
     if (!row || !row.id) {
       console.error('Invalid row data or missing ID:', row);
@@ -1843,7 +1843,7 @@ export default function DetailNonBlokCSR() {
 
     // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
     const actualRow = jadwalCSR.find(j => j.id === row.id) || row;
-    
+
     // Format tanggal untuk input date (YYYY-MM-DD)
     let formattedTanggal = '';
     if (actualRow.tanggal) {
@@ -1856,16 +1856,16 @@ export default function DetailNonBlokCSR() {
         formattedTanggal = '';
       }
     }
-    
+
     // Konversi format jam dari HH:MM ke HH.MM untuk dropdown
     const formatJamUntukDropdown = (jam: string) => {
       if (!jam) return '';
       return jam.replace(':', '.');
     };
-    
+
     const jamMulai = formatJamUntukDropdown(actualRow.jam_mulai || '');
     const jamSelesai = formatJamUntukDropdown(actualRow.jam_selesai || '');
-    
+
     setForm({
       jenis_csr: actualRow.jenis_csr || '',
       tanggal: formattedTanggal,
@@ -1878,10 +1878,10 @@ export default function DetailNonBlokCSR() {
       kategori_id: actualRow.kategori_id || null,
       topik: actualRow.topik || '',
     });
-    
+
     // Set selectedKategoriValue untuk dropdown
     setSelectedKategoriValue(actualRow.kategori_id ? `${actualRow.kategori_id}_0` : null);
-    
+
     // Set selectedKeahlian berdasarkan data yang ada
     if (actualRow.kategori_id) {
       const kategoriData = kategoriList.find(k => k.id === actualRow.kategori_id);
@@ -1900,11 +1900,11 @@ export default function DetailNonBlokCSR() {
     } else {
       setSelectedKeahlian(null);
     }
-    
+
     // Set editIndex berdasarkan ID untuk memastikan konsistensi
     const actualIndex = jadwalCSR.findIndex(j => j.id === row.id);
     setEditIndex(actualIndex >= 0 ? actualIndex : idx);
-    
+
     setShowModal(true);
     setErrorForm('');
     setErrorBackend('');
@@ -1914,10 +1914,10 @@ export default function DetailNonBlokCSR() {
     try {
       const jadwalToDelete = jadwalCSR[idx];
       await api.delete(`/csr/jadwal/${kode}/${jadwalToDelete.id}`);
-      
+
       // Refresh data dengan batch API
       await fetchBatchData();
-      
+
       setShowDeleteModal(false);
       setSelectedDeleteIndex(null);
     } catch (error: any) {
@@ -1929,31 +1929,31 @@ export default function DetailNonBlokCSR() {
       }
     }
   }
-  
+
   // Fetch batch data untuk optimasi performa
   // Fetch batch data - optimized with useCallback for reuse
   const fetchBatchData = useCallback(async (showLoading = true) => {
     if (!kode) return;
-    
+
     if (showLoading) setLoading(true);
-    
+
     try {
       const response = await api.get(`/csr/${kode}/batch-data`);
       const batchData = response.data;
-      
+
       // Set mata kuliah data
       setData(batchData.mata_kuliah);
-      
+
       // Set jadwal CSR data
       setJadwalCSR(batchData.jadwal_csr);
-      
+
       // Set reference data
       setDosenList(batchData.dosen_list);
       setRuanganList(batchData.ruangan_list);
       setKelompokKecilList(batchData.kelompok_kecil);
       setKategoriList(batchData.kategori_list);
       setJamOptions(batchData.jam_options);
-      
+
     } catch (error: any) {
       setError(handleApiError(error, 'Memuat data batch'));
     } finally {
@@ -1991,12 +1991,12 @@ export default function DetailNonBlokCSR() {
 
       // Buat workbook
       const wb = XLSX.utils.book_new();
-      
+
       // Sheet 1: Data CSR
       const ws = XLSX.utils.json_to_sheet(exportData, {
         header: ['No', 'Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
       });
-      
+
       // Set lebar kolom
       const colWidths = [
         { wch: 5 },  // No
@@ -2010,7 +2010,7 @@ export default function DetailNonBlokCSR() {
         { wch: 20 }  // Ruangan
       ];
       ws['!cols'] = colWidths;
-      
+
       XLSX.utils.book_append_sheet(wb, ws, 'Data CSR');
 
       // Sheet 2: Info Mata Kuliah
@@ -2140,6 +2140,28 @@ export default function DetailNonBlokCSR() {
     }
   }, [showModal, editIndex, form.dosen_id, dosenList, selectedKeahlian]);
 
+  // Effect to sync form.topik with selected Mata Kuliah (Keahlian) name
+  useEffect(() => {
+    if (showModal && selectedKategoriValue) {
+      const validOptions = (kategoriList || [])
+        .filter(k => k.nama && k.keahlian_required && k.keahlian_required.length > 0)
+        .flatMap(k =>
+          (k.keahlian_required || []).map((keahlian: string, index: number) => ({
+            value: `${k.id}_${index}`,
+            label: `${keahlian} (${k.nomor_csr})`
+          }))
+        );
+
+      const selectedOpt = validOptions.find(opt => opt.value === selectedKategoriValue);
+      if (selectedOpt) {
+        const keahlianName = selectedOpt.label.split(' (')[0];
+        if (form.topik !== keahlianName) {
+          setForm(f => ({ ...f, topik: keahlianName }));
+        }
+      }
+    }
+  }, [showModal, selectedKategoriValue, kategoriList, form.topik]);
+
   // Auto-hide success messages and imported count (consolidated)
   useEffect(() => {
     const itemsToReset = [
@@ -2169,21 +2191,21 @@ export default function DetailNonBlokCSR() {
 
   const confirmCSRBulkDelete = async () => {
     if (selectedCSRItems.length === 0) return;
-    
+
     setIsCSRDeleting(true);
     try {
       // Delete all selected items
       await Promise.all(selectedCSRItems.map(id => api.delete(`/csr/jadwal/${kode}/${id}`)));
-      
+
       // Set success message
       setCSRSuccess(`${selectedCSRItems.length} jadwal CSR berhasil dihapus.`);
-      
+
       // Clear selections
       setSelectedCSRItems([]);
-      
+
       // Close modal after successful delete
       setShowCSRBulkDeleteModal(false);
-      
+
       // Refresh data
       await fetchBatchData();
     } catch (error: any) {
@@ -2218,7 +2240,7 @@ export default function DetailNonBlokCSR() {
       {/* Header skeleton */}
       <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
       <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
-      
+
       {/* Info Mata Kuliah skeleton */}
       <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
@@ -2240,7 +2262,7 @@ export default function DetailNonBlokCSR() {
           </div>
         ))}
       </div>
-      
+
       {/* Jadwal CSR skeleton */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -2369,8 +2391,8 @@ export default function DetailNonBlokCSR() {
           <div>
             <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Keahlian Dibutuhkan</div>
             <div className="text-base text-gray-800 dark:text-white">
-              {(data as any).keahlian_required && (data as any).keahlian_required.length > 0 
-                ? (data as any).keahlian_required.join(', ') 
+              {(data as any).keahlian_required && (data as any).keahlian_required.length > 0
+                ? (data as any).keahlian_required.join(', ')
                 : '-'}
             </div>
           </div>
@@ -2400,13 +2422,13 @@ export default function DetailNonBlokCSR() {
           <h2 className="text-lg font-bold text-gray-800 dark:text-white">Jadwal CSR</h2>
           <div className="flex items-center gap-3">
             {/* Import Excel Button */}
-            <button 
+            <button
               onClick={() => setShowCSRTemplateSelectionModal(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
               <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
               Import Excel
             </button>
-            
+
             {/* Download Template Button */}
             <button
               onClick={downloadCSRTemplate}
@@ -2415,22 +2437,21 @@ export default function DetailNonBlokCSR() {
               <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
               Download Template Excel
             </button>
-            
+
             {/* Export Excel Button */}
             <button
               onClick={() => setShowCSRExportModal(true)}
               disabled={jadwalCSR.length === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                jadwalCSR.length === 0 
-                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
-                  : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${jadwalCSR.length === 0
+                ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
+                }`}
               title={jadwalCSR.length === 0 ? 'Tidak ada data CSR. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data CSR ke Excel'}
             >
               <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
               Export ke Excel
             </button>
-            
+
             <button
               onClick={() => {
                 setForm({
@@ -2448,14 +2469,14 @@ export default function DetailNonBlokCSR() {
                 setSelectedKategoriValue(null);
                 setSelectedKeahlian(null);
                 setEditIndex(null);
-              setShowModal(true);
-              setErrorForm('');
-              setErrorBackend('');
-            }}
-            className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
-          >
-            Tambah Jadwal
-          </button>
+                setShowModal(true);
+                setErrorForm('');
+                setErrorBackend('');
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
+            >
+              Tambah Jadwal
+            </button>
           </div>
         </div>
 
@@ -2548,11 +2569,11 @@ export default function DetailNonBlokCSR() {
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(csrPage - 1) * csrPageSize + i + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jenis_csr === 'reguler' ? 'CSR Reguler' : 'CSR Responsi'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {new Date(row.tanggal).toLocaleDateString('id-ID', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
+                        {new Date(row.tanggal).toLocaleDateString('id-ID', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
                         })}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jam_mulai?.replace('.', ':')}–{row.jam_selesai?.replace('.', ':')}</td>
@@ -2613,7 +2634,7 @@ export default function DetailNonBlokCSR() {
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 Menampilkan {((csrPage - 1) * csrPageSize) + 1} - {Math.min(csrPage * csrPageSize, jadwalCSR.length)} dari {jadwalCSR.length} data
               </span>
-              
+
               <select
                 value={csrPageSize}
                 onChange={(e) => {
@@ -2673,11 +2694,10 @@ export default function DetailNonBlokCSR() {
               {getTotalPages(jadwalCSR.length, csrPageSize) > 1 && (
                 <button
                   onClick={() => setCsrPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    csrPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${csrPage === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
@@ -2699,11 +2719,10 @@ export default function DetailNonBlokCSR() {
                   <button
                     key={pageNum}
                     onClick={() => setCsrPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      csrPage === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${csrPage === pageNum
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -2721,11 +2740,10 @@ export default function DetailNonBlokCSR() {
               {getTotalPages(jadwalCSR.length, csrPageSize) > 1 && (
                 <button
                   onClick={() => setCsrPage(getTotalPages(jadwalCSR.length, csrPageSize))}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    csrPage === getTotalPages(jadwalCSR.length, csrPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${csrPage === getTotalPages(jadwalCSR.length, csrPageSize)
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {getTotalPages(jadwalCSR.length, csrPageSize)}
                 </button>
@@ -2833,8 +2851,8 @@ export default function DetailNonBlokCSR() {
                         backgroundColor: state.isSelected
                           ? '#3b82f6'
                           : state.isFocused
-                          ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                          : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                            ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                            : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                         color: state.isSelected
                           ? '#fff'
                           : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -2917,8 +2935,8 @@ export default function DetailNonBlokCSR() {
                         backgroundColor: state.isSelected
                           ? '#3b82f6'
                           : state.isFocused
-                          ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                          : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                            ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                            : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                         color: state.isSelected
                           ? '#fff'
                           : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -2962,7 +2980,7 @@ export default function DetailNonBlokCSR() {
                 {(() => {
                   const validOptions = (kategoriList || [])
                     .filter(k => k.nama && k.keahlian_required && k.keahlian_required.length > 0)
-                    .flatMap(k => 
+                    .flatMap(k =>
                       (k.keahlian_required || []).map((keahlian: string, index: number) => ({
                         value: `${k.id}_${index}`,
                         label: `${keahlian} (${k.nomor_csr})`,
@@ -2970,7 +2988,7 @@ export default function DetailNonBlokCSR() {
                         keahlianIndex: index
                       }))
                     );
-                  
+
                   return validOptions.length === 0 ? (
                     <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                       <div className="flex items-center gap-2">
@@ -2992,14 +3010,14 @@ export default function DetailNonBlokCSR() {
                       onChange={opt => {
                         const kategoriId = opt?.value ? parseInt(opt.value.split('_')[0]) : null;
                         const keahlianIndex = opt?.value ? parseInt(opt.value.split('_')[1]) : 0;
-                        setForm(f => ({ 
-                          ...f, 
+                        setForm(f => ({
+                          ...f,
                           kategori_id: kategoriId,
                           dosen_id: null // Reset dosen when kategori changes
                         }));
                         setSelectedKategoriValue(opt?.value || null); // Simpan value dropdown
                         setErrorForm(''); // Reset error when selection changes
-                        
+
                         // Simpan keahlian yang dipilih
                         if (opt?.value) {
                           const kategoriData = kategoriList.find(k => k.id === kategoriId);
@@ -3009,7 +3027,7 @@ export default function DetailNonBlokCSR() {
                         } else {
                           setSelectedKeahlian(null);
                         }
-                        
+
                         // Reset dosen list ketika kategori berubah
                         if (kategoriId === null) {
                           setDosenList([]);
@@ -3047,8 +3065,8 @@ export default function DetailNonBlokCSR() {
                           backgroundColor: state.isSelected
                             ? '#3b82f6'
                             : state.isFocused
-                            ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                            : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                              ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                              : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                           color: state.isSelected
                             ? '#fff'
                             : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3081,11 +3099,22 @@ export default function DetailNonBlokCSR() {
                 })()}
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Topik</label>
+                <input
+                  type="text"
+                  name="topik"
+                  value={form.topik}
+                  readOnly
+                  placeholder="Pilih Mata Kuliah terlebih dahulu"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 font-normal text-sm cursor-not-allowed"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pengampu</label>
                 {(() => {
                   // Filter dosen berdasarkan keahlian yang dipilih
                   let filteredDosen: DosenOption[] = [];
-                  
+
                   if (selectedKeahlian) {
                     filteredDosen = (dosenList || []).filter(d => d.keahlian === selectedKeahlian);
                   } else if (form.dosen_id) {
@@ -3099,7 +3128,7 @@ export default function DetailNonBlokCSR() {
                       }
                     }
                   }
-                  
+
                   // Warning jika tidak ada data dosen sama sekali
                   if (dosenList.length === 0) {
                     return (
@@ -3118,7 +3147,7 @@ export default function DetailNonBlokCSR() {
                       </div>
                     );
                   }
-                  
+
                   // Warning jika kategori sudah dipilih tapi tidak ada dosen untuk keahlian tersebut
                   if (form.kategori_id && filteredDosen.length === 0 && selectedKeahlian) {
                     return (
@@ -3137,89 +3166,89 @@ export default function DetailNonBlokCSR() {
                       </div>
                     );
                   }
-                  
+
                   return (
-                <Select
-                      options={filteredDosen.map(d => ({ 
-                        value: d.id, 
-                        label: `${d.name} (${d.nid}) - ${d.keahlian}` 
+                    <Select
+                      options={filteredDosen.map(d => ({
+                        value: d.id,
+                        label: `${d.name} (${d.nid}) - ${d.keahlian}`
                       }))}
-                      value={filteredDosen.map(d => ({ 
-                        value: d.id, 
-                        label: `${d.name} (${d.nid}) - ${d.keahlian}` 
+                      value={filteredDosen.map(d => ({
+                        value: d.id,
+                        label: `${d.name} (${d.nid}) - ${d.keahlian}`
                       })).find(opt => opt.value === form.dosen_id) || null}
                       onChange={opt => {
                         setForm(f => ({ ...f, dosen_id: opt?.value || null }));
                         setErrorForm(''); // Reset error when selection changes
                       }}
-                      placeholder={form.kategori_id 
-                        ? (filteredDosen.length > 0 
-                          ? `Pilih Dosen untuk keahlian "${selectedKeahlian}"` 
+                      placeholder={form.kategori_id
+                        ? (filteredDosen.length > 0
+                          ? `Pilih Dosen untuk keahlian "${selectedKeahlian}"`
                           : `Tidak ada dosen ditugaskan untuk keahlian "${selectedKeahlian}"`)
                         : "Pilih Keahlian terlebih dahulu"
                       }
-                  isClearable
+                      isClearable
                       isDisabled={!form.kategori_id}
-                  classNamePrefix="react-select"
-                  className="react-select-container"
-                  styles={{
-                    control: (base, state) => ({
-                      ...base,
-                      backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                      borderColor: state.isFocused
-                        ? '#3b82f6'
-                        : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                      color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                      boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                      borderRadius: '0.75rem',
-                      minHeight: '2.5rem',
-                      fontSize: '1rem',
-                      paddingLeft: '0.75rem',
-                      paddingRight: '0.75rem',
-                      '&:hover': { borderColor: '#3b82f6' },
-                    }),
-                    menu: base => ({
-                      ...base,
-                      zIndex: 9999,
-                      fontSize: '1rem',
-                      backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                      color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                    }),
-                    option: (base, state) => ({
-                      ...base,
-                      backgroundColor: state.isSelected
-                        ? '#3b82f6'
-                        : state.isFocused
-                        ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                        : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                      color: state.isSelected
-                        ? '#fff'
-                        : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                      fontSize: '1rem',
-                    }),
-                    singleValue: base => ({
-                      ...base,
-                      color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                    }),
-                    placeholder: base => ({
-                      ...base,
-                      color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                    }),
-                    input: base => ({
-                      ...base,
-                      color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                    }),
-                    dropdownIndicator: base => ({
-                      ...base,
-                      color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                      '&:hover': { color: '#3b82f6' },
-                    }),
-                    indicatorSeparator: base => ({
-                      ...base,
-                      backgroundColor: 'transparent',
-                    }),
-                  }}
-                />
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={{
+                        control: (base, state) => ({
+                          ...base,
+                          backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
+                          borderColor: state.isFocused
+                            ? '#3b82f6'
+                            : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
+                          color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                          boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
+                          borderRadius: '0.75rem',
+                          minHeight: '2.5rem',
+                          fontSize: '1rem',
+                          paddingLeft: '0.75rem',
+                          paddingRight: '0.75rem',
+                          '&:hover': { borderColor: '#3b82f6' },
+                        }),
+                        menu: base => ({
+                          ...base,
+                          zIndex: 9999,
+                          fontSize: '1rem',
+                          backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
+                          color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                        }),
+                        option: (base, state) => ({
+                          ...base,
+                          backgroundColor: state.isSelected
+                            ? '#3b82f6'
+                            : state.isFocused
+                              ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                              : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                          color: state.isSelected
+                            ? '#fff'
+                            : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
+                          fontSize: '1rem',
+                        }),
+                        singleValue: base => ({
+                          ...base,
+                          color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                        }),
+                        placeholder: base => ({
+                          ...base,
+                          color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                        }),
+                        input: base => ({
+                          ...base,
+                          color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                        }),
+                        dropdownIndicator: base => ({
+                          ...base,
+                          color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                          '&:hover': { color: '#3b82f6' },
+                        }),
+                        indicatorSeparator: base => ({
+                          ...base,
+                          backgroundColor: 'transparent',
+                        }),
+                      }}
+                    />
                   );
                 })()}
               </div>
@@ -3276,8 +3305,8 @@ export default function DetailNonBlokCSR() {
                         backgroundColor: state.isSelected
                           ? '#3b82f6'
                           : state.isFocused
-                          ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                          : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                            ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                            : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                         color: state.isSelected
                           ? '#fff'
                           : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3321,9 +3350,9 @@ export default function DetailNonBlokCSR() {
               )}
               <div className="flex justify-end gap-2 pt-4">
                 <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
-                <button 
-                  onClick={handleTambahJadwal} 
-                  className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed" 
+                <button
+                  onClick={handleTambahJadwal}
+                  className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={!form.jenis_csr || !form.tanggal || !form.jam_mulai || !form.jam_selesai || !form.dosen_id || !form.ruangan_id || !form.kelompok_kecil_id || !form.kategori_id || !form.topik || isSaving}
                 >
                   {isSaving ? 'Menyimpan...' : (editIndex !== null ? 'Simpan' : 'Tambah Jadwal')}
@@ -3355,16 +3384,16 @@ export default function DetailNonBlokCSR() {
         {showCSRTemplateSelectionModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowCSRTemplateSelectionModal(false)}
             />
-            
+
             {/* Modal Content */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -3391,7 +3420,7 @@ export default function DetailNonBlokCSR() {
                   />
                 </svg>
               </button>
-              
+
               <div>
                 <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <div>
@@ -3403,14 +3432,14 @@ export default function DetailNonBlokCSR() {
                     </p>
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="mb-3 sm:mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Pilih jenis template yang ingin digunakan
                     </label>
                   </div>
-                  
+
                   <div className="space-y-3">
                     {/* Template Aplikasi */}
                     <div
@@ -3431,7 +3460,7 @@ export default function DetailNonBlokCSR() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Template SIAKAD */}
                     <div
                       className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200"
@@ -3464,7 +3493,7 @@ export default function DetailNonBlokCSR() {
         {showCSRImportModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -3472,7 +3501,7 @@ export default function DetailNonBlokCSR() {
               onClick={() => setShowCSRImportModal(false)}
             />
             {/* Modal Content */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -3505,35 +3534,35 @@ export default function DetailNonBlokCSR() {
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal CSR - Template Aplikasi</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
               </div>
-                  {/* Upload File Section */}
-                  {!csrImportFile && (
-                    <div className="mb-6">
-                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
-                        <div className="space-y-4">
-                          <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
-                            </p>
-                          </div>
-                          <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                            Pilih File
-                            <input
-                              ref={csrFileInputRef}
-                              type="file"
-                              accept=".xlsx,.xls"
-                              onChange={handleCSRImportExcelUpload}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
+              {/* Upload File Section */}
+              {!csrImportFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
                       </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
+                        <input
+                          ref={csrFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleCSRImportExcelUpload}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
-                  )}
+                  </div>
+                </div>
+              )}
 
               {/* File Info */}
               {csrImportFile && (
@@ -3591,7 +3620,7 @@ export default function DetailNonBlokCSR() {
                       File: {csrImportFile?.name}
                     </div>
                   </div>
-                  
+
                   <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
                     <div className="max-w-full overflow-x-auto hide-scroll">
                       <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
@@ -3609,108 +3638,108 @@ export default function DetailNonBlokCSR() {
                           </tr>
                         </thead>
                         <tbody>
-                        {csrImportData.slice((csrImportPage - 1) * csrImportPageSize, csrImportPage * csrImportPageSize).map((row, index) => {
-                          const actualIndex = (csrImportPage - 1) * csrImportPageSize + index;
-                          const cellError = (field: string) => csrCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
-                          
-                          return (
-                            <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                              <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
-                                {actualIndex + 1}
-                              </td>
-                              {renderCSREditableCell('tanggal', row.tanggal, index)}
-                              {renderCSREditableCell('jam_mulai', row.jam_mulai, index)}
-                              {renderCSREditableCell('jenis_csr', row.jenis_csr, index)}
-                              
-                              {/* Kelompok Kecil - Special handling */}
-                              <td
-                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_kelompok' ? 'border-2 border-brand-500' : ''} ${cellError('kelompok_kecil_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
-                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_kelompok' })}
-                                title={cellError('kelompok_kecil_id')?.message || ''}
-                              >
-                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_kelompok' ? (
-                                  <input
-                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                    value={row.nama_kelompok || ""}
-                                    onChange={e => handleCSRKelompokKecilEdit(actualIndex, e.target.value)}
-                                    onBlur={() => setCSREditingCell(null)}
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <span className={cellError('kelompok_kecil_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
-                                    {kelompokKecilList.find(k => k.id === row.kelompok_kecil_id)?.nama_kelompok || row.nama_kelompok || 'Tidak ditemukan'}
-                                  </span>
-                                )}
-                              </td>
-                              
-                              {renderCSREditableCell('topik', row.topik, index)}
-                              {/* Keahlian - Special handling */}
-                              <td
-                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_keahlian' ? 'border-2 border-brand-500' : ''} ${cellError('kategori_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
-                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_keahlian' })}
-                                title={cellError('kategori_id')?.message || ''}
-                              >
-                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_keahlian' ? (
-                                  <input
-                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                    value={row.nama_keahlian || ""}
-                                    onChange={e => handleCSRKeahlianEdit(actualIndex, e.target.value)}
-                                    onBlur={() => setCSREditingCell(null)}
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <span className={cellError('kategori_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
-                                    {row.nama_keahlian || '-'}
-                                  </span>
-                                )}
-                              </td>
-                              
-                              {/* Dosen - Special handling */}
-                              <td
-                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_dosen' ? 'border-2 border-brand-500' : ''} ${cellError('dosen_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
-                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_dosen' })}
-                                title={cellError('dosen_id')?.message || ''}
-                              >
-                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_dosen' ? (
-                                  <input
-                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                    value={row.nama_dosen || ""}
-                                    onChange={e => handleCSRDosenEdit(actualIndex, e.target.value)}
-                                    onBlur={() => setCSREditingCell(null)}
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <span className={cellError('dosen_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
-                                    {dosenList.find(d => d.id === row.dosen_id)?.name || row.nama_dosen || 'Tidak ditemukan'}
-                                  </span>
-                                )}
-                              </td>
-                              
-                              {/* Ruangan - Special handling */}
-                              <td
-                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_ruangan' ? 'border-2 border-brand-500' : ''} ${cellError('ruangan_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
-                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_ruangan' })}
-                                title={cellError('ruangan_id')?.message || ''}
-                              >
-                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_ruangan' ? (
-                                  <input
-                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                    value={row.nama_ruangan || ""}
-                                    onChange={e => handleCSRRuanganEdit(actualIndex, e.target.value)}
-                                    onBlur={() => setCSREditingCell(null)}
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <span className={cellError('ruangan_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
-                                    {ruanganList.find(r => r.id === row.ruangan_id)?.nama || row.nama_ruangan || 'Tidak ditemukan'}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          {csrImportData.slice((csrImportPage - 1) * csrImportPageSize, csrImportPage * csrImportPageSize).map((row, index) => {
+                            const actualIndex = (csrImportPage - 1) * csrImportPageSize + index;
+                            const cellError = (field: string) => csrCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
+
+                            return (
+                              <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                  {actualIndex + 1}
+                                </td>
+                                {renderCSREditableCell('tanggal', row.tanggal, index)}
+                                {renderCSREditableCell('jam_mulai', row.jam_mulai, index)}
+                                {renderCSREditableCell('jenis_csr', row.jenis_csr, index)}
+
+                                {/* Kelompok Kecil - Special handling */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_kelompok' ? 'border-2 border-brand-500' : ''} ${cellError('kelompok_kecil_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_kelompok' })}
+                                  title={cellError('kelompok_kecil_id')?.message || ''}
+                                >
+                                  {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_kelompok' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_kelompok || ""}
+                                      onChange={e => handleCSRKelompokKecilEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSREditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('kelompok_kecil_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                      {kelompokKecilList.find(k => k.id === row.kelompok_kecil_id)?.nama_kelompok || row.nama_kelompok || 'Tidak ditemukan'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {renderCSREditableCell('topik', row.topik, index)}
+                                {/* Keahlian - Special handling */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_keahlian' ? 'border-2 border-brand-500' : ''} ${cellError('kategori_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_keahlian' })}
+                                  title={cellError('kategori_id')?.message || ''}
+                                >
+                                  {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_keahlian' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_keahlian || ""}
+                                      onChange={e => handleCSRKeahlianEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSREditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('kategori_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                      {row.nama_keahlian || '-'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Dosen - Special handling */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_dosen' ? 'border-2 border-brand-500' : ''} ${cellError('dosen_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_dosen' })}
+                                  title={cellError('dosen_id')?.message || ''}
+                                >
+                                  {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_dosen' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_dosen || ""}
+                                      onChange={e => handleCSRDosenEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSREditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('dosen_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                      {dosenList.find(d => d.id === row.dosen_id)?.name || row.nama_dosen || 'Tidak ditemukan'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Ruangan - Special handling */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_ruangan' ? 'border-2 border-brand-500' : ''} ${cellError('ruangan_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_ruangan' })}
+                                  title={cellError('ruangan_id')?.message || ''}
+                                >
+                                  {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_ruangan' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_ruangan || ""}
+                                      onChange={e => handleCSRRuanganEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSREditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('ruangan_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                      {ruanganList.find(r => r.id === row.ruangan_id)?.nama || row.nama_ruangan || 'Tidak ditemukan'}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
 
                       {/* Pagination */}
                       {csrImportData.length > csrImportPageSize && (
@@ -3744,34 +3773,34 @@ export default function DetailNonBlokCSR() {
                 </div>
               )}
 
-                  {/* Action Buttons - Template Aplikasi */}
-                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => setShowCSRImportModal(false)}
-                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                    >
-                      Batal
-                    </button>
-                    {csrImportData.length > 0 && csrCellErrors.length === 0 && (
-                      <button
-                        onClick={handleCSRSubmitImport}
-                        disabled={isCSRImporting}
-                        className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {isCSRImporting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Importing...
-                          </>
-                        ) : (
-                          <>
-                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                            Import Data ({csrImportData.length} jadwal)
-                          </>
-                        )}
-                      </button>
+              {/* Action Buttons - Template Aplikasi */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setShowCSRImportModal(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                {csrImportData.length > 0 && csrCellErrors.length === 0 && (
+                  <button
+                    onClick={handleCSRSubmitImport}
+                    disabled={isCSRImporting}
+                    className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isCSRImporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Import Data ({csrImportData.length} jadwal)
+                      </>
                     )}
-                  </div>
+                  </button>
+                )}
+              </div>
             </motion.div>
           </div>
         )}
@@ -3782,7 +3811,7 @@ export default function DetailNonBlokCSR() {
         {showCSRSIAKADImportModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -3790,7 +3819,7 @@ export default function DetailNonBlokCSR() {
               onClick={() => setShowCSRSIAKADImportModal(false)}
             />
             {/* Modal Content */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -3823,396 +3852,396 @@ export default function DetailNonBlokCSR() {
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal CSR</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Template SIAKAD - Preview dan validasi data sebelum import</p>
               </div>
-                  {/* Info Box untuk Template SIAKAD */}
-                  <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-5 h-5 mt-0.5">
-                        <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
+              {/* Info Box untuk Template SIAKAD */}
+              <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 mt-0.5">
+                    <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                      Informasi Mapping Template SIAKAD
+                    </h3>
+                    <div className="text-sm text-green-700 dark:text-green-300 space-y-2">
+                      <div>
+                        <strong>Kolom yang tersedia di SIAKAD:</strong>
+                        <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                          <li>Tanggal → Tanggal</li>
+                          <li>Waktu Mulai → Jam mulai</li>
+                          <li>Kelompok → Kelompok kecil</li>
+                          <li>Topik → Topik</li>
+                          <li>Ruang → Ruangan</li>
+                        </ul>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
-                          Informasi Mapping Template SIAKAD
-                        </h3>
-                        <div className="text-sm text-green-700 dark:text-green-300 space-y-2">
-                          <div>
-                            <strong>Kolom yang tersedia di SIAKAD:</strong>
-                            <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
-                              <li>Tanggal → Tanggal</li>
-                              <li>Waktu Mulai → Jam mulai</li>
-                              <li>Kelompok → Kelompok kecil</li>
-                              <li>Topik → Topik</li>
-                              <li>Ruang → Ruangan</li>
-                            </ul>
-                          </div>
-                          <div>
-                            <strong>Kolom yang <span className="text-red-600 dark:text-red-400">WAJIB diisi manual</span> (tidak ada di SIAKAD):</strong>
-                            <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
-                              <li>Jenis CSR → Klik kolom "Kosong (isi manual)" untuk memilih (reguler/responsi)</li>
-                              <li>Keahlian → Klik kolom "Kosong (isi manual)" untuk memilih keahlian</li>
-                              <li>Dosen → Klik kolom "Kosong (isi manual)" untuk memilih dosen</li>
-                              <li>Sesi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
-                            </ul>
-                          </div>
-                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                            💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan jenis CSR: reguler = 3x50 menit, responsi = 2x50 menit.
-                          </div>
-                        </div>
+                      <div>
+                        <strong>Kolom yang <span className="text-red-600 dark:text-red-400">WAJIB diisi manual</span> (tidak ada di SIAKAD):</strong>
+                        <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                          <li>Jenis CSR → Klik kolom "Kosong (isi manual)" untuk memilih (reguler/responsi)</li>
+                          <li>Keahlian → Klik kolom "Kosong (isi manual)" untuk memilih keahlian</li>
+                          <li>Dosen → Klik kolom "Kosong (isi manual)" untuk memilih dosen</li>
+                          <li>Sesi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
+                        </ul>
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                        💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan jenis CSR: reguler = 3x50 menit, responsi = 2x50 menit.
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
 
-                  {/* Upload File Section - SIAKAD */}
-                  {!csrSiakadImportFile && (
-                    <div className="mb-6">
-                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
-                        <div className="space-y-4">
-                          <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel SIAKAD</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              Pilih file Excel dengan format SIAKAD (.xlsx, .xls)
-                            </p>
-                          </div>
-                          <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                            Pilih File
-                            <input
-                              ref={csrSiakadFileInputRef}
-                              type="file"
-                              accept=".xlsx,.xls"
-                              onChange={handleCSRSiakadImportExcelUpload}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
+              {/* Upload File Section - SIAKAD */}
+              {!csrSiakadImportFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
                       </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel SIAKAD</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format SIAKAD (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
+                        <input
+                          ref={csrSiakadFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleCSRSiakadImportExcelUpload}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
-                  )}
+                  </div>
+                </div>
+              )}
 
-                  {/* File Info - SIAKAD */}
-                  {csrSiakadImportFile && (
-                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
-                        <div className="flex-1">
-                          <p className="font-medium text-blue-800 dark:text-blue-200">{csrSiakadImportFile.name}</p>
-                          <p className="text-sm text-blue-600 dark:text-blue-300">
-                            {(csrSiakadImportFile.size / 1024).toFixed(1)} KB
-                          </p>
-                        </div>
+              {/* File Info - SIAKAD */}
+              {csrSiakadImportFile && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-800 dark:text-blue-200">{csrSiakadImportFile.name}</p>
+                      <p className="text-sm text-blue-600 dark:text-blue-300">
+                        {(csrSiakadImportFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleCSRSiakadRemoveFile}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Validasi - SIAKAD */}
+              {csrSiakadCellErrors.length > 0 && (
+                <div className="mb-6">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                        Error Validasi ({csrSiakadCellErrors.length} error)
+                      </h3>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto">
+                      {csrSiakadCellErrors.map((err, idx) => (
+                        <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                          • {err.message}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Data Table - SIAKAD */}
+              {csrSiakadImportData.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      Preview Data ({csrSiakadImportData.length} jadwal)
+                    </h3>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      File: {csrSiakadImportFile?.name}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="max-w-full overflow-x-auto hide-scroll">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis CSR</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Kecil</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keahlian</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {csrSiakadImportData.slice((csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE, csrSiakadImportPage * DEFAULT_PAGE_SIZE).map((row, index) => {
+                            const actualIndex = (csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE + index;
+                            const cellError = (field: string) => csrSiakadCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
+
+                            return (
+                              <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                  {actualIndex + 1}
+                                </td>
+
+                                {/* Tanggal */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'tanggal' ? 'border-2 border-brand-500' : ''} ${cellError('tanggal') || (!row.tanggal || row.tanggal.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'tanggal' })}
+                                  title={cellError('tanggal')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'tanggal' ? (
+                                    <input
+                                      type="text"
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.tanggal || ''}
+                                      onChange={e => handleCSRSiakadCellEdit(actualIndex, 'tanggal', e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                      placeholder="YYYY-MM-DD"
+                                    />
+                                  ) : (
+                                    <span className={cellError('tanggal') || (!row.tanggal || row.tanggal.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {row.tanggal || 'Wajib diisi'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Jam Mulai */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jam_mulai' ? 'border-2 border-brand-500' : ''} ${cellError('jam_mulai') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'jam_mulai' })}
+                                  title={cellError('jam_mulai')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jam_mulai' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.jam_mulai || ''}
+                                      onChange={e => handleCSRSiakadCellEdit(actualIndex, 'jam_mulai', e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('jam_mulai') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {row.jam_mulai || '-'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Jenis CSR */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jenis_csr' ? 'border-2 border-brand-500' : ''} ${cellError('jenis_csr') || (!row.jenis_csr || row.jenis_csr.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'jenis_csr' })}
+                                  title={cellError('jenis_csr')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jenis_csr' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.jenis_csr || ''}
+                                      onChange={e => handleCSRSiakadCellEdit(actualIndex, 'jenis_csr', e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('jenis_csr') || (!row.jenis_csr || row.jenis_csr.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {row.jenis_csr || 'Kosong (isi manual)'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Kelompok Kecil */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_kelompok' ? 'border-2 border-brand-500' : ''} ${cellError('kelompok_kecil_id') || (!row.nama_kelompok || row.nama_kelompok.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_kelompok' })}
+                                  title={cellError('kelompok_kecil_id')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_kelompok' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_kelompok === 'Wajib diisi' ? "" : (row.nama_kelompok || "")}
+                                      onChange={e => handleCSRSiakadKelompokKecilEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('kelompok_kecil_id') || (!row.nama_kelompok || row.nama_kelompok.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {kelompokKecilList.find(k => k.id === row.kelompok_kecil_id)?.nama_kelompok || row.nama_kelompok || 'Wajib diisi'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Topik */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'topik' ? 'border-2 border-brand-500' : ''} ${cellError('topik') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'topik' })}
+                                  title={cellError('topik')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'topik' ? (
+                                    <input
+                                      type="text"
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.topik || ''}
+                                      onChange={e => handleCSRSiakadCellEdit(actualIndex, 'topik', e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('topik') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {row.topik || '-'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Keahlian */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_keahlian' ? 'border-2 border-brand-500' : ''} ${cellError('kategori_id') || (!row.nama_keahlian || row.nama_keahlian.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_keahlian' })}
+                                  title={cellError('kategori_id')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_keahlian' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_keahlian || ''}
+                                      onChange={e => handleCSRSiakadKeahlianEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('kategori_id') || (!row.nama_keahlian || row.nama_keahlian.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {row.nama_keahlian || 'Kosong (isi manual)'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Dosen */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_dosen' ? 'border-2 border-brand-500' : ''} ${cellError('dosen_id') || (!row.nama_dosen || row.nama_dosen.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_dosen' })}
+                                  title={cellError('dosen_id')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_dosen' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_dosen || ''}
+                                      onChange={e => handleCSRSiakadDosenEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('dosen_id') || (!row.nama_dosen || row.nama_dosen.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {dosenList.find(d => d.id === row.dosen_id)?.name || row.nama_dosen || 'Kosong (isi manual)'}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Ruangan */}
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_ruangan' ? 'border-2 border-brand-500' : ''} ${cellError('ruangan_id') || (!row.nama_ruangan || row.nama_ruangan.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                  onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_ruangan' })}
+                                  title={cellError('ruangan_id')?.message || ''}
+                                >
+                                  {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_ruangan' ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      value={row.nama_ruangan === 'Wajib diisi' ? "" : (row.nama_ruangan || "")}
+                                      onChange={e => handleCSRSiakadRuanganEdit(actualIndex, e.target.value)}
+                                      onBlur={() => setCSRSiakadEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError('ruangan_id') || (!row.nama_ruangan || row.nama_ruangan.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                      {ruanganList.find(r => r.id === row.ruangan_id)?.nama || row.nama_ruangan || 'Wajib diisi'}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Pagination - SIAKAD */}
+                  {csrSiakadImportData.length > DEFAULT_PAGE_SIZE && (
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        Menampilkan {((csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE) + 1} - {Math.min(csrSiakadImportPage * DEFAULT_PAGE_SIZE, csrSiakadImportData.length)} dari {csrSiakadImportData.length} jadwal
+                      </div>
+                      <div className="flex gap-2">
                         <button
-                          onClick={handleCSRSiakadRemoveFile}
-                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
-                          title="Hapus file"
+                          onClick={() => setCSRSiakadImportPage(p => Math.max(1, p - 1))}
+                          disabled={csrSiakadImportPage === 1}
+                          className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          Previous
+                        </button>
+                        <span className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
+                          Page {csrSiakadImportPage} of {Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE)}
+                        </span>
+                        <button
+                          onClick={() => setCSRSiakadImportPage(p => Math.min(Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE), p + 1))}
+                          disabled={csrSiakadImportPage >= Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE)}
+                          className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          Next
                         </button>
                       </div>
                     </div>
                   )}
+                </div>
+              )}
 
-                  {/* Error Validasi - SIAKAD */}
-                  {csrSiakadCellErrors.length > 0 && (
-                    <div className="mb-6">
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
-                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                            Error Validasi ({csrSiakadCellErrors.length} error)
-                          </h3>
-                        </div>
-                        <div className="max-h-40 overflow-y-auto">
-                          {csrSiakadCellErrors.map((err, idx) => (
-                            <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
-                              • {err.message}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Preview Data Table - SIAKAD */}
-                  {csrSiakadImportData.length > 0 && (
-                    <div className="mb-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                          Preview Data ({csrSiakadImportData.length} jadwal)
-                        </h3>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          File: {csrSiakadImportFile?.name}
-                        </div>
-                      </div>
-                      
-                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                        <div className="max-w-full overflow-x-auto hide-scroll">
-                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                              <tr>
-                                <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis CSR</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Kecil</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keahlian</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                            {csrSiakadImportData.slice((csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE, csrSiakadImportPage * DEFAULT_PAGE_SIZE).map((row, index) => {
-                              const actualIndex = (csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE + index;
-                              const cellError = (field: string) => csrSiakadCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
-                              
-                              return (
-                                <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                  <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
-                                    {actualIndex + 1}
-                                  </td>
-                                  
-                                  {/* Tanggal */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'tanggal' ? 'border-2 border-brand-500' : ''} ${cellError('tanggal') || (!row.tanggal || row.tanggal.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'tanggal' })}
-                                    title={cellError('tanggal')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'tanggal' ? (
-                                      <input
-                                        type="text"
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.tanggal || ''}
-                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'tanggal', e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                        placeholder="YYYY-MM-DD"
-                                      />
-                                    ) : (
-                                      <span className={cellError('tanggal') || (!row.tanggal || row.tanggal.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {row.tanggal || 'Wajib diisi'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  
-                                  {/* Jam Mulai */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jam_mulai' ? 'border-2 border-brand-500' : ''} ${cellError('jam_mulai') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'jam_mulai' })}
-                                    title={cellError('jam_mulai')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jam_mulai' ? (
-                                      <input
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.jam_mulai || ''}
-                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'jam_mulai', e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span className={cellError('jam_mulai') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {row.jam_mulai || '-'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  
-                                  {/* Jenis CSR */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jenis_csr' ? 'border-2 border-brand-500' : ''} ${cellError('jenis_csr') || (!row.jenis_csr || row.jenis_csr.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'jenis_csr' })}
-                                    title={cellError('jenis_csr')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jenis_csr' ? (
-                                      <input
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.jenis_csr || ''}
-                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'jenis_csr', e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span className={cellError('jenis_csr') || (!row.jenis_csr || row.jenis_csr.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {row.jenis_csr || 'Kosong (isi manual)'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  
-                                  {/* Kelompok Kecil */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_kelompok' ? 'border-2 border-brand-500' : ''} ${cellError('kelompok_kecil_id') || (!row.nama_kelompok || row.nama_kelompok.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_kelompok' })}
-                                    title={cellError('kelompok_kecil_id')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_kelompok' ? (
-                                      <input
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.nama_kelompok === 'Wajib diisi' ? "" : (row.nama_kelompok || "")}
-                                        onChange={e => handleCSRSiakadKelompokKecilEdit(actualIndex, e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span className={cellError('kelompok_kecil_id') || (!row.nama_kelompok || row.nama_kelompok.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {kelompokKecilList.find(k => k.id === row.kelompok_kecil_id)?.nama_kelompok || row.nama_kelompok || 'Wajib diisi'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  
-                                  {/* Topik */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'topik' ? 'border-2 border-brand-500' : ''} ${cellError('topik') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'topik' })}
-                                    title={cellError('topik')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'topik' ? (
-                                      <input
-                                        type="text"
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.topik || ''}
-                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'topik', e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span className={cellError('topik') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {row.topik || '-'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  
-                                  {/* Keahlian */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_keahlian' ? 'border-2 border-brand-500' : ''} ${cellError('kategori_id') || (!row.nama_keahlian || row.nama_keahlian.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_keahlian' })}
-                                    title={cellError('kategori_id')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_keahlian' ? (
-                                      <input
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.nama_keahlian || ''}
-                                        onChange={e => handleCSRSiakadKeahlianEdit(actualIndex, e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span className={cellError('kategori_id') || (!row.nama_keahlian || row.nama_keahlian.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {row.nama_keahlian || 'Kosong (isi manual)'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  
-                                  {/* Dosen */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_dosen' ? 'border-2 border-brand-500' : ''} ${cellError('dosen_id') || (!row.nama_dosen || row.nama_dosen.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_dosen' })}
-                                    title={cellError('dosen_id')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_dosen' ? (
-                                      <input
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.nama_dosen || ''}
-                                        onChange={e => handleCSRSiakadDosenEdit(actualIndex, e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span className={cellError('dosen_id') || (!row.nama_dosen || row.nama_dosen.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {dosenList.find(d => d.id === row.dosen_id)?.name || row.nama_dosen || 'Kosong (isi manual)'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  
-                                  {/* Ruangan */}
-                                  <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_ruangan' ? 'border-2 border-brand-500' : ''} ${cellError('ruangan_id') || (!row.nama_ruangan || row.nama_ruangan.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
-                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_ruangan' })}
-                                    title={cellError('ruangan_id')?.message || ''}
-                                  >
-                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_ruangan' ? (
-                                      <input
-                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                        value={row.nama_ruangan === 'Wajib diisi' ? "" : (row.nama_ruangan || "")}
-                                        onChange={e => handleCSRSiakadRuanganEdit(actualIndex, e.target.value)}
-                                        onBlur={() => setCSRSiakadEditingCell(null)}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <span className={cellError('ruangan_id') || (!row.nama_ruangan || row.nama_ruangan.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
-                                        {ruanganList.find(r => r.id === row.ruangan_id)?.nama || row.nama_ruangan || 'Wajib diisi'}
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Pagination - SIAKAD */}
-                      {csrSiakadImportData.length > DEFAULT_PAGE_SIZE && (
-                        <div className="flex items-center justify-between mt-4">
-                          <div className="text-sm text-gray-600 dark:text-gray-400">
-                            Menampilkan {((csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE) + 1} - {Math.min(csrSiakadImportPage * DEFAULT_PAGE_SIZE, csrSiakadImportData.length)} dari {csrSiakadImportData.length} jadwal
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setCSRSiakadImportPage(p => Math.max(1, p - 1))}
-                              disabled={csrSiakadImportPage === 1}
-                              className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                            >
-                              Previous
-                            </button>
-                            <span className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
-                              Page {csrSiakadImportPage} of {Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE)}
-                            </span>
-                            <button
-                              onClick={() => setCSRSiakadImportPage(p => Math.min(Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE), p + 1))}
-                              disabled={csrSiakadImportPage >= Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE)}
-                              className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                            >
-                              Next
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Action Buttons - SIAKAD */}
-                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => setShowCSRSIAKADImportModal(false)}
-                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                    >
-                      Batal
-                    </button>
-                    {csrSiakadImportData.length > 0 && csrSiakadCellErrors.length === 0 && (
-                      <button
-                        onClick={handleCSRSiakadSubmitImport}
-                        disabled={isCSRSiakadImporting}
-                        className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {isCSRSiakadImporting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Importing...
-                          </>
-                        ) : (
-                          <>
-                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                            Import Data ({csrSiakadImportData.length} jadwal)
-                          </>
-                        )}
-                      </button>
+              {/* Action Buttons - SIAKAD */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setShowCSRSIAKADImportModal(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                {csrSiakadImportData.length > 0 && csrSiakadCellErrors.length === 0 && (
+                  <button
+                    onClick={handleCSRSiakadSubmitImport}
+                    disabled={isCSRSiakadImporting}
+                    className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isCSRSiakadImporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Import Data ({csrSiakadImportData.length} jadwal)
+                      </>
                     )}
-                  </div>
+                  </button>
+                )}
+              </div>
             </motion.div>
           </div>
         )}
@@ -4275,16 +4304,16 @@ export default function DetailNonBlokCSR() {
         {showCSRExportModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowCSRExportModal(false)}
             />
-            
+
             {/* Modal Content */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -4311,7 +4340,7 @@ export default function DetailNonBlokCSR() {
                   />
                 </svg>
               </button>
-              
+
               <div>
                 <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <div>
@@ -4323,31 +4352,29 @@ export default function DetailNonBlokCSR() {
                     </p>
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="mb-3 sm:mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Pilih jenis template yang ingin digunakan
                     </label>
                   </div>
-                  
+
                   <div className="space-y-3">
                     {/* Template Aplikasi */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedCSRExportTemplate === 'APLIKASI'
-                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
-                          : ''
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedCSRExportTemplate === 'APLIKASI'
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                        : ''
+                        }`}
                       onClick={() => setSelectedCSRExportTemplate('APLIKASI')}
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedCSRExportTemplate === 'APLIKASI'
-                              ? 'bg-brand-500 border-brand-500'
-                              : 'border-gray-300 dark:border-gray-600'
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedCSRExportTemplate === 'APLIKASI'
+                            ? 'bg-brand-500 border-brand-500'
+                            : 'border-gray-300 dark:border-gray-600'
+                            }`}
                         >
                           {selectedCSRExportTemplate === 'APLIKASI' && (
                             <svg
@@ -4376,23 +4403,21 @@ export default function DetailNonBlokCSR() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Template SIAKAD */}
                     <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedCSRExportTemplate === 'SIAKAD'
-                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
-                          : ''
-                      }`}
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${selectedCSRExportTemplate === 'SIAKAD'
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                        : ''
+                        }`}
                       onClick={() => setSelectedCSRExportTemplate('SIAKAD')}
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedCSRExportTemplate === 'SIAKAD'
-                              ? 'bg-brand-500 border-brand-500'
-                              : 'border-gray-300 dark:border-gray-600'
-                          }`}
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedCSRExportTemplate === 'SIAKAD'
+                            ? 'bg-brand-500 border-brand-500'
+                            : 'border-gray-300 dark:border-gray-600'
+                            }`}
                         >
                           {selectedCSRExportTemplate === 'SIAKAD' && (
                             <svg
@@ -4423,7 +4448,7 @@ export default function DetailNonBlokCSR() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end gap-2 pt-2 relative z-20">
                   <button
                     onClick={() => setShowCSRExportModal(false)}
@@ -4434,11 +4459,10 @@ export default function DetailNonBlokCSR() {
                   <button
                     onClick={handleCSRExport}
                     disabled={!selectedCSRExportTemplate}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
-                      selectedCSRExportTemplate
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                    }`}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${selectedCSRExportTemplate
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                      }`}
                   >
                     Export
                   </button>

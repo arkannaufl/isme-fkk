@@ -31,7 +31,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   const { kode, jadwalId } = useParams<{ kode: string; jadwalId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mahasiswaList, setMahasiswaList] = useState<Mahasiswa[]>([]);
@@ -60,7 +60,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   const newBadgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDisablingOnUnmountRef = useRef<boolean>(false); // Prevent multiple disable calls on unmount
   const previousLocationRef = useRef<string>(''); // Track previous location
-  
+
   useEffect(() => {
     fetchData();
   }, [kode, jadwalId]);
@@ -69,7 +69,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   const fetchAbsensiOnly = useCallback(async () => {
     if (!kode || !jadwalId) return;
     if (isSyncing || confirmOpen) return; // hindari overwrite saat sedang sync atau konfirmasi
-    
+
     // Skip auto-refresh jika baru saja ada manual save (dalam 3 detik terakhir)
     const now = Date.now();
     if (now - lastManualSave < 3000) {
@@ -79,7 +79,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
     try {
       const absensiResponse = await api.get(`/non-blok-non-csr/${kode}/jadwal/${jadwalId}/absensi`);
       const existingAbsensi: AbsensiData = {};
-      
+
       if (absensiResponse.data?.absensi) {
         Object.keys(absensiResponse.data.absensi).forEach((nim) => {
           const absen = absensiResponse.data.absensi[nim];
@@ -88,19 +88,19 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
           };
         });
       }
-      
+
       // Update state absensi - perbandingan yang lebih akurat
       setAbsensi((prev) => {
         const prevKeys = Object.keys(prev || {});
         const newKeys = Object.keys(existingAbsensi);
-        
+
         // Check if there are any differences
         const hasNewKeys = newKeys.some(key => !prevKeys.includes(key));
-        const hasChangedValues = newKeys.some(key => 
+        const hasChangedValues = newKeys.some(key =>
           prev[key]?.hadir !== existingAbsensi[key]?.hadir
         );
         const hasRemovedKeys = prevKeys.some(key => !newKeys.includes(key));
-        
+
         if (hasNewKeys || hasChangedValues || hasRemovedKeys || newKeys.length !== prevKeys.length) {
           return existingAbsensi;
         }
@@ -115,23 +115,23 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   // Fungsi untuk fetch QR token
   const fetchQrToken = useCallback(async () => {
     if (!kode || !jadwalId || !qrEnabled) return;
-    
+
     // Prevent multiple simultaneous calls
     if (isFetchingToken) {
       console.log('Token fetch already in progress, skipping...');
       return;
     }
-    
+
     setIsFetchingToken(true);
-    
+
     try {
       const response = await api.get(`/non-blok-non-csr/${kode}/jadwal/${jadwalId}/qr-token`);
       const token = response.data.token;
-      
+
       // Gunakan expires_at_timestamp jika ada (lebih reliable, tidak terpengaruh timezone)
       // Jika tidak ada, fallback ke parsing expires_at string
       let expiresAt: number;
-      
+
       if (response.data.expires_at_timestamp) {
         // Gunakan timestamp langsung (dalam milliseconds)
         expiresAt = response.data.expires_at_timestamp;
@@ -140,16 +140,16 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
         const expiresAtStr = response.data.expires_at;
         expiresAt = new Date(expiresAtStr).getTime();
       }
-      
+
       // Validate expires_at
       if (isNaN(expiresAt) || expiresAt <= 0) {
         console.error('Invalid expires_at:', expiresAt, response.data);
         throw new Error('Invalid expires_at format');
       }
-      
+
       const now = Date.now();
       const expiresInSeconds = Math.floor((expiresAt - now) / 1000);
-      
+
       console.log('QR token fetched:', {
         expiresAtStr: response.data.expires_at,
         expiresAtTimestamp: expiresAt,
@@ -158,35 +158,35 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
         expiresInSeconds: expiresInSeconds,
         expiresInFormatted: Math.floor(expiresInSeconds / 60) + ':' + (expiresInSeconds % 60).toString().padStart(2, '0')
       });
-      
+
       // Pastikan waktu tidak negatif atau terlalu kecil
       if (expiresInSeconds < 20) {
         console.warn('Token expires too soon:', expiresInSeconds, 'seconds');
       }
-      
+
       setQrToken(token);
       setQrTokenExpiresAt(expiresAt);
-      
+
       // Reset flag saat token baru di-fetch
       tokenRefreshCalledRef.current = false;
-      
+
       // Calculate initial time remaining
       const remaining = Math.max(0, expiresInSeconds);
       setTimeRemaining(remaining);
-      
+
       // Generate QR code URL dengan token
       const qrData = `${window.location.origin}/mahasiswa/absensi-non-blok-non-csr/${kode}/${jadwalId}?from_qr=true&token=${token}`;
       setQrCodeData(qrData);
-      
+
       // Update key untuk trigger animasi QR code
       setQrCodeKey(prev => prev + 1);
-      
+
       // Trigger efek butiran
       setShowParticles(true);
       setTimeout(() => {
         setShowParticles(false);
       }, 1500);
-      
+
       // Tampilkan badge "QR Code Baru" selama 3 detik
       setShowNewBadge(true);
       if (newBadgeTimeoutRef.current) {
@@ -224,7 +224,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       const now = Date.now();
       const remaining = Math.max(0, Math.floor((qrTokenExpiresAt - now) / 1000));
       setTimeRemaining(remaining);
-      
+
       // Jika waktu habis, fetch token baru (hanya sekali)
       if (remaining === 0 && qrEnabled && !isFetchingToken && !tokenRefreshCalledRef.current) {
         tokenRefreshCalledRef.current = true;
@@ -237,7 +237,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
 
     // Update setiap detik
     const intervalId = setInterval(updateTimer, 1000);
-    
+
     // Update sekali langsung
     updateTimer();
 
@@ -265,7 +265,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
     // Selanjutnya countdown timer akan handle refresh
     fetchQrToken();
   }, [qrEnabled, kode, jadwalId]); // Remove fetchQrToken dari dependency
-  
+
   // Cleanup timeout saat component unmount
   useEffect(() => {
     return () => {
@@ -278,7 +278,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   // Fungsi helper untuk disable QR code
   const disableQRCode = useCallback(async () => {
     if (!kode || !jadwalId || !qrEnabled || isDisablingOnUnmountRef.current) return;
-    
+
     isDisablingOnUnmountRef.current = true;
     try {
       await api.put(`/non-blok-non-csr/${kode}/jadwal/${jadwalId}/toggle-qr`);
@@ -304,19 +304,19 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
 
     const currentPath = location.pathname;
     const expectedPath = `/absensi-non-blok-non-csr/${kode}/${jadwalId}`;
-    
+
     // Jika location berubah dan bukan lagi di halaman absensi, disable QR
     // Check: sebelumnya di halaman absensi, sekarang tidak, dan QR masih enabled
-    const wasOnAbsensiPage = previousLocationRef.current === expectedPath || 
-                             previousLocationRef.current.startsWith('/absensi-non-blok-non-csr/');
-    const isStillOnAbsensiPage = currentPath === expectedPath || 
-                                  currentPath.startsWith('/absensi-non-blok-non-csr/');
-    
+    const wasOnAbsensiPage = previousLocationRef.current === expectedPath ||
+      previousLocationRef.current.startsWith('/absensi-non-blok-non-csr/');
+    const isStillOnAbsensiPage = currentPath === expectedPath ||
+      currentPath.startsWith('/absensi-non-blok-non-csr/');
+
     if (wasOnAbsensiPage && !isStillOnAbsensiPage && qrEnabled) {
       console.log('Location changed from', previousLocationRef.current, 'to', currentPath, '- disabling QR code...');
       disableQRCode();
     }
-    
+
     // Update previous location
     previousLocationRef.current = currentPath;
   }, [location.pathname, kode, jadwalId, qrEnabled, disableQRCode]);
@@ -344,14 +344,14 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
     const handleBeforeUnload = () => {
       if (qrEnabled && kode && jadwalId && !isDisablingOnUnmountRef.current) {
         isDisablingOnUnmountRef.current = true;
-        
+
         // Gunakan fetch dengan keepalive untuk lebih reliable saat page unload
         // keepalive: true memastikan request tetap dikirim meskipun page sudah mulai unload
         // Ini penting untuk handle browser close dan page reload
         const token = localStorage.getItem('token');
         const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         const url = `${baseURL}/api/non-blok-non-csr/${kode}/jadwal/${jadwalId}/toggle-qr`;
-        
+
         // Fetch dengan keepalive: true - ini adalah cara terbaik untuk send request saat page unload
         // Browser akan memastikan request ini dikirim bahkan setelah page mulai unload
         fetch(url, {
@@ -375,7 +375,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
     // 2. User reload page (F5, Ctrl+R, atau klik refresh button)
     // 3. User navigate away dari page (meskipun sudah ada handler untuk location change)
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
@@ -384,10 +384,10 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   // Auto-refresh data absensi setiap 2 detik (untuk real-time update dari mahasiswa)
   useEffect(() => {
     if (!kode || !jadwalId || loading) return;
-    
+
     // Fetch sekali dulu untuk memastikan data terbaru
     fetchAbsensiOnly();
-    
+
     const intervalId = setInterval(() => {
       fetchAbsensiOnly();
     }, 2000); // Refresh setiap 2 detik
@@ -401,26 +401,26 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   const fetchData = async () => {
     if (!kode || !jadwalId) return;
     setLoading(true);
-    
+
     try {
       const jadwalResponse = await api.get(`/non-blok-non-csr/jadwal/${kode}`);
       const allJadwal = jadwalResponse.data;
       const foundJadwal = allJadwal.find((j: any) => j.id === parseInt(jadwalId));
-      
+
       if (!foundJadwal) {
         setError('Jadwal tidak ditemukan');
         return;
       }
       setJadwalDetail(foundJadwal);
       setQrEnabled(foundJadwal.qr_enabled || false);
-      
+
       // Cek kelompok_besar_antara_id dulu (prioritas untuk semester antara)
       if (foundJadwal?.kelompok_besar_antara_id) {
         try {
           const kelompokResponse = await api.get(`/kelompok-besar-antara/${foundJadwal.kelompok_besar_antara_id}`);
-          
+
           const mahasiswaIds = kelompokResponse.data?.mahasiswa_ids || [];
-          
+
           if (mahasiswaIds.length > 0) {
             // Fetch detail mahasiswa secara parallel
             const mahasiswaDetails = await Promise.all(
@@ -434,7 +434,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
                 }
               })
             );
-            
+
             // Filter out null dan map ke format yang dibutuhkan
             const mahasiswa = mahasiswaDetails
               .filter((user: any) => user && user.id)
@@ -444,7 +444,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
                 nama: user.name || user.nama || 'N/A'
               }))
               .filter((m: any) => m.id && m.nim && m.nim !== 'N/A'); // Filter out null/undefined/invalid
-              
+
             setMahasiswaList(mahasiswa);
           } else {
             setMahasiswaList([]);
@@ -458,31 +458,26 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       } else if (foundJadwal?.kelompok_besar_id) {
         try {
           let semester = null;
-          
-          // Cek apakah ada relasi kelompokBesar yang sudah di-load
-          if (foundJadwal.kelompok_besar && foundJadwal.kelompok_besar.semester) {
-            semester = foundJadwal.kelompok_besar.semester;
-          } else if (foundJadwal.mata_kuliah && foundJadwal.mata_kuliah.semester) {
-            // Fallback: ambil semester dari mata kuliah
-            semester = foundJadwal.mata_kuliah.semester;
-          } else {
-            // Jika kelompok_besar_id adalah ID database, perlu query untuk ambil semester
-            // Tapi karena struktur data, kelompok_besar_id di jadwal biasanya menyimpan semester langsung
-            // Coba langsung gunakan sebagai semester dulu
+
+          // kelompok_besar_id already stores the semester number directly (1, 2, 3, etc.)
+          if (foundJadwal.kelompok_besar_id) {
             semester = foundJadwal.kelompok_besar_id;
+          } else if (foundJadwal.mata_kuliah && foundJadwal.mata_kuliah.semester) {
+            // Fallback: ambil semester dari mata kuliah jika tidak ada kelompok_besar_id
+            semester = foundJadwal.mata_kuliah.semester;
           }
-          
+
           // Query mahasiswa berdasarkan semester
           if (semester) {
             const mahasiswaResponse = await api.get(`/kelompok-besar?semester=${semester}`);
-            
+
             if (mahasiswaResponse.data && Array.isArray(mahasiswaResponse.data) && mahasiswaResponse.data.length > 0) {
-        const mahasiswa = mahasiswaResponse.data.map((kb: any) => ({
-          id: kb.mahasiswa?.id || kb.mahasiswa_id,
-          nim: kb.mahasiswa?.nim || 'N/A',
-          nama: kb.mahasiswa?.name || kb.mahasiswa?.nama || 'N/A'
+              const mahasiswa = mahasiswaResponse.data.map((kb: any) => ({
+                id: kb.mahasiswa?.id || kb.mahasiswa_id,
+                nim: kb.mahasiswa?.nim || 'N/A',
+                nama: kb.mahasiswa?.name || kb.mahasiswa?.nama || 'N/A'
               })).filter((m: any) => m.id && m.nim && m.nim !== 'N/A'); // Filter out null/undefined
-        setMahasiswaList(mahasiswa);
+              setMahasiswaList(mahasiswa);
             } else {
               setMahasiswaList([]);
             }
@@ -503,7 +498,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       try {
         const absensiResponse = await api.get(`/non-blok-non-csr/${kode}/jadwal/${jadwalId}/absensi`);
         const existingAbsensi: AbsensiData = {};
-        
+
         if (absensiResponse.data.absensi) {
           Object.keys(absensiResponse.data.absensi).forEach((nim) => {
             const absen = absensiResponse.data.absensi[nim];
@@ -592,7 +587,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
     try {
       const payload = { absensi: [{ mahasiswa_nim: nim, hadir, catatan: '' }] };
       await api.post(`/non-blok-non-csr/${kode}/jadwal/${jadwalId}/absensi`, payload);
-      
+
       // Tunggu sebentar agar backend selesai memproses, lalu refresh
       // Tapi pastikan state lokal sudah benar terlebih dahulu
       setTimeout(async () => {
@@ -616,11 +611,11 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
     } catch (err: any) {
       // jika gagal, rollback state lokal agar tidak menyesatkan
       setAbsensi((prev) => ({ ...prev, [nim]: { hadir: !hadir } }));
-      
+
       // Tampilkan error message yang lebih informatif
       const errorMessage = err?.response?.data?.message || 'Gagal menyimpan perubahan. Silakan coba lagi.';
       setError(errorMessage);
-      
+
       console.error('Error saving attendance:', err);
       console.error('Error response:', err?.response?.data);
     } finally {
@@ -679,16 +674,16 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
 
       // Data Informasi Kelas
       const mataKuliahNama = jadwalDetail?.mata_kuliah?.nama || jadwalDetail?.mata_kuliah_kode || '-';
-      const semester = jadwalDetail?.kelompok_besar?.semester || 
-                      jadwalDetail?.mata_kuliah?.semester || 
-                      jadwalDetail?.kelompok_besar_id || '-';
-      const tanggal = jadwalDetail.tanggal 
-        ? new Date(jadwalDetail.tanggal).toLocaleDateString('id-ID', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })
+      const semester = jadwalDetail?.kelompok_besar_id ||
+        jadwalDetail?.mata_kuliah?.semester ||
+        '-';
+      const tanggal = jadwalDetail.tanggal
+        ? new Date(jadwalDetail.tanggal).toLocaleDateString('id-ID', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
         : '-';
       const waktu = jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
         ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
@@ -696,7 +691,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       const ruangan = jadwalDetail?.ruangan?.nama || '-';
       const materi = jadwalDetail?.materi || '-';
       const topik = jadwalDetail?.topik || '-';
-      
+
       // Ambil data dosen lengkap untuk Excel
       const dosenDataExcel = jadwalDetail?.dosen;
       const dosenNamaExcelLengkap = dosenDataExcel?.name || '-';
@@ -869,7 +864,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
 
       // Bagian Tanda Tangan Dosen Mengajar
       const signatureRow = worksheet.rowCount + 1;
-      
+
       // Tanggal di kanan (kolom D)
       const tanggalSignature = `Jakarta, ${new Date().toLocaleDateString("id-ID", {
         day: "numeric",
@@ -905,13 +900,13 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
         try {
           // Tinggikan baris untuk menampung gambar
           worksheet.getRow(dosenLineRow).height = 50;
-          
+
           // Tambahkan gambar tanda tangan ke workbook
           const imageId = workbook.addImage({
             buffer: base64ToBuffer(dosenSignatureImageExcel) as any,
             extension: "png",
           });
-          
+
           // Tambahkan gambar di kolom D, align kanan
           // Kolom D adalah kolom ke-4 (A=1, B=2, C=3, D=4)
           // Untuk align kanan, kita perlu menempatkan gambar di kolom D dengan width kolom yang sesuai
@@ -954,7 +949,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       worksheet.mergeCells(`A${worksheet.rowCount}:D${worksheet.rowCount}`);
 
       // Generate filename
-      const tanggalFile = jadwalDetail.tanggal 
+      const tanggalFile = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
       const filename = `Absensi_Non_Blok_Non_CSR_${jadwalDetail.mata_kuliah_kode}_${tanggalFile}`;
@@ -1120,16 +1115,16 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       yPos += 8;
 
       const mataKuliahNama = jadwalDetail?.mata_kuliah?.nama || jadwalDetail?.mata_kuliah_kode || '-';
-      const semester = jadwalDetail?.kelompok_besar?.semester || 
-                      jadwalDetail?.mata_kuliah?.semester || 
-                      jadwalDetail?.kelompok_besar_id || '-';
-      const tanggal = jadwalDetail.tanggal 
-        ? new Date(jadwalDetail.tanggal).toLocaleDateString('id-ID', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })
+      const semester = jadwalDetail?.kelompok_besar_id ||
+        jadwalDetail?.mata_kuliah?.semester ||
+        '-';
+      const tanggal = jadwalDetail.tanggal
+        ? new Date(jadwalDetail.tanggal).toLocaleDateString('id-ID', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
         : '-';
       const waktu = jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
         ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
@@ -1142,7 +1137,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       doc.setFont("times", "normal");
       // Koordinat x untuk titik dua agar sejajar (dalam mm)
       const colonXKelas = margin + 35; // Jarak dari margin untuk titik dua
-      
+
       doc.text('Mata Kuliah', margin, yPos);
       doc.text(`: ${mataKuliahNama}`, colonXKelas, yPos);
       yPos += 6;
@@ -1183,7 +1178,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       doc.setFont("times", "normal");
       // Koordinat x untuk titik dua agar sejajar (dalam mm)
       const colonXDosen = margin + 35; // Jarak dari margin untuk titik dua
-      
+
       doc.text('Nama Dosen', margin, yPos);
       doc.text(`: ${dosenNamaLengkap}`, colonXDosen, yPos);
       yPos += 6;
@@ -1212,7 +1207,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       doc.setFont("times", "normal");
       // Koordinat x untuk titik dua agar sejajar (dalam mm) - lebih lebar untuk "Persentase Kehadiran"
       const colonXAbsensi = margin + 45; // Jarak dari margin untuk titik dua
-      
+
       doc.text('Total Mahasiswa', margin, yPos);
       doc.text(`: ${totalMahasiswa}`, colonXAbsensi, yPos);
       yPos += 6;
@@ -1287,11 +1282,11 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       const tidakHadirTableData = mahasiswaTidakHadir.length === 0
         ? [['-', '-', 'Semua mahasiswa hadir', '-']]
         : mahasiswaTidakHadir.map((m, index) => [
-            index + 1,
-            m.nim,
-            m.nama,
-            'Tidak Hadir'
-          ]);
+          index + 1,
+          m.nim,
+          m.nama,
+          'Tidak Hadir'
+        ]);
 
       autoTable(doc, {
         head: [['No', 'NIM', 'Nama Mahasiswa', 'Status']],
@@ -1368,7 +1363,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
           const imgHeight = 20; // Tinggi gambar dalam mm
           const imgX = doc.internal.pageSize.width - margin - imgWidth; // Posisi X (kanan)
           const imgY = signYStart + 12; // Posisi Y (di bawah title)
-          
+
           doc.addImage(
             dosenSignatureImage,
             'PNG',
@@ -1419,7 +1414,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       const totalPages = (doc as any).internal.pages.length;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        
+
         // Footer
         doc.setFontSize(8);
         doc.setFont("times", "normal");
@@ -1441,7 +1436,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
       }
 
       // Generate filename
-      const tanggalFile = jadwalDetail.tanggal 
+      const tanggalFile = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
       const filename = `Absensi_Non_Blok_Non_CSR_${jadwalDetail.mata_kuliah_kode}_${tanggalFile}`;
@@ -1570,7 +1565,7 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
   const stats = {
     total: mahasiswaList.length,
     hadir: Object.values(absensi).filter(a => a?.hadir).length,
-    persentase: mahasiswaList.length > 0 
+    persentase: mahasiswaList.length > 0
       ? Math.round((Object.values(absensi).filter(a => a?.hadir).length / mahasiswaList.length) * 100)
       : 0
   };
@@ -1707,21 +1702,19 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
         <div className="flex border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setActiveTab('manual')}
-            className={`px-6 py-3 font-semibold transition-colors ${
-              activeTab === 'manual'
+            className={`px-6 py-3 font-semibold transition-colors ${activeTab === 'manual'
                 ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             Manual
           </button>
           <button
             onClick={() => setActiveTab('qr')}
-            className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === 'qr'
+            className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${activeTab === 'qr'
                 ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             <FontAwesomeIcon icon={faDesktop} />
             Presentasi QR
@@ -1932,11 +1925,10 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
                       {/* Always show first page */}
                       <button
                         onClick={() => setPage(1)}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                          page === 1
+                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === 1
                             ? "bg-brand-500 text-white"
                             : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        }`}
+                          }`}
                       >
                         1
                       </button>
@@ -1964,11 +1956,10 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
                           <button
                             key={i}
                             onClick={() => setPage(pageNum)}
-                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                              page === pageNum
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === pageNum
                                 ? "bg-brand-500 text-white"
                                 : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            }`}
+                              }`}
                           >
                             {pageNum}
                           </button>
@@ -1986,11 +1977,10 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
                       {totalPages > 1 && (
                         <button
                           onClick={() => setPage(totalPages)}
-                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                            page === totalPages
+                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === totalPages
                               ? "bg-brand-500 text-white"
                               : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          }`}
+                            }`}
                         >
                           {totalPages}
                         </button>
@@ -2012,292 +2002,285 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-white/[0.03] rounded-b-2xl shadow-sm border border-t-0 border-gray-200 dark:border-gray-800 p-4 sm:p-6">
-            <div className="max-w-3xl mx-auto">
-              {/* Header Section */}
-              <div className="text-center mb-4 sm:mb-6">
-                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-brand-500 rounded-xl mb-2 sm:mb-3">
-                  <FontAwesomeIcon icon={faDesktop} className="text-white text-lg sm:text-xl" />
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2 px-2">
-                  Presentasi QR Code untuk Absensi
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 px-2">
-                  Tampilkan QR code ini di layar proyektor agar mahasiswa dapat scan dengan HP mereka
-                </p>
+          <div className="max-w-3xl mx-auto">
+            {/* Header Section */}
+            <div className="text-center mb-4 sm:mb-6">
+              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-brand-500 rounded-xl mb-2 sm:mb-3">
+                <FontAwesomeIcon icon={faDesktop} className="text-white text-lg sm:text-xl" />
               </div>
-              
-              {/* Status & Control Card */}
-              <div className={`rounded-xl border p-3 sm:p-4 mb-4 sm:mb-6 transition-colors ${
-                qrEnabled
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                  : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700'
-              }`}>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                    <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${
-                      qrEnabled ? 'bg-green-500' : 'bg-gray-400'
-                    }`}></div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs sm:text-sm font-semibold ${
-                        qrEnabled 
-                          ? 'text-green-700 dark:text-green-400' 
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}>
-                        {qrEnabled ? 'QR Code Aktif' : 'QR Code Tidak Aktif'}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        {qrEnabled ? 'Mahasiswa dapat melakukan scan sekarang' : 'Aktifkan QR code untuk memulai sesi absensi'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!kode || !jadwalId) return;
-                      setTogglingQR(true);
-                      try {
-                        const response = await api.put(`/non-blok-non-csr/${kode}/jadwal/${jadwalId}/toggle-qr`);
-                        setQrEnabled(response.data.qr_enabled);
-                      } catch (err: any) {
-                        console.error('Error toggling QR:', err);
-                        setError(handleApiError(err, 'Gagal mengubah status QR code'));
-                      } finally {
-                        setTogglingQR(false);
-                      }
-                    }}
-                    disabled={togglingQR}
-                    className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
-                      qrEnabled
-                        ? 'bg-red-500 hover:bg-red-600 text-white'
-                        : 'bg-brand-500 hover:bg-brand-600 text-white'
-                    } ${togglingQR ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {togglingQR ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
-                        <span>Memproses...</span>
-                      </span>
-                    ) : qrEnabled ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        <span>Nonaktifkan</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>Aktifkan QR Code</span>
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2 px-2">
+                Presentasi QR Code untuk Absensi
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 px-2">
+                Tampilkan QR code ini di layar proyektor agar mahasiswa dapat scan dengan HP mereka
+              </p>
+            </div>
 
-              {/* QR Code Display */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-6 mb-4 sm:mb-6">
-                {!qrEnabled ? (
-                  <div className="text-center py-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-xl mb-4">
-                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">QR Code Belum Diaktifkan</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Klik tombol <span className="font-semibold text-brand-600 dark:text-brand-400">"Aktifkan QR Code"</span> di atas untuk menampilkan QR code
+            {/* Status & Control Card */}
+            <div className={`rounded-xl border p-3 sm:p-4 mb-4 sm:mb-6 transition-colors ${qrEnabled
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700'
+              }`}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                  <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${qrEnabled ? 'bg-green-500' : 'bg-gray-400'
+                    }`}></div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs sm:text-sm font-semibold ${qrEnabled
+                        ? 'text-green-700 dark:text-green-400'
+                        : 'text-gray-700 dark:text-gray-300'
+                      }`}>
+                      {qrEnabled ? 'QR Code Aktif' : 'QR Code Tidak Aktif'}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      {qrEnabled ? 'Mahasiswa dapat melakukan scan sekarang' : 'Aktifkan QR code untuk memulai sesi absensi'}
                     </p>
                   </div>
-                ) : qrCodeData ? (
-                  <div className="flex flex-col items-center">
-                    {/* Countdown Timer */}
-                    {timeRemaining > 0 && (
-                      <div className="mb-4 sm:mb-6 w-full flex justify-center">
-                        <div className={`flex items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-4 rounded-xl border transition-colors w-full sm:w-auto ${
-                          timeRemaining <= 10
-                            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                            : timeRemaining <= 30
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!kode || !jadwalId) return;
+                    setTogglingQR(true);
+                    try {
+                      const response = await api.put(`/non-blok-non-csr/${kode}/jadwal/${jadwalId}/toggle-qr`);
+                      setQrEnabled(response.data.qr_enabled);
+                    } catch (err: any) {
+                      console.error('Error toggling QR:', err);
+                      setError(handleApiError(err, 'Gagal mengubah status QR code'));
+                    } finally {
+                      setTogglingQR(false);
+                    }
+                  }}
+                  disabled={togglingQR}
+                  className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${qrEnabled
+                      ? 'bg-red-500 hover:bg-red-600 text-white'
+                      : 'bg-brand-500 hover:bg-brand-600 text-white'
+                    } ${togglingQR ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {togglingQR ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
+                      <span>Memproses...</span>
+                    </span>
+                  ) : qrEnabled ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span>Nonaktifkan</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Aktifkan QR Code</span>
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* QR Code Display */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-6 mb-4 sm:mb-6">
+              {!qrEnabled ? (
+                <div className="text-center py-12">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-xl mb-4">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">QR Code Belum Diaktifkan</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Klik tombol <span className="font-semibold text-brand-600 dark:text-brand-400">"Aktifkan QR Code"</span> di atas untuk menampilkan QR code
+                  </p>
+                </div>
+              ) : qrCodeData ? (
+                <div className="flex flex-col items-center">
+                  {/* Countdown Timer */}
+                  {timeRemaining > 0 && (
+                    <div className="mb-4 sm:mb-6 w-full flex justify-center">
+                      <div className={`flex items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-4 rounded-xl border transition-colors w-full sm:w-auto ${timeRemaining <= 10
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                          : timeRemaining <= 30
                             ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
                             : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                         }`}>
-                          <div className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0 ${
-                            timeRemaining <= 10
-                              ? 'bg-red-500 dark:bg-red-600'
-                              : timeRemaining <= 30
+                        <div className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0 ${timeRemaining <= 10
+                            ? 'bg-red-500 dark:bg-red-600'
+                            : timeRemaining <= 30
                               ? 'bg-orange-500 dark:bg-orange-600'
                               : 'bg-blue-500 dark:bg-blue-600'
                           }`}>
-                            <svg className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${timeRemaining <= 10 ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                          <div className="flex flex-col items-center text-center">
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-0.5">
-                              QR Code akan berubah dalam
-                            </p>
-                            <p className={`text-xl sm:text-2xl font-bold ${
-                              timeRemaining <= 10
-                                ? 'text-red-600 dark:text-red-400'
-                                : timeRemaining <= 30
+                          <svg className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${timeRemaining <= 10 ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="flex flex-col items-center text-center">
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-0.5">
+                            QR Code akan berubah dalam
+                          </p>
+                          <p className={`text-xl sm:text-2xl font-bold ${timeRemaining <= 10
+                              ? 'text-red-600 dark:text-red-400'
+                              : timeRemaining <= 30
                                 ? 'text-orange-600 dark:text-orange-400'
                                 : 'text-blue-600 dark:text-blue-400'
                             }`}>
-                              {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* QR Code Container */}
-                    <div className="bg-white dark:bg-gray-900 p-3 sm:p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 mb-4 sm:mb-6 relative overflow-hidden flex items-center justify-center">
-                      {/* Loading overlay saat fetch token baru */}
-                      {isFetchingToken && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl"
-                        >
-                          <div className="flex flex-col items-center gap-2">
-                            <FontAwesomeIcon icon={faSpinner} className="animate-spin text-blue-600 dark:text-blue-400 text-xl sm:text-2xl" />
-                            <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Memperbarui QR code...</p>
-                          </div>
-                        </motion.div>
-                      )}
-                      
-                      {/* QR Code dengan animasi */}
-                      <motion.div
-                        key={qrCodeKey}
-                        className="flex items-center justify-center relative w-full max-w-[280px]"
-                      >
-                        {/* Efek butiran dari QR code */}
-                        {showParticles && (
-                          <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ width: '100%', height: '100%', maxWidth: '280px', maxHeight: '280px', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
-                            {[...Array(100)].map((_, i) => {
-                              // Menggunakan ukuran container yang dinamis
-                              const qrSize = 280;
-                              // Posisi random di area QR code
-                              const x = Math.random() * qrSize;
-                              const y = Math.random() * qrSize;
-                              // Warna random hitam atau putih (sesuai QR code)
-                              const isBlack = Math.random() > 0.5;
-                              const angle = Math.random() * Math.PI * 2;
-                              const distance = 40 + Math.random() * 80;
-                              
-                              return (
-                                <motion.div
-                                  key={`particle-${qrCodeKey}-${i}`}
-                                  initial={{ 
-                                    opacity: 1,
-                                    scale: 1,
-                                    x: x,
-                                    y: y,
-                                  }}
-                                  animate={{ 
-                                    opacity: [1, 1, 0.8, 0],
-                                    scale: [1, 1.2, 0.3, 0],
-                                    x: x + Math.cos(angle) * distance,
-                                    y: y + Math.sin(angle) * distance,
-                                  }}
-                                  transition={{
-                                    duration: 1.8,
-                                    delay: Math.random() * 0.4,
-                                    ease: "easeOut"
-                                  }}
-                                  className="absolute rounded-sm"
-                                  style={{
-                                    width: '6px',
-                                    height: '6px',
-                                    backgroundColor: isBlack ? '#000000' : '#ffffff',
-                                    boxShadow: isBlack 
-                                      ? '0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.4)' 
-                                      : '0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.4)',
-                                    left: `${x}px`,
-                                    top: `${y}px`,
-                                  }}
-                                />
-                              );
-                            })}
-                          </div>
-                        )}
-                        
-                        <QRCode 
-                          value={qrCodeData} 
-                          size={280}
-                          level="H"
-                          includeMargin={true}
-                          className="w-full h-auto max-w-full relative z-10"
-                          style={{ maxWidth: '280px', maxHeight: '280px' }}
-                        />
-                      </motion.div>
-                      
-                      {/* Indicator bahwa QR code baru */}
-                      {showNewBadge && !isFetchingToken && (
-                        <AnimatePresence>
-                          <motion.div
-                            initial={{ opacity: 0, y: -10, scale: 0.8 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -10, scale: 0.8 }}
-                            transition={{ duration: 0.3 }}
-                            className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-green-500 text-white text-xs font-semibold px-2 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5 z-20"
-                          >
-                            <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span className="hidden sm:inline">QR Code Baru</span>
-                            <span className="sm:hidden">Baru</span>
-                          </motion.div>
-                        </AnimatePresence>
-                      )}
-                    </div>
-                    
-                    {/* Instruksi */}
-                    <div className="w-full max-w-lg mx-auto">
-                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 sm:p-4 border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <p className="text-xs sm:text-sm font-semibold text-blue-700 dark:text-blue-400">
-                            Instruksi untuk Mahasiswa
+                            {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
                           </p>
                         </div>
-                        <ol className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                          <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-                            <span>Buka aplikasi scanner QR code di HP Anda</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                            <span>Arahkan kamera HP ke QR code yang ditampilkan di layar</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
-                            <span>Konfirmasi kehadiran Anda di halaman yang muncul</span>
-                          </li>
-                        </ol>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <FontAwesomeIcon icon={faSpinner} className="animate-spin text-brand-600 dark:text-brand-400 text-2xl mb-2" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Memuat QR code...</p>
-                  </div>
-                )}
-              </div>
+                  )}
 
-              {/* Manual table untuk referensi */}
-              <div className="mt-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Daftar Mahasiswa (Referensi)</h3>
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                  <div
-                    className="max-w-full overflow-x-auto max-h-96 overflow-y-auto hide-scroll hide-scroll-y"
-                    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                  >
-                    <style>{`
+                  {/* QR Code Container */}
+                  <div className="bg-white dark:bg-gray-900 p-3 sm:p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 mb-4 sm:mb-6 relative overflow-hidden flex items-center justify-center">
+                    {/* Loading overlay saat fetch token baru */}
+                    {isFetchingToken && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <FontAwesomeIcon icon={faSpinner} className="animate-spin text-blue-600 dark:text-blue-400 text-xl sm:text-2xl" />
+                          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Memperbarui QR code...</p>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* QR Code dengan animasi */}
+                    <motion.div
+                      key={qrCodeKey}
+                      className="flex items-center justify-center relative w-full max-w-[280px]"
+                    >
+                      {/* Efek butiran dari QR code */}
+                      {showParticles && (
+                        <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ width: '100%', height: '100%', maxWidth: '280px', maxHeight: '280px', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+                          {[...Array(100)].map((_, i) => {
+                            // Menggunakan ukuran container yang dinamis
+                            const qrSize = 280;
+                            // Posisi random di area QR code
+                            const x = Math.random() * qrSize;
+                            const y = Math.random() * qrSize;
+                            // Warna random hitam atau putih (sesuai QR code)
+                            const isBlack = Math.random() > 0.5;
+                            const angle = Math.random() * Math.PI * 2;
+                            const distance = 40 + Math.random() * 80;
+
+                            return (
+                              <motion.div
+                                key={`particle-${qrCodeKey}-${i}`}
+                                initial={{
+                                  opacity: 1,
+                                  scale: 1,
+                                  x: x,
+                                  y: y,
+                                }}
+                                animate={{
+                                  opacity: [1, 1, 0.8, 0],
+                                  scale: [1, 1.2, 0.3, 0],
+                                  x: x + Math.cos(angle) * distance,
+                                  y: y + Math.sin(angle) * distance,
+                                }}
+                                transition={{
+                                  duration: 1.8,
+                                  delay: Math.random() * 0.4,
+                                  ease: "easeOut"
+                                }}
+                                className="absolute rounded-sm"
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  backgroundColor: isBlack ? '#000000' : '#ffffff',
+                                  boxShadow: isBlack
+                                    ? '0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.4)'
+                                    : '0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.4)',
+                                  left: `${x}px`,
+                                  top: `${y}px`,
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <QRCode
+                        value={qrCodeData}
+                        size={280}
+                        level="H"
+                        includeMargin={true}
+                        className="w-full h-auto max-w-full relative z-10"
+                        style={{ maxWidth: '280px', maxHeight: '280px' }}
+                      />
+                    </motion.div>
+
+                    {/* Indicator bahwa QR code baru */}
+                    {showNewBadge && !isFetchingToken && (
+                      <AnimatePresence>
+                        <motion.div
+                          initial={{ opacity: 0, y: -10, scale: 0.8 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.8 }}
+                          transition={{ duration: 0.3 }}
+                          className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-green-500 text-white text-xs font-semibold px-2 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5 z-20"
+                        >
+                          <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="hidden sm:inline">QR Code Baru</span>
+                          <span className="sm:hidden">Baru</span>
+                        </motion.div>
+                      </AnimatePresence>
+                    )}
+                  </div>
+
+                  {/* Instruksi */}
+                  <div className="w-full max-w-lg mx-auto">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 sm:p-4 border border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-xs sm:text-sm font-semibold text-blue-700 dark:text-blue-400">
+                          Instruksi untuk Mahasiswa
+                        </p>
+                      </div>
+                      <ol className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+                        <li className="flex items-start gap-2">
+                          <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                          <span>Buka aplikasi scanner QR code di HP Anda</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                          <span>Arahkan kamera HP ke QR code yang ditampilkan di layar</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                          <span>Konfirmasi kehadiran Anda di halaman yang muncul</span>
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FontAwesomeIcon icon={faSpinner} className="animate-spin text-brand-600 dark:text-brand-400 text-2xl mb-2" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Memuat QR code...</p>
+                </div>
+              )}
+            </div>
+
+            {/* Manual table untuk referensi */}
+            <div className="mt-6">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Daftar Mahasiswa (Referensi)</h3>
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                <div
+                  className="max-w-full overflow-x-auto max-h-96 overflow-y-auto hide-scroll hide-scroll-y"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  <style>{`
                       .hide-scroll::-webkit-scrollbar { display: none; }
                       .hide-scroll { 
                         -ms-overflow-style: none;
@@ -2309,47 +2292,47 @@ export default function DosenAbsensiNonBlokNonCSRPage() {
                         scrollbar-width: none;
                       }
                     `}</style>
-                    <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                      <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
-                          <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
-                          <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {mahasiswaList.map((m, idx) => {
-                          const hadir = absensi[m.nim]?.hadir || false;
-                          return (
-                            <tr
-                              key={m.id}
-                              className={`${idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""} ${hadir ? 'bg-green-50 dark:bg-green-900/10' : ''}`}
-                            >
-                              <td className="px-6 py-4 font-mono tracking-wide text-gray-700 dark:text-gray-200">{m.nim}</td>
-                              <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">{m.nama}</td>
-                              <td className="px-6 py-4 text-center">
-                                {hadir ? (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 text-xs font-semibold">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 20 20">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L15 7" />
-                                    </svg>
-                                    Hadir
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-gray-400">-</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                    <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
+                        <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
+                        <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mahasiswaList.map((m, idx) => {
+                        const hadir = absensi[m.nim]?.hadir || false;
+                        return (
+                          <tr
+                            key={m.id}
+                            className={`${idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""} ${hadir ? 'bg-green-50 dark:bg-green-900/10' : ''}`}
+                          >
+                            <td className="px-6 py-4 font-mono tracking-wide text-gray-700 dark:text-gray-200">{m.nim}</td>
+                            <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">{m.nama}</td>
+                            <td className="px-6 py-4 text-center">
+                              {hadir ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 text-xs font-semibold">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 20 20">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L15 7" />
+                                  </svg>
+                                  Hadir
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       <AnimatePresence>

@@ -64,7 +64,7 @@ class UserController extends Controller
         }
         
         // Optimize: Gunakan pagination dengan caching untuk data yang jarang berubah
-        $perPage = $request->get('per_page', 50); // Default 50 items per page
+        $perPage = $request->get('per_page', 1000); // Default 1000 items per page
         
         // PENTING: Untuk mahasiswa, disable cache atau gunakan cache yang lebih pendek
         // karena data mahasiswa bisa berubah saat pergantian semester
@@ -318,23 +318,34 @@ class UserController extends Controller
             ]);
 
         // Clear cache untuk users list berdasarkan role
-        // Cache key format: md5(normalized_query_string . '_' . $perPage)
-        // Normalized query string menggunakan http_build_query dengan ksort
+        // Cache key format: md5(normalized_query_string . '_' . $perPage . '_semester_' . $semesterId)
+        $activeSemester = \App\Models\Semester::where('aktif', true)->first();
+        $semesterId = $activeSemester ? $activeSemester->id : 'none';
+
         $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
         foreach ($perPageOptions as $perPage) {
             // Build normalized query string untuk role ini
             $queryParams = ['role' => $user->role, 'per_page' => $perPage];
             ksort($queryParams);
             $normalizedQueryString = http_build_query($queryParams);
+            
+            // Clear cache (coba kedua format key untuk keamanan)
             $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
             Cache::forget($cacheKey);
             
-            // Juga clear untuk query tanpa per_page (default 50)
+            $cacheKeyithSemester = 'users_list_' . md5($normalizedQueryString . '_' . $perPage . '_semester_' . $semesterId);
+            Cache::forget($cacheKeyithSemester);
+            
+            // Juga clear untuk query tanpa per_page (default 50) - coba kedua format
             $queryParams2 = ['role' => $user->role];
             ksort($queryParams2);
             $normalizedQueryString2 = http_build_query($queryParams2);
+            
             $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50'); // Default per_page
             Cache::forget($cacheKey2);
+            
+            $cacheKey2WithSemester = 'users_list_' . md5($normalizedQueryString2 . '_50_semester_' . $semesterId);
+            Cache::forget($cacheKey2WithSemester);
         }
 
         return response()->json($user, 201);
@@ -413,24 +424,35 @@ class UserController extends Controller
         $newRole = $user->role;
 
         // Clear cache untuk users list berdasarkan role (old dan new)
-        // Cache key format: md5(normalized_query_string . '_' . $perPage)
+        $activeSemester = \App\Models\Semester::where('aktif', true)->first();
+        $semesterId = $activeSemester ? $activeSemester->id : 'none';
+        
         $rolesToClear = array_unique([$oldRole, $newRole]);
         $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
         foreach ($rolesToClear as $role) {
             foreach ($perPageOptions as $perPage) {
-                // Build normalized query string untuk role ini
+                // Build normalized query string
                 $queryParams = ['role' => $role, 'per_page' => $perPage];
                 ksort($queryParams);
                 $normalizedQueryString = http_build_query($queryParams);
+                
+                // Clear both formats
                 $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
                 Cache::forget($cacheKey);
+                
+                $cacheKeyWithSemester = 'users_list_' . md5($normalizedQueryString . '_' . $perPage . '_semester_' . $semesterId);
+                Cache::forget($cacheKeyWithSemester);
             }
-            // Juga clear untuk query tanpa per_page (default 50)
+            // Clear default per_page (50) - both formats
             $queryParams2 = ['role' => $role];
             ksort($queryParams2);
             $normalizedQueryString2 = http_build_query($queryParams2);
-            $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50'); // Default per_page
+            
+            $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50');
             Cache::forget($cacheKey2);
+            
+            $cacheKey2WithSemester = 'users_list_' . md5($normalizedQueryString2 . '_50_semester_' . $semesterId);
+            Cache::forget($cacheKey2WithSemester);
         }
 
         // Handle dosen_peran jika ada
@@ -480,22 +502,33 @@ class UserController extends Controller
         $user->delete();
 
         // Clear cache untuk users list berdasarkan role
-        // Cache key format: md5(normalized_query_string . '_' . $perPage)
+        $activeSemester = \App\Models\Semester::where('aktif', true)->first();
+        $semesterId = $activeSemester ? $activeSemester->id : 'none';
+        
         $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
         foreach ($perPageOptions as $perPage) {
-            // Build normalized query string untuk role ini
+            // Build normalized query string
             $queryParams = ['role' => $role, 'per_page' => $perPage];
             ksort($queryParams);
             $normalizedQueryString = http_build_query($queryParams);
+            
+            // Clear both formats
             $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
             Cache::forget($cacheKey);
+            
+            $cacheKeyWithSemester = 'users_list_' . md5($normalizedQueryString . '_' . $perPage . '_semester_' . $semesterId);
+            Cache::forget($cacheKeyWithSemester);
         }
-        // Juga clear untuk query tanpa per_page (default 50)
+        // Clear default per_page (50) - both formats
         $queryParams2 = ['role' => $role];
         ksort($queryParams2);
         $normalizedQueryString2 = http_build_query($queryParams2);
-        $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50'); // Default per_page
+        
+        $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50');
         Cache::forget($cacheKey2);
+        
+        $cacheKey2WithSemester = 'users_list_' . md5($normalizedQueryString2 . '_50_semester_' . $semesterId);
+        Cache::forget($cacheKey2WithSemester);
 
         return response()->json(['message' => 'User deleted']);
     }
@@ -1539,11 +1572,19 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
 
-            // Validasi hanya untuk dosen
-            if ($user->role !== 'dosen') {
+            // Validasi: hanya dosen/mahasiswa, dan hanya bisa update profil sendiri (kecuali super_admin)
+            $currentUser = auth()->user();
+            if ($currentUser->id != $user->id && $currentUser->role !== 'super_admin') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Hanya dosen yang dapat mengupdate email'
+                    'message' => 'Anda tidak memiliki akses ke data ini'
+                ], 403);
+            }
+
+            if (!in_array($user->role, ['dosen', 'mahasiswa'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya dosen atau mahasiswa yang dapat mengupdate email'
                 ], 403);
             }
 
@@ -1580,10 +1621,19 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
 
-            if ($user->role !== 'dosen') {
+            // Validasi: hanya dosen/mahasiswa, dan hanya bisa cek profil sendiri (kecuali super_admin)
+            $currentUser = auth()->user();
+            if ($currentUser->id != $user->id && $currentUser->role !== 'super_admin') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Hanya dosen yang dapat mengecek status email'
+                    'message' => 'Anda tidak memiliki akses ke data ini'
+                ], 403);
+            }
+
+            if (!in_array($user->role, ['dosen', 'mahasiswa'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya dosen atau mahasiswa yang dapat mengecek status email'
                 ], 403);
             }
 
@@ -1616,11 +1666,19 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
 
-            // Validasi hanya untuk dosen
-            if ($user->role !== 'dosen') {
+            // Validasi: hanya dosen/mahasiswa, dan hanya bisa verifikasi profil sendiri (kecuali super_admin)
+            $currentUser = auth()->user();
+            if ($currentUser->id != $user->id && $currentUser->role !== 'super_admin') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Hanya dosen yang dapat mengaktifkan email'
+                    'message' => 'Anda tidak memiliki akses ke data ini'
+                ], 403);
+            }
+
+            if (!in_array($user->role, ['dosen', 'mahasiswa'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya dosen atau mahasiswa yang dapat mengaktifkan email'
                 ], 403);
             }
 
@@ -1642,10 +1700,10 @@ class UserController extends Controller
                 }
             }
 
-            $user->update([
-                'email' => $validated['email'],
-                'email_verified' => true
-            ]);
+            $user->email = $validated['email'];
+            $user->email_verified = 1;
+            $user->save();
+            $user->refresh();
 
             return response()->json([
                 'success' => true,

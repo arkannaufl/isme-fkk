@@ -20,7 +20,8 @@ class JadwalCSRController extends Controller
     public function index(string $kode): JsonResponse
     {
         try {
-            $jadwalCSR = JadwalCSR::with(['dosen', 'ruangan', 'kelompokKecil', 'kategori'])
+            $jadwalCSR = JadwalCSR::WithoutSemesterFilter()
+                ->with(['dosen', 'ruangan', 'kelompokKecil', 'kategori'])
                 ->where('mata_kuliah_kode', $kode)
                 ->orderBy('tanggal')
                 ->orderBy('jam_mulai')
@@ -1108,6 +1109,8 @@ class JadwalCSRController extends Controller
                     ],
                     'jumlah_sesi' => $item->jumlah_sesi,
                     'semester_type' => 'reguler', // CSR hanya semester reguler
+                    'is_active_dosen' => true, // Flag: apakah dosen ini adalah dosen aktif
+                    'is_in_history' => false, // Flag: apakah dosen ini hanya ada di history
                     'penilaian_submitted' => $item->penilaian_submitted ?? false,
                     'created_at' => $item->created_at
                 ];
@@ -1216,9 +1219,9 @@ class JadwalCSRController extends Controller
 
                 return [
                     'id' => $item->id,
-                    'tanggal' => $item->tanggal,
-                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
-                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                    'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                     'topik' => $item->topik ?? 'N/A',
                     'tipe' => $tipeText,
                     'kategori' => $item->kategori ? ['id' => $item->kategori->id, 'nama' => $item->kategori->nama] : null,

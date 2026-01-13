@@ -362,7 +362,13 @@ class MataKuliahController extends Controller
      */
     public function getBySemester($semester)
     {
-        $mataKuliah = MataKuliah::where('semester', $semester)
+        $activeTA = \App\Models\TahunAjaran::where('aktif', true)->first();
+        if (!$activeTA) {
+            return response()->json([]);
+        }
+
+        $mataKuliah = $activeTA->mataKuliah()
+            ->where('semester', $semester)
             ->where('jenis', 'Blok')
             ->get(['kode', 'nama', 'semester', 'blok', 'periode', 'keahlian_required']);
 
@@ -700,10 +706,68 @@ class MataKuliahController extends Controller
     /**
      * Menampilkan semua data mata kuliah
      */
-    public function index()
+    /**
+     * Menampilkan data mata kuliah (Scoped to Active Tahun Ajaran)
+     * Use ?all=true to get master list
+     */
+    public function index(Request $request)
     {
-        $mataKuliah = MataKuliah::all();
+        // Jika request 'all', kembalikan semua data master
+        if ($request->has('all') && $request->boolean('all')) {
+             return response()->json(MataKuliah::all());
+        }
+
+        // Default: Filter by Active Tahun Ajaran
+        $activeTA = \App\Models\TahunAjaran::where('aktif', true)->first();
+        
+        if (!$activeTA) {
+            return response()->json([]); // Tidak ada tahun ajaran aktif = list kosong (Clean Slate)
+        }
+
+        // Ambil mata kuliah yang terhubung dengan Tahun Ajaran ini
+        $mataKuliah = $activeTA->mataKuliah()->get();
+        
         return response()->json($mataKuliah);
+    }
+
+    /**
+     * Assign Master Courses to Active Tahun Ajaran
+     */
+    public function assignToYear(Request $request)
+    {
+        $request->validate([
+            'codes' => 'required|array',
+            'codes.*' => 'exists:mata_kuliah,kode'
+        ]);
+
+        $activeTA = \App\Models\TahunAjaran::where('aktif', true)->first();
+        if (!$activeTA) {
+            return response()->json(['message' => 'Tidak ada Tahun Ajaran aktif.'], 400);
+        }
+
+        // Sync without detaching to add selected courses
+        $activeTA->mataKuliah()->syncWithoutDetaching($request->codes);
+
+        return response()->json(['message' => 'Mata Kuliah berhasil ditambahkan ke Tahun Ajaran aktif.']);
+    }
+
+    /**
+     * Detach a course from Active Tahun Ajaran
+     */
+    public function detachFromYear(Request $request)
+    {
+        $request->validate([
+            'kode' => 'required|exists:mata_kuliah,kode'
+        ]);
+
+        $activeTA = \App\Models\TahunAjaran::where('aktif', true)->first();
+        if (!$activeTA) {
+            return response()->json(['message' => 'Tidak ada Tahun Ajaran aktif.'], 400);
+        }
+
+        $activeTA->mataKuliah()->detach($request->kode);
+
+        return response()->json(['message' => 'Mata Kuliah berhasil dilepas dari Tahun Ajaran aktif.']);
     }
 
     /**
@@ -726,52 +790,49 @@ class MataKuliahController extends Controller
         // Ambil mata kuliah dari jadwal mengajar (kuliah besar, praktikum, PBL, CSR, dll)
         $mataKuliahFromJadwal = collect();
 
-        // Jadwal Kuliah Besar
-        $kuliahBesar = DB::table('jadwal_kuliah_besar')
-            ->join('mata_kuliah', 'jadwal_kuliah_besar.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_kuliah_besar.dosen_id', $dosenId)
-            ->select('mata_kuliah.*')
-            ->get();
+        // Jadwal Kuliah Besar - Sekarang menggunakan model untuk auto-scope semester
+        $kuliahBesar = \App\Models\JadwalKuliahBesar::where('dosen_id', $dosenId)
+            ->with('mataKuliah')
+            ->get()
+            ->pluck('mataKuliah')
+            ->filter();
 
         // Jadwal Praktikum
-        $praktikum = DB::table('jadwal_praktikum')
-            ->join('mata_kuliah', 'jadwal_praktikum.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->whereExists(function($query) use ($dosenId) {
-                $query->select(DB::raw(1))
-                    ->from('jadwal_praktikum_dosen')
-                    ->whereRaw('jadwal_praktikum_dosen.jadwal_praktikum_id = jadwal_praktikum.id')
-                    ->where('jadwal_praktikum_dosen.dosen_id', $dosenId);
+        $praktikum = \App\Models\JadwalPraktikum::whereHas('users', function($query) use ($dosenId) {
+                $query->where('users.id', $dosenId);
             })
-            ->select('mata_kuliah.*')
-            ->get();
+            ->with('mataKuliah')
+            ->get()
+            ->pluck('mataKuliah')
+            ->filter();
 
         // Jadwal PBL
-        $pbl = DB::table('jadwal_pbl')
-            ->join('mata_kuliah', 'jadwal_pbl.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_pbl.dosen_id', $dosenId)
-            ->select('mata_kuliah.*')
-            ->get();
+        $pbl = \App\Models\JadwalPBL::where('dosen_id', $dosenId)
+            ->with('mataKuliah')
+            ->get()
+            ->pluck('mataKuliah')
+            ->filter();
 
         // Jadwal CSR
-        $csr = DB::table('jadwal_csr')
-            ->join('mata_kuliah', 'jadwal_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_csr.dosen_id', $dosenId)
-            ->select('mata_kuliah.*')
-            ->get();
+        $csr = \App\Models\JadwalCSR::where('dosen_id', $dosenId)
+            ->with('mataKuliah')
+            ->get()
+            ->pluck('mataKuliah')
+            ->filter();
 
         // Jadwal Non Blok Non CSR
-        $nonBlokNonCsr = DB::table('jadwal_non_blok_non_csr')
-            ->join('mata_kuliah', 'jadwal_non_blok_non_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_non_blok_non_csr.dosen_id', $dosenId)
-            ->select('mata_kuliah.*')
-            ->get();
+        $nonBlokNonCsr = \App\Models\JadwalNonBlokNonCSR::where('dosen_id', $dosenId)
+            ->with('mataKuliah')
+            ->get()
+            ->pluck('mataKuliah')
+            ->filter();
 
         // Jadwal Jurnal Reading
-        $jurnalReading = DB::table('jadwal_jurnal_reading')
-            ->join('mata_kuliah', 'jadwal_jurnal_reading.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_jurnal_reading.dosen_id', $dosenId)
-            ->select('mata_kuliah.*')
-            ->get();
+        $jurnalReading = \App\Models\JadwalJurnalReading::where('dosen_id', $dosenId)
+            ->with('mataKuliah')
+            ->get()
+            ->pluck('mataKuliah')
+            ->filter();
 
         // Gabungkan semua mata kuliah dari jadwal
         $mataKuliahFromJadwal = $mataKuliahFromJadwal
@@ -996,8 +1057,20 @@ class MataKuliahController extends Controller
         $perPage = $request->get('per_page', 50); // Default 50 item per halaman
         $page = $request->get('page', 1);
 
-        // Ambil semua mata kuliah dengan pagination
-        $mataKuliah = MataKuliah::paginate($perPage, ['*'], 'page', $page);
+        // Scoping to Active Tahun Ajaran
+        $activeTA = \App\Models\TahunAjaran::where('aktif', true)->first();
+        if (!$activeTA) {
+            return response()->json([
+                'data' => [],
+                'total' => 0,
+                'current_page' => 1,
+                'per_page' => $perPage,
+                'last_page' => 1
+            ]);
+        }
+
+        // Ambil mata kuliah dengan pagination melalui Tahun Ajaran aktif
+        $mataKuliah = $activeTA->mataKuliah()->paginate($perPage, ['*'], 'page', $page);
 
         // Ambil semua materi untuk mata kuliah yang sedang dipaginasi
         $kodeMataKuliah = $mataKuliah->pluck('kode');
@@ -1028,8 +1101,14 @@ class MataKuliahController extends Controller
      */
     public function getWithMateriAll()
     {
-        // Ambil semua mata kuliah
-        $mataKuliah = MataKuliah::all();
+        // Scoping to Active Tahun Ajaran
+        $activeTA = \App\Models\TahunAjaran::where('aktif', true)->first();
+        if (!$activeTA) {
+            return response()->json([]);
+        }
+
+        // Ambil semua mata kuliah melalui Tahun Ajaran aktif
+        $mataKuliah = $activeTA->mataKuliah()->get();
 
         // Ambil semua materi untuk semua mata kuliah dalam satu query yang dioptimasi
         $allMateri = DB::table('materi_pembelajaran')

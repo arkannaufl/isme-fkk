@@ -279,21 +279,26 @@ class MahasiswaController extends Controller
             $totalBobotSKS = 0;
 
             // Get PBL scores
-            $pblScores = PenilaianPBL::where('mahasiswa_npm', $mahasiswa->nim)
+            // Get PBL scores - Try matching by NIM or Username
+            $pblScores = PenilaianPBL::with(['jadwalPBL.modulPBL'])
+                ->where(function($q) use ($mahasiswa) {
+                    $q->where('mahasiswa_npm', $mahasiswa->nim)
+                      ->orWhere('mahasiswa_npm', $mahasiswa->username);
+                })
                 ->get()
                 ->groupBy('mata_kuliah_kode');
 
             foreach ($pblScores as $kode => $scores) {
+                // Try to find mata kuliah, but don't skip if not found
                 $mataKuliah = MataKuliah::where('kode', $kode)->first();
-                if (!$mataKuliah) continue;
-
+                
                 if (!isset($nilaiByMatkul[$kode])) {
                     $nilaiByMatkul[$kode] = [
                         'mata_kuliah_kode' => $kode,
-                        'mata_kuliah_nama' => $mataKuliah->nama,
-                        'sks' => $mataKuliah->sks,
-                        'semester' => $mataKuliah->semester,
-                        'jenis' => $mataKuliah->jenis,
+                        'mata_kuliah_nama' => $mataKuliah ? $mataKuliah->nama : $kode,
+                        'sks' => $mataKuliah ? $mataKuliah->sks : 0,
+                        'semester' => $mataKuliah ? $mataKuliah->semester : 0,
+                        'jenis' => $mataKuliah ? $mataKuliah->jenis : 'PBL',
                         'nilai_detail' => [],
                         'nilai_akhir' => null,
                         'nilai_huruf' => null,
@@ -301,27 +306,42 @@ class MahasiswaController extends Controller
                     ];
                 }
 
-                // Calculate average PBL score
-                $nilaiPBL = $scores->avg(function($score) {
+                // Add each PBL score individually
+                $totalNilaiPBL = 0;
+                $countPBL = 0;
+
+                foreach ($scores as $index => $score) {
                     $total = $score->nilai_a + $score->nilai_b + $score->nilai_c + 
                              $score->nilai_d + $score->nilai_e + $score->nilai_f + 
                              $score->nilai_g;
-                    if ($score->peta_konsep) {
-                        $total += $score->peta_konsep;
-                        return $total / 8;
-                    }
-                    return $total / 7;
-                });
+                    
+                    // Score calculation: (Total / Max Score) * 100
+                    // Max score is 7 criteria * 5 max point = 35
+                    // Peta Konsep is excluded from this specific grade component to match "Total Nilai" in form
+                    $maxScore = 35;
+                    $nilaiItem = ($total / $maxScore) * 100;
+                    
+                    $totalNilaiPBL += $nilaiItem;
+                    $countPBL++;
 
-                $nilaiByMatkul[$kode]['nilai_detail'][] = [
-                    'jenis' => 'PBL',
-                    'nilai' => round($nilaiPBL, 2),
-                    'tanggal' => $scores->first()->created_at
-                ];
+                    $nilaiByMatkul[$kode]['nilai_detail'][] = [
+                        'jenis' => 'PBL ' . ($score->pertemuan ?? ($index + 1)) . ' (' . ($score->kelompok ?? '-') . ')',
+                        'nilai' => round($nilaiItem, 2),
+                        'tanggal' => $score->created_at,
+                        'topik' => $score->jadwalPBL->modulPBL->nama_modul ?? '-'
+                    ];
+                }
+
+                // Calculate average if needed for intermediate calculation, 
+                // but usually PBL is just one component. 
+                // If there are multiple PBLs, they might contribute to a "Total PBL" score.
+                // For now, let's keep the logic that it contributes to the course grade 
+                // (assuming other components exist or this is the only one).
             }
 
             // Get Jurnal scores
             $jurnalScores = PenilaianJurnal::where('mahasiswa_nim', $mahasiswa->nim)
+                ->with('jurnalReading') // Eager load for topic
                 ->get()
                 ->groupBy('mata_kuliah_kode');
 
@@ -343,16 +363,19 @@ class MahasiswaController extends Controller
                     ];
                 }
 
-                // Calculate average Jurnal score
-                $nilaiJurnal = $scores->avg(function($score) {
-                    return ($score->nilai_keaktifan + $score->nilai_laporan) / 2;
-                });
+                foreach ($scores as $index => $score) {
+                    // Calculate item score
+                    $nilaiItem = ($score->nilai_keaktifan + $score->nilai_laporan) / 2;
+                    
+                    $topik = $score->jurnalReading->topik ?? 'Jurnal Reading ' . ($index + 1);
 
-                $nilaiByMatkul[$kode]['nilai_detail'][] = [
-                    'jenis' => 'Jurnal',
-                    'nilai' => round($nilaiJurnal, 2),
-                    'tanggal' => $scores->first()->created_at
-                ];
+                    $nilaiByMatkul[$kode]['nilai_detail'][] = [
+                        'jenis' => 'Jurnal Reading',
+                        'nilai' => round($nilaiItem, 2),
+                        'tanggal' => $score->created_at,
+                        'topik' => $topik
+                    ];
+                }
             }
 
             // Get Seminar Proposal scores

@@ -53,6 +53,7 @@ import DosenRiwayat from "./pages/DosenRiwayat";
 import MataKuliahDosen from "./pages/MataKuliahDosen";
 import MataKuliahDosenDetail from "./pages/MataKuliahDosenDetail";
 import MataKuliahMahasiswa from "./pages/MataKuliahMahasiswa";
+import AkademikMahasiswa from "./pages/AkademikMahasiswa";
 import NilaiMahasiswa from "./pages/NilaiMahasiswa";
 import DetailMahasiswaKeabsenan from "./pages/DetailMahasiswaKeabsenan";
 import AbsensiCSRPage from "./pages/AbsensiCSRPage";
@@ -173,6 +174,14 @@ function AppContent() {
                 element={
                   <RequireDosenRole allowedRoles={["mahasiswa"]}>
                     <MataKuliahMahasiswa />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/akademik-mahasiswa"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <AkademikMahasiswa />
                   </RequireDosenRole>
                 }
               />

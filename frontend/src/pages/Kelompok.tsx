@@ -59,7 +59,7 @@ const Kelompok: React.FC = () => {
 
       const semesterIds =
         availableSemesters.semesters[
-          selectedSemesterType as keyof typeof availableSemesters.semesters
+        selectedSemesterType as keyof typeof availableSemesters.semesters
         ];
       const counts: { [semesterId: number]: number } = {};
 
@@ -84,12 +84,12 @@ const Kelompok: React.FC = () => {
       try {
         const res = await mahasiswaApi.getAll();
         // Handle pagination response
-        const mahasiswaData = Array.isArray(res.data) 
-          ? res.data 
+        const mahasiswaData = Array.isArray(res.data)
+          ? res.data
           : (Array.isArray((res.data as any)?.data) ? (res.data as any).data : []);
         // Map ke MahasiswaMinimal dan filter yang punya semester
         const mahasiswaMinimal: MahasiswaMinimal[] = mahasiswaData
-          .filter((m: any) => m.semester !== undefined && m.semester !== null)
+          .filter((m: any) => m.semester !== undefined && m.semester !== null && m.status !== 'lulus')
           .map((m: any) => ({
             id: m.id,
             semester: m.semester

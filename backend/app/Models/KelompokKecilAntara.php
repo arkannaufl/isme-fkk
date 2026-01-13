@@ -4,11 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+use App\Traits\HasSemesterScope;
+
 class KelompokKecilAntara extends Model
 {
+    use HasSemesterScope;
+
     protected $table = 'kelompok_kecil_antara';
 
     protected $fillable = [
+        'semester_id',
         'nama_kelompok',
         'mahasiswa_ids'
     ];

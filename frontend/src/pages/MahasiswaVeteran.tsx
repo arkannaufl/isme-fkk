@@ -7,23 +7,23 @@ const MahasiswaVeteran: React.FC = () => {
   const [mahasiswaList, setMahasiswaList] = useState<Mahasiswa[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Filter dan search states
   const [search, setSearch] = useState("");
   const [filterAngkatan, setFilterAngkatan] = useState<string>("all");
   const [filterVeteran, setFilterVeteran] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
-  
+
   // Modal states
   const [showVeteranModal, setShowVeteranModal] = useState(false);
   const [selectedMahasiswa, setSelectedMahasiswa] = useState<Mahasiswa | null>(null);
   const [veteranNotes, setVeteranNotes] = useState("");
   const [isToggling, setIsToggling] = useState(false);
-  
+
   // Multi-veteran states
   const [isTogglingMultiVeteran, setIsTogglingMultiVeteran] = useState(false);
-  
+
   // Multi-select states
   const [selectedMahasiswaIds, setSelectedMahasiswaIds] = useState<number[]>([]);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -37,22 +37,22 @@ const MahasiswaVeteran: React.FC = () => {
         setLoading(true);
         setError(null);
         const params: any = {};
-        
+
         if (filterVeteran === "veteran") {
           params.veteran_only = true;
         } else if (filterVeteran === "non-veteran") {
           // For non-veteran, we'll filter on frontend since backend doesn't have this option
           params.veteran_only = false;
         }
-        
+
         if (filterAngkatan !== "all") {
           params.angkatan = filterAngkatan;
         }
-        
+
         if (search) {
           params.search = search;
         }
-        
+
         const response = await mahasiswaVeteranApi.getAll(params);
         setMahasiswaList(response.data);
       } catch (err: any) {
@@ -120,7 +120,7 @@ const MahasiswaVeteran: React.FC = () => {
     try {
       setIsToggling(true);
       const newVeteranStatus = !selectedMahasiswa.is_veteran;
-      
+
       await mahasiswaVeteranApi.toggleVeteran({
         user_id: selectedMahasiswa.id,
         is_veteran: newVeteranStatus,
@@ -128,15 +128,15 @@ const MahasiswaVeteran: React.FC = () => {
       });
 
       // Update local state
-      setMahasiswaList(prev => 
-        prev.map(m => 
-          m.id === selectedMahasiswa.id 
-            ? { 
-                ...m, 
-                is_veteran: newVeteranStatus,
-                veteran_notes: veteranNotes.trim() || undefined,
-                veteran_set_at: newVeteranStatus ? new Date().toISOString() : undefined
-              }
+      setMahasiswaList(prev =>
+        prev.map(m =>
+          m.id === selectedMahasiswa.id
+            ? {
+              ...m,
+              is_veteran: newVeteranStatus,
+              veteran_notes: veteranNotes.trim() || undefined,
+              veteran_set_at: newVeteranStatus ? new Date().toISOString() : undefined
+            }
             : m
         )
       );
@@ -162,33 +162,33 @@ const MahasiswaVeteran: React.FC = () => {
     try {
       setIsTogglingMultiVeteran(true);
       const newMultiVeteranStatus = !mahasiswa.is_multi_veteran;
-      
+
       await mahasiswaVeteranApi.toggleMultiVeteran({
         user_id: mahasiswa.id,
         is_multi_veteran: newMultiVeteranStatus
       });
 
       // Update local state
-      setMahasiswaList(prev => 
-        prev.map(m => 
-          m.id === mahasiswa.id 
-            ? { 
-                ...m, 
-                is_multi_veteran: newMultiVeteranStatus,
-                // Jika multi-veteran dihapus dan ada lebih dari 1 semester, hapus semua kecuali yang pertama kali didaftarkan
-                veteran_semesters: !newMultiVeteranStatus && m.veteran_semesters && m.veteran_semesters.length > 1 
-                  ? (() => {
-                      // Cari semester pertama dari veteran_history
-                      const history = m.veteran_history || [];
-                      const firstEntry = history.find(entry => 
-                        entry.action === 'set_veteran' && entry.active === true
-                      );
-                      return firstEntry && firstEntry.semester 
-                        ? [firstEntry.semester] 
-                        : [m.veteran_semesters[0]]; // Fallback ke semester pertama
-                    })()
-                  : m.veteran_semesters
-              }
+      setMahasiswaList(prev =>
+        prev.map(m =>
+          m.id === mahasiswa.id
+            ? {
+              ...m,
+              is_multi_veteran: newMultiVeteranStatus,
+              // Jika multi-veteran dihapus dan ada lebih dari 1 semester, hapus semua kecuali yang pertama kali didaftarkan
+              veteran_semesters: !newMultiVeteranStatus && m.veteran_semesters && m.veteran_semesters.length > 1
+                ? (() => {
+                  // Cari semester pertama dari veteran_history
+                  const history = m.veteran_history || [];
+                  const firstEntry = history.find(entry =>
+                    entry.action === 'set_veteran' && entry.active === true
+                  );
+                  return firstEntry && firstEntry.semester
+                    ? [firstEntry.semester]
+                    : [m.veteran_semesters[0]]; // Fallback ke semester pertama
+                })()
+                : m.veteran_semesters
+            }
             : m
         )
       );
@@ -203,8 +203,8 @@ const MahasiswaVeteran: React.FC = () => {
 
   // Multi-select functions
   const handleSelectMahasiswa = (mahasiswaId: number) => {
-    setSelectedMahasiswaIds(prev => 
-      prev.includes(mahasiswaId) 
+    setSelectedMahasiswaIds(prev =>
+      prev.includes(mahasiswaId)
         ? prev.filter(id => id !== mahasiswaId)
         : [...prev, mahasiswaId]
     );
@@ -215,7 +215,7 @@ const MahasiswaVeteran: React.FC = () => {
       // Mode: Select All di halaman saat ini
       const currentPageIds = paginatedData.map(m => m.id);
       const allCurrentPageSelected = currentPageIds.every(id => selectedMahasiswaIds.includes(id));
-      
+
       if (allCurrentPageSelected) {
         // Jika semua data di halaman saat ini terpilih, hapus semua data di halaman ini dari selection
         setSelectedMahasiswaIds(prev => prev.filter(id => !currentPageIds.includes(id)));
@@ -230,7 +230,7 @@ const MahasiswaVeteran: React.FC = () => {
       // Mode: Select All di seluruh data
       const allDataIds = mahasiswaList.map(m => m.id);
       const allDataSelected = allDataIds.every(id => selectedMahasiswaIds.includes(id));
-      
+
       if (allDataSelected) {
         // Jika semua data terpilih, hapus semua
         setSelectedMahasiswaIds([]);
@@ -279,7 +279,7 @@ const MahasiswaVeteran: React.FC = () => {
       } finally {
         setLoading(false);
       }
-      
+
       setShowBulkModal(false);
       setSelectedMahasiswaIds([]);
       setVeteranNotes("");
@@ -357,8 +357,8 @@ const MahasiswaVeteran: React.FC = () => {
                   </div>
                 </div>
               </div>
-                ))}
-              </div>
+            ))}
+          </div>
 
           {/* Pagination Skeleton */}
           <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -385,9 +385,9 @@ const MahasiswaVeteran: React.FC = () => {
         <div className="text-center">
           <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error Loading Data</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
@@ -407,8 +407,8 @@ const MahasiswaVeteran: React.FC = () => {
       <div className="mt-5">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-                Mahasiswa Veteran
-              </h1>
+            Mahasiswa Veteran
+          </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Kelola data mahasiswa veteran dengan informasi NIM, angkatan, dan IPK
           </p>
@@ -424,7 +424,7 @@ const MahasiswaVeteran: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={
-                    selectAllMode === 'page' 
+                    selectAllMode === 'page'
                       ? selectedMahasiswaIds.length === paginatedData.length && paginatedData.length > 0
                       : selectedMahasiswaIds.length === mahasiswaList.length && mahasiswaList.length > 0
                   }
@@ -434,7 +434,7 @@ const MahasiswaVeteran: React.FC = () => {
                     appearance-none
                     rounded-md
                     border-2
-                    ${(selectAllMode === 'page' 
+                    ${(selectAllMode === 'page'
                       ? selectedMahasiswaIds.length === paginatedData.length && paginatedData.length > 0
                       : selectedMahasiswaIds.length === mahasiswaList.length && mahasiswaList.length > 0
                     ) ? "border-green-500 bg-green-500" : "border-green-500 bg-transparent"}
@@ -446,24 +446,24 @@ const MahasiswaVeteran: React.FC = () => {
                   `}
                   style={{ outline: "none" }}
                 />
-                {(selectAllMode === 'page' 
+                {(selectAllMode === 'page'
                   ? selectedMahasiswaIds.length === paginatedData.length && paginatedData.length > 0
                   : selectedMahasiswaIds.length === mahasiswaList.length && mahasiswaList.length > 0
                 ) && (
-                  <svg
-                    className="absolute left-0 top-0 w-5 h-5 pointer-events-none"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="white"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="5 11 9 15 15 7" />
-                  </svg>
-                )}
+                    <svg
+                      className="absolute left-0 top-0 w-5 h-5 pointer-events-none"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="2.5"
+                    >
+                      <polyline points="5 11 9 15 15 7" />
+                    </svg>
+                  )}
               </span>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Pilih Semua (
-                {selectAllMode === 'page' 
+                {selectAllMode === 'page'
                   ? selectedMahasiswaIds.filter((id) => paginatedData.map(m => m.id).includes(id)).length
                   : selectedMahasiswaIds.length
                 }/{selectAllMode === 'page' ? paginatedData.length : mahasiswaList.length} tersedia)
@@ -484,7 +484,7 @@ const MahasiswaVeteran: React.FC = () => {
                   <option value="veteran">Veteran</option>
                   <option value="non-veteran">Non-Veteran</option>
                 </select>
-                </div>
+              </div>
 
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -502,8 +502,8 @@ const MahasiswaVeteran: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                </div>
               </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -513,58 +513,58 @@ const MahasiswaVeteran: React.FC = () => {
             >
               {selectAllMode === 'page' ? 'Halaman' : 'Semua'}
             </button>
-              {hasActiveFilters && (
-                <button
-                  onClick={clearAllFilters}
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
                 className="px-3 py-1 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-all"
-                >
-                  Reset Filter
-                </button>
-              )}
-            </div>
+              >
+                Reset Filter
+              </button>
+            )}
           </div>
+        </div>
       </div>
-          {/* Bulk Actions */}
-          {selectedMahasiswaIds.length > 0 && (
+      {/* Bulk Actions */}
+      {selectedMahasiswaIds.length > 0 && (
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                      {selectedMahasiswaIds.length} mahasiswa dipilih
-                    </span>
-                  </div>
-            <div className="flex gap-2">
-                  <button
-                    onClick={() => handleBulkAction('set')}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Set Veteran
-                  </button>
-                  <button
-                    onClick={() => handleBulkAction('remove')}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Hapus Veteran
-                  </button>
-                  <button
-                    onClick={() => setSelectedMahasiswaIds([])}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Batal
-                  </button>
-                </div>
-              </div>
+                {selectedMahasiswaIds.length} mahasiswa dipilih
+              </span>
             </div>
-          )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleBulkAction('set')}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Set Veteran
+              </button>
+              <button
+                onClick={() => handleBulkAction('remove')}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Hapus Veteran
+              </button>
+              <button
+                onClick={() => setSelectedMahasiswaIds([])}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Daftar Mahasiswa */}
       <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
@@ -594,59 +594,57 @@ const MahasiswaVeteran: React.FC = () => {
           )}
         </div>
 
-          {mahasiswaList.length === 0 ? (
+        {mahasiswaList.length === 0 ? (
           <div className="text-center py-8">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
               <UserIcon className="w-8 h-8 text-orange-500" />
-              </div>
+            </div>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Belum Ada Data Mahasiswa
-              </h3>
+              Belum Ada Data Mahasiswa
+            </h3>
             <p className="text-orange-600 dark:text-orange-300">
               Data mahasiswa akan muncul di sini setelah ditambahkan.
-              </p>
-            </div>
-          ) : filteredData.length === 0 ? (
+            </p>
+          </div>
+        ) : filteredData.length === 0 ? (
           <div className="text-center py-8">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
               <UserIcon className="w-8 h-8 text-orange-500" />
-              </div>
+            </div>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Tidak Ada Data yang Cocok
-              </h3>
+              Tidak Ada Data yang Cocok
+            </h3>
             <p className="text-orange-600 dark:text-orange-300">
               Coba ubah kata kunci pencarian atau filter yang digunakan.
-              </p>
-            </div>
-          ) : (
+            </p>
+          </div>
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {paginatedData.map((mahasiswa) => (
               <div
                 key={mahasiswa.id}
-                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
-                  selectedMahasiswaIds.includes(mahasiswa.id)
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${selectedMahasiswaIds.includes(mahasiswa.id)
                     ? "bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700 cursor-pointer hover:bg-green-50 hover:border-green-400"
                     : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-green-50 hover:border-green-400"
-                }`}
+                  }`}
                 onClick={() => handleSelectMahasiswa(mahasiswa.id)}
               >
                 <div
                   className="relative flex items-center"
                   onClick={(e) => e.stopPropagation()}
                 >
-                      <input
-                        type="checkbox"
-                        checked={selectedMahasiswaIds.includes(mahasiswa.id)}
-                        onChange={() => handleSelectMahasiswa(mahasiswa.id)}
+                  <input
+                    type="checkbox"
+                    checked={selectedMahasiswaIds.includes(mahasiswa.id)}
+                    onChange={() => handleSelectMahasiswa(mahasiswa.id)}
                     className={`
                       w-5 h-5
                       appearance-none
                       rounded-md
                       border-2
-                      ${
-                        selectedMahasiswaIds.includes(mahasiswa.id)
-                          ? "border-green-500 bg-green-500"
-                          : "border-green-500 bg-transparent"
+                      ${selectedMahasiswaIds.includes(mahasiswa.id)
+                        ? "border-green-500 bg-green-500"
+                        : "border-green-500 bg-transparent"
                       }
                       transition-colors
                       duration-150
@@ -668,17 +666,17 @@ const MahasiswaVeteran: React.FC = () => {
                       <polyline points="5 11 9 15 15 7" />
                     </svg>
                   )}
-                          </div>
+                </div>
                 <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                   <UserIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                        </div>
+                </div>
                 <div className="flex-1">
                   <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
-                            {mahasiswa.name}
+                    {mahasiswa.name}
                   </p>
                   <div className="mt-1 mb-2 flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                      Semester {mahasiswa.semester || '?'}
+                      {mahasiswa.status === 'lulus' ? 'Lulus' : `Semester ${mahasiswa.semester || '?'}`}
                     </span>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
                       {mahasiswa.nim}
@@ -696,142 +694,138 @@ const MahasiswaVeteran: React.FC = () => {
                       {mahasiswa.angkatan}
                     </span>
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${
-                        mahasiswa.ipk >= 3.5
+                      className={`text-xs px-2 py-0.5 rounded-full ${mahasiswa.ipk >= 3.5
                           ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
                           : mahasiswa.ipk >= 3.0
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                          : mahasiswa.ipk >= 2.5
-                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                      }`}
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                            : mahasiswa.ipk >= 2.5
+                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                        }`}
                     >
                       IPK {mahasiswa.ipk.toFixed(2)}
                     </span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(mahasiswa.status)}`}>
-                        {mahasiswa.status}
+                      {mahasiswa.status}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${mahasiswa.is_veteran
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                        : 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
+                      }`}>
+                      {mahasiswa.is_veteran ? 'Veteran' : 'Non-Veteran'}
+                    </span>
+                    {mahasiswa.is_veteran && mahasiswa.is_multi_veteran && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
+                        Multi Veteran
                       </span>
-                     <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        mahasiswa.is_veteran 
-                         ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
-                         : 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
-                     }`}>
-                       {mahasiswa.is_veteran ? 'Veteran' : 'Non-Veteran'}
-                      </span>
-                     {mahasiswa.is_veteran && mahasiswa.is_multi_veteran && (
-                       <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
-                         Multi Veteran
-                       </span>
-                     )}
+                    )}
                   </div>
                   <div className="mt-2 flex gap-1 flex-wrap">
-                      <button
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleToggleVeteran(mahasiswa);
                       }}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 ${
-                          mahasiswa.is_veteran
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 ${mahasiswa.is_veteran
                           ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-md'
                           : 'bg-green-500 text-white hover:bg-green-600 hover:shadow-md'
                         }`}
-                      >
-                        {mahasiswa.is_veteran ? (
-                          <>
+                    >
+                      {mahasiswa.is_veteran ? (
+                        <>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Hapus
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Set
+                        </>
+                      )}
+                    </button>
+
+                    {/* Multi Veteran Button - hanya muncul jika mahasiswa sudah veteran */}
+                    {mahasiswa.is_veteran && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleMultiVeteran(mahasiswa);
+                        }}
+                        disabled={isTogglingMultiVeteran}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 ${mahasiswa.is_multi_veteran
+                            ? 'bg-purple-500 text-white hover:bg-purple-600 hover:shadow-md'
+                            : 'bg-purple-300 text-purple-800 hover:bg-purple-400 hover:shadow-md'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {isTogglingMultiVeteran ? (
+                          <>
+                            <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                            Hapus
+                            Loading...
+                          </>
+                        ) : mahasiswa.is_multi_veteran ? (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Multi
                           </>
                         ) : (
                           <>
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            Set
+                            Multi
                           </>
                         )}
                       </button>
-                      
-                      {/* Multi Veteran Button - hanya muncul jika mahasiswa sudah veteran */}
-                      {mahasiswa.is_veteran && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleMultiVeteran(mahasiswa);
-                          }}
-                          disabled={isTogglingMultiVeteran}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 ${
-                            mahasiswa.is_multi_veteran
-                              ? 'bg-purple-500 text-white hover:bg-purple-600 hover:shadow-md'
-                              : 'bg-purple-300 text-purple-800 hover:bg-purple-400 hover:shadow-md'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          {isTogglingMultiVeteran ? (
-                            <>
-                              <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              Loading...
-                            </>
-                          ) : mahasiswa.is_multi_veteran ? (
-                            <>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              Multi
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                              Multi
-                            </>
-                          )}
-                        </button>
-                      )}
+                    )}
                   </div>
                 </div>
               </div>
-                ))}
+            ))}
           </div>
-          )}
-        </div>
+        )}
+      </div>
 
-        {/* Pagination */}
-        {filteredData.length > 0 && totalPages > 1 && (
+      {/* Pagination */}
+      {filteredData.length > 0 && totalPages > 1 && (
         <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex items-center gap-4">
-              <select
-                value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+          <div className="flex items-center gap-4">
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
               className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
-              >
+            >
               {[12, 24, 36, 48, 60, 72, 84, 96].map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Menampilkan {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, filteredData.length)} dari {filteredData.length} mahasiswa
-              </span>
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              Menampilkan {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, filteredData.length)} dari {filteredData.length} mahasiswa
+            </span>
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
               className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-              >
-                Prev
-              </button>
-              
-              {/* Smart Pagination */}
-              <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
-                scrollbarWidth: 'thin',
-                scrollbarColor: '#cbd5e1 #f1f5f9'
-              }}>
-                <style dangerouslySetInnerHTML={{
-                  __html: `
+            >
+              Prev
+            </button>
+
+            {/* Smart Pagination */}
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#cbd5e1 #f1f5f9'
+            }}>
+              <style dangerouslySetInnerHTML={{
+                __html: `
                     .pagination-scroll::-webkit-scrollbar {
                       height: 6px;
                     }
@@ -856,79 +850,76 @@ const MahasiswaVeteran: React.FC = () => {
                       background: #64748b;
                     }
                   `
-                }} />
-                
-                {/* Always show first page */}
-                <button
-                  onClick={() => setPage(1)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    page === 1
+              }} />
+
+              {/* Always show first page */}
+              <button
+                onClick={() => setPage(1)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === 1
                     ? 'bg-brand-500 text-white'
                     : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
-                >
-                  1
-                </button>
-                
-                {/* Show ellipsis if current page is far from start */}
-                {page > 4 && (
-                  <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
-                )}
-                
-                {/* Show pages around current page */}
-                {Array.from({ length: totalPages }, (_, i) => {
-                  const pageNum = i + 1;
-                  // Show pages around current page (2 pages before and after)
-                  const shouldShow = pageNum > 1 && pageNum < totalPages && 
-                    (pageNum >= page - 2 && pageNum <= page + 2);
-                  
-                  if (!shouldShow) return null;
-                  
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => setPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        page === pageNum
+              >
+                1
+              </button>
+
+              {/* Show ellipsis if current page is far from start */}
+              {page > 4 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: totalPages }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow = pageNum > 1 && pageNum < totalPages &&
+                  (pageNum >= page - 2 && pageNum <= page + 2);
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === pageNum
                         ? 'bg-brand-500 text-white'
                         : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-                
-                {/* Show ellipsis if current page is far from end */}
-                {page < totalPages - 3 && (
-                  <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
-                )}
-                
-                {/* Always show last page if it's not the first page */}
-                {totalPages > 1 && (
-                  <button
-                    onClick={() => setPage(totalPages)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      page === totalPages
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {page < totalPages - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {totalPages > 1 && (
+                <button
+                  onClick={() => setPage(totalPages)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === totalPages
                       ? 'bg-brand-500 text-white'
                       : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
-                  >
-                    {totalPages}
-                  </button>
-                )}
-              </div>
-              
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-              >
-                Next
-              </button>
+                >
+                  {totalPages}
+                </button>
+              )}
             </div>
+
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+            >
+              Next
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Veteran Toggle Modal */}
       <AnimatePresence>
@@ -964,21 +955,20 @@ const MahasiswaVeteran: React.FC = () => {
                   />
                 </svg>
               </button>
-              
+
               <div>
                 <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
                     {selectedMahasiswa.is_veteran ? 'Hapus Status Veteran' : 'Set sebagai Veteran'}
                   </h2>
-            </div>
+                </div>
 
-            <div className="mb-6">
+                <div className="mb-6">
                   <div className="flex items-center space-x-3 mb-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                      selectedMahasiswa.is_veteran 
-                        ? 'bg-red-100 dark:bg-red-900/20' 
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${selectedMahasiswa.is_veteran
+                        ? 'bg-red-100 dark:bg-red-900/20'
                         : 'bg-green-100 dark:bg-green-900/20'
-                    }`}>
+                      }`}>
                       {selectedMahasiswa.is_veteran ? (
                         <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -996,54 +986,53 @@ const MahasiswaVeteran: React.FC = () => {
                       <p className="text-sm text-gray-600 dark:text-gray-400">NIM: {selectedMahasiswa.nim}</p>
                     </div>
                   </div>
-                  
+
                   <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Catatan (Opsional)
-              </label>
-              <textarea
-                value={veteranNotes}
-                onChange={(e) => setVeteranNotes(e.target.value)}
-                placeholder="Masukkan catatan mengapa mahasiswa ditetapkan sebagai veteran..."
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Catatan (Opsional)
+                    </label>
+                    <textarea
+                      value={veteranNotes}
+                      onChange={(e) => setVeteranNotes(e.target.value)}
+                      placeholder="Masukkan catatan mengapa mahasiswa ditetapkan sebagai veteran..."
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-800 dark:text-white transition-colors resize-none"
-                rows={3}
-              />
+                      rows={3}
+                    />
                   </div>
-            </div>
+                </div>
 
                 <div className="flex justify-end gap-2 pt-2 relative z-20">
-              <button
-                onClick={() => setShowVeteranModal(false)}
+                  <button
+                    onClick={() => setShowVeteranModal(false)}
                     className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
-              >
-                Batal
-              </button>
-              <button
+                  >
+                    Batal
+                  </button>
+                  <button
                     type="button"
-                onClick={confirmToggleVeteran}
-                disabled={isToggling}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10 ${
-                  selectedMahasiswa.is_veteran
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-green-600 hover:bg-green-700'
-                }`}
-              >
-                {isToggling ? (
-                  <>
+                    onClick={confirmToggleVeteran}
+                    disabled={isToggling}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10 ${selectedMahasiswa.is_veteran
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-green-600 hover:bg-green-700'
+                      }`}
+                  >
+                    {isToggling ? (
+                      <>
                         <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    Memproses...
-                  </>
-                ) : selectedMahasiswa.is_veteran ? (
+                        </svg>
+                        Memproses...
+                      </>
+                    ) : selectedMahasiswa.is_veteran ? (
                       'Hapus Veteran'
                     ) : (
                       'Set Veteran'
-                )}
-              </button>
+                    )}
+                  </button>
                 </div>
-            </div>
+              </div>
             </motion.div>
           </div>
         )}
@@ -1083,21 +1072,20 @@ const MahasiswaVeteran: React.FC = () => {
                   />
                 </svg>
               </button>
-              
+
               <div>
                 <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
                     {bulkAction === 'set' ? 'Set sebagai Veteran' : 'Hapus Status Veteran'}
                   </h2>
-            </div>
+                </div>
 
                 <div className="mb-6">
                   <div className="flex items-center space-x-3 mb-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                      bulkAction === 'set' 
-                        ? 'bg-green-100 dark:bg-green-900/20' 
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${bulkAction === 'set'
+                        ? 'bg-green-100 dark:bg-green-900/20'
                         : 'bg-red-100 dark:bg-red-900/20'
-                    }`}>
+                      }`}>
                       {bulkAction === 'set' ? (
                         <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1112,62 +1100,61 @@ const MahasiswaVeteran: React.FC = () => {
                       <h4 className="font-medium text-gray-900 dark:text-white">
                         {selectedMahasiswaIds.length} Mahasiswa Dipilih
                       </h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {bulkAction === 'set' 
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {bulkAction === 'set'
                           ? 'Akan ditetapkan sebagai veteran'
                           : 'Akan dihapus status veteran'
-                }
-              </p>
+                        }
+                      </p>
                     </div>
-            </div>
+                  </div>
 
                   <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Catatan (Opsional)
-              </label>
-              <textarea
-                value={veteranNotes}
-                onChange={(e) => setVeteranNotes(e.target.value)}
-                placeholder={`Masukkan catatan mengapa ${selectedMahasiswaIds.length} mahasiswa ${bulkAction === 'set' ? 'ditetapkan sebagai veteran' : 'dihapus status veteran'}...`}
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Catatan (Opsional)
+                    </label>
+                    <textarea
+                      value={veteranNotes}
+                      onChange={(e) => setVeteranNotes(e.target.value)}
+                      placeholder={`Masukkan catatan mengapa ${selectedMahasiswaIds.length} mahasiswa ${bulkAction === 'set' ? 'ditetapkan sebagai veteran' : 'dihapus status veteran'}...`}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-800 dark:text-white transition-colors resize-none"
-                rows={3}
-              />
+                      rows={3}
+                    />
                   </div>
-            </div>
+                </div>
 
                 <div className="flex justify-end gap-2 pt-2 relative z-20">
-              <button
-                onClick={() => setShowBulkModal(false)}
+                  <button
+                    onClick={() => setShowBulkModal(false)}
                     className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
-              >
-                Batal
-              </button>
-              <button
+                  >
+                    Batal
+                  </button>
+                  <button
                     type="button"
-                onClick={confirmBulkAction}
-                disabled={isBulkProcessing}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10 ${
-                  bulkAction === 'set'
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
-              >
-                {isBulkProcessing ? (
-                  <>
+                    onClick={confirmBulkAction}
+                    disabled={isBulkProcessing}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10 ${bulkAction === 'set'
+                        ? 'bg-green-600 hover:bg-green-700'
+                        : 'bg-red-600 hover:bg-red-700'
+                      }`}
+                  >
+                    {isBulkProcessing ? (
+                      <>
                         <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    Memproses...
-                  </>
-                ) : bulkAction === 'set' ? (
+                        </svg>
+                        Memproses...
+                      </>
+                    ) : bulkAction === 'set' ? (
                       'Set Veteran'
                     ) : (
                       'Hapus Veteran'
-                )}
-              </button>
+                    )}
+                  </button>
                 </div>
-            </div>
+              </div>
             </motion.div>
           </div>
         )}

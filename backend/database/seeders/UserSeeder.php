@@ -140,13 +140,14 @@ class UserSeeder extends Seeder
 
         // Tambahkan semester acak untuk setiap mahasiswa
         $nimStart = 20210001;
-        $statusList = ['aktif', 'cuti', 'lulus'];
+        $statusList = ['aktif']; // Hanya aktif saja
         foreach ($mahasiswaData as $i => &$mhs) {
-            $mhs['semester'] = rand(1, 8);
+            // Sebagian besar semester 1-7, tapi sediakan beberapa semester 8 untuk test kelulusan
+            $mhs['semester'] = ($i < 10) ? 8 : rand(1, 7); 
             $mhs['nim'] = (string)($nimStart + $i);
             $mhs['gender'] = rand(0, 1) ? 'L' : 'P';
             $mhs['ipk'] = number_format(rand(200, 400) / 100, 2);
-            $mhs['status'] = $statusList[array_rand($statusList)];
+            $mhs['status'] = 'aktif';
             $mhs['angkatan'] = rand(2019, 2024);
             // Untuk seeder, tahun ajaran masuk dan semester masuk akan di-set manual
             // karena SemesterService hanya untuk mahasiswa baru yang diinput manual
@@ -444,22 +445,31 @@ class UserSeeder extends Seeder
 
         // Tambah mahasiswa
         foreach ($mahasiswaData as $mahasiswa) {
-            // Tentukan tahun ajaran masuk berdasarkan angkatan
-            $tahunAjaranMasuk = null;
-            $semesterMasuk = null;
+            // Logika baru: Tentukan Tahun Ajaran Masuk berdasarkan Semester target
+            // Misalkan Semester aktif saat ini adalah 2022/2023 Ganjil (Semester 1 secara global)
+            // Jika mahasiswa mau di Semester 1 -> masuk 2022/2023 Ganjil
+            // Jika mahasiswa mau di Semester 2 -> masuk 2021/2022 Genap (atau hitung mundur)
             
-            if ($activeTahunAjaran && $activeSemester) {
-                // Untuk seeder, set tracking data berdasarkan angkatan
-                $angkatan = $mahasiswa['angkatan'] ?? 2022;
-                $tahunAjaranMasuk = $activeTahunAjaran->id; // Default ke tahun ajaran aktif
-                $semesterMasuk = $activeSemester->jenis; // Default ke semester aktif
-                
-                // Jika angkatan berbeda, sesuaikan tahun ajaran masuk
-                if ($angkatan < 2022) {
-                    // Mahasiswa angkatan lama, set tahun ajaran sesuai angkatan
-                    $tahunAjaranMasuk = \App\Models\TahunAjaran::where('tahun', 'like', $angkatan . '/%')->first()?->id ?? $activeTahunAjaran->id;
-                }
-            }
+            $targetSemester = $mahasiswa['semester'];
+            $angkatan = $mahasiswa['angkatan'];
+            
+            // Mencari Tahun Ajaran Masuk yang logis
+            // Ganjil 2022/2023 (Aktif) = Semester 1 (untuk angkatan 2022)
+            // S1 -> 2022/2023 Ganjil
+            // S2 -> 2021/2022 Genap
+            // S3 -> 2021/2022 Ganjil
+            // S4 -> 2020/2021 Genap
+            // S5 -> 2020/2021 Ganjil
+            // S6 -> 2019/2020 Genap
+            // S7 -> 2019/2020 Ganjil
+            // S8 -> 2018/2019 Genap (tapi seeder TA mulai 2019)
+            
+            $tahunMasukRelatif = (int) floor(($targetSemester - 1) / 2);
+            $tahunAwal = 2022 - $tahunMasukRelatif;
+            $tahunString = $tahunAwal . '/' . ($tahunAwal + 1);
+            
+            $tahunAjaranMasuk = \App\Models\TahunAjaran::where('tahun', $tahunString)->first();
+            $semesterMasuk = ($targetSemester % 2 === 1) ? 'Ganjil' : 'Genap';
 
             $user = User::updateOrCreate(
                 ['username' => $mahasiswa['username']],
@@ -474,13 +484,13 @@ class UserSeeder extends Seeder
                     'keahlian' => null,
                     'is_logged_in' => false,
                     'current_token' => null,
-                    'semester' => $mahasiswa['semester'] ?? null,
+                    'semester' => $targetSemester,
                     'nim' => $mahasiswa['nim'] ?? null,
                     'gender' => $mahasiswa['gender'] ?? null,
                     'ipk' => $mahasiswa['ipk'] ?? null,
                     'status' => $mahasiswa['status'] ?? null,
-                    'angkatan' => $mahasiswa['angkatan'] ?? null,
-                    'tahun_ajaran_masuk_id' => $tahunAjaranMasuk,
+                    'angkatan' => $angkatan,
+                    'tahun_ajaran_masuk_id' => $tahunAjaranMasuk ? $tahunAjaranMasuk->id : ($activeTahunAjaran ? $activeTahunAjaran->id : null),
                     'semester_masuk' => $semesterMasuk,
                 ]
             );

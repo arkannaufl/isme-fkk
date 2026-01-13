@@ -16,7 +16,8 @@ class JadwalJurnalReadingController extends Controller
     // List semua jadwal Jurnal Reading untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalJurnalReading::with(['kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
+        $jadwal = JadwalJurnalReading::WithoutSemesterFilter()
+            ->with(['mataKuliah', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')
@@ -1220,7 +1221,7 @@ class JadwalJurnalReadingController extends Controller
                         'nama' => $jadwal->mataKuliah->nama ?? 'Unknown',
                         'semester' => $jadwal->mataKuliah->semester ?? ''
                     ],
-                    'tanggal' => $jadwal->tanggal,
+                    'tanggal' => is_string($jadwal->tanggal) ? $jadwal->tanggal : $jadwal->tanggal->format('Y-m-d'),
                     'jam_mulai' => $jadwal->jam_mulai,
                     'jam_selesai' => $jadwal->jam_selesai,
                     'topik' => $jadwal->topik,
@@ -1412,9 +1413,9 @@ class JadwalJurnalReadingController extends Controller
             $mappedJadwal = $jadwal->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'tanggal' => $item->tanggal,
-                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
-                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                    'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                     'topik' => $item->topik ?? 'N/A',
                     'mata_kuliah_nama' => $item->mataKuliah->nama ?? 'N/A',
                     'dosen' => $item->dosen ? ['id' => $item->dosen->id, 'name' => $item->dosen->name] : null,

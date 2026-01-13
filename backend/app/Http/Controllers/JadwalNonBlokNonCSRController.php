@@ -472,6 +472,12 @@ class JadwalNonBlokNonCSRController extends Controller
                     'materi' => $jadwal->materi,
                     'agenda' => $jadwal->agenda,
                     'jenis_baris' => $jadwal->jenis_baris,
+                    'tipe' => match($jadwal->jenis_baris) {
+                        'seminar_proposal' => 'Seminar Proposal',
+                        'sidang_skripsi' => 'Sidang Skripsi',
+                        'agenda' => 'Agenda Khusus',
+                        default => 'Jadwal Materi'
+                    },
                     'jenis_jadwal' => 'non_blok_non_csr',
                     'pengampu' => $pengampu,
                     'dosen' => $jadwal->dosen,
@@ -955,7 +961,8 @@ class JadwalNonBlokNonCSRController extends Controller
     public function index($kode)
     {
         try {
-            $jadwal = JadwalNonBlokNonCSR::with(['mataKuliah', 'dosen:id,name,nid,nidn,nuptk,signature_image', 'ruangan', 'kelompokBesar', 'kelompokBesarAntara'])
+            $jadwal = JadwalNonBlokNonCSR::WithoutSemesterFilter()
+                ->with(['mataKuliah', 'dosen:id,name,nid,nidn,nuptk,signature_image', 'ruangan', 'kelompokBesar', 'kelompokBesarAntara'])
                 ->where('mata_kuliah_kode', $kode)
                 ->orderBy('tanggal')
                 ->orderBy('jam_mulai')
@@ -3038,9 +3045,9 @@ class JadwalNonBlokNonCSRController extends Controller
 
                 return [
                     'id' => $item->id,
-                    'tanggal' => date('d/m/Y', strtotime($item->tanggal)), // Format dd/mm/yyyy
-                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
-                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'tanggal' => date('d-m-Y', strtotime($item->tanggal)), // Format dd-mm-yyyy
+                    'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                     'agenda' => $item->agenda ?? null,
                     'materi' => $item->materi ?? null,
                     'jenis_baris' => $jenisBaris, // Pastikan jenis_baris dikembalikan
@@ -3396,6 +3403,20 @@ class JadwalNonBlokNonCSRController extends Controller
                     Log::error('Error fetching kelompok_besar: ' . $e->getMessage());
                 }
             }
+
+            // Tambahkan mahasiswa yang terdaftar secara eksplisit di mahasiswa_nims (untuk Seminar Proposal dan Sidang Skripsi)
+            if ($jadwal->mahasiswa_nims) {
+                $explicitNims = is_array($jadwal->mahasiswa_nims) 
+                    ? $jadwal->mahasiswa_nims 
+                    : json_decode($jadwal->mahasiswa_nims, true);
+                
+                if (is_array($explicitNims)) {
+                    $mahasiswaTerdaftar = array_merge($mahasiswaTerdaftar, $explicitNims);
+                }
+            }
+
+            // Ensure unique NIMs
+            $mahasiswaTerdaftar = array_unique($mahasiswaTerdaftar);
 
             // Validasi NIM yang di-submit harus terdaftar di jadwal ini
             // Normalisasi NIM untuk perbandingan yang lebih robust

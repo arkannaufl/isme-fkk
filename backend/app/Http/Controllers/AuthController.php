@@ -592,7 +592,8 @@ class AuthController extends Controller
             'whatsapp_birth_day.before' => 'Tanggal lahir harus sebelum hari ini.',
         ]);
 
-        // Jika ingin ubah password
+        try {
+            // Jika ingin ubah password
         if (!empty($validated['password'])) {
             if (empty($validated['current_password']) || !Hash::check($validated['current_password'], $user->password)) {
                 return response()->json(['message' => 'Password saat ini salah.'], 422);
@@ -606,7 +607,7 @@ class AuthController extends Controller
         if (array_key_exists('email', $validated) && !empty($validated['email'])) {
             $user->email = $validated['email'];
             // Jika email berubah, update juga whatsapp_email
-            if ($isDosen) {
+            if (in_array($user->role, ['dosen', 'mahasiswa'])) {
                 $user->whatsapp_email = $validated['email'];
             }
         }
@@ -629,17 +630,11 @@ class AuthController extends Controller
         // WhatsApp fields akan disimpan setelah sync berhasil
         $user->save();
 
-        // Simpan nilai lama WhatsApp fields untuk rollback jika sync gagal
-        $oldWhatsAppPhone = $user->whatsapp_phone;
-        $oldWhatsAppEmail = $user->whatsapp_email;
-        $oldWhatsAppAddress = $user->whatsapp_address;
-        $oldWhatsAppBirthDay = $user->whatsapp_birth_day;
-        $oldTelp = $user->telp;
-
-        // Update WhatsApp fields ke temporary (belum disimpan)
+        // Update WhatsApp fields
         $hasWhatsAppChanges = false;
         if (array_key_exists('whatsapp_phone', $validated)) {
             $user->whatsapp_phone = $validated['whatsapp_phone'];
+            $user->telp = $validated['whatsapp_phone']; // Ensure telp is EXACTLY identical
             $hasWhatsAppChanges = true;
         }
         if (array_key_exists('whatsapp_email', $validated)) {
@@ -655,61 +650,67 @@ class AuthController extends Controller
             $hasWhatsAppChanges = true;
         }
 
-        // Sinkronisasi telp dengan whatsapp_phone (sama seperti email)
-        // Jika whatsapp_phone diupdate, update juga telp (convert 62 ke 0)
-        if (array_key_exists('whatsapp_phone', $validated) && $validated['whatsapp_phone']) {
-            // Jika nomor dimulai dengan 62, ganti dengan 0
-            if (str_starts_with($validated['whatsapp_phone'], '62')) {
-                $user->telp = '0' . substr($validated['whatsapp_phone'], 2);
-            } else {
-                $user->telp = $validated['whatsapp_phone'];
-            }
-        }
+        // Always save after all potential updates
+        $user->save();
 
-        // Sync ke Wablas untuk dosen (hanya jika ada perubahan WhatsApp fields)
-        // phone dan name adalah required, email, address, birth_day adalah optional
-        if ($isDosen && $hasWhatsAppChanges && $user->whatsapp_phone && $user->name) {
+        // Refresh user to get the latest data from database (including generated fields or triggers)
+        $user->refresh();
+
+        // Sync contact data to Wablas automatically if whatsapp_phone is available
+        // Allowed roles for sync: dosen and mahasiswa
+        $wablasSynced = false;
+        if (in_array($user->role, ['dosen', 'mahasiswa']) && $user->whatsapp_phone && $user->name) {
             try {
+                $wablasService = new \App\Services\WablasService();
+                
+                // Construct contact data for Wablas
+                $contactData = [
+                    'name' => $user->name,
+                    'phone' => $user->whatsapp_phone,
+                    'email' => $user->whatsapp_email ?? $user->email,
+                    'address' => $user->whatsapp_address,
+                    'birth_day' => $user->whatsapp_birth_day ? $user->whatsapp_birth_day->format('Y-m-d') : null,
+                ];
+
+                // Check if already synced or use the service to handle it
+                // Based on previous syncToWablas logic:
                 $syncResult = $this->syncToWablas($user);
-
+                
                 if ($syncResult['success']) {
-                    // Sync berhasil, simpan WhatsApp fields ke database
-                    $user->wablas_sync_status = 'synced';
                     $user->wablas_synced_at = now();
+                    $user->wablas_sync_status = 'success';
                     $user->save();
+                    $wablasSynced = true;
                 } else {
-                    // Sync gagal, tetapi data user tetap disimpan
-                    $user->wablas_sync_status = 'failed';
-                    $user->wablas_synced_at = null;
-                    $user->save();
-
-                    Log::warning('Wablas sync failed for user - data kept', [
+                    \Log::warning('Wablas sync failed for user', [
                         'user_id' => $user->id,
-                        'error' => $syncResult['error'] ?? 'Unknown error',
+                        'error' => $syncResult['error'] ?? 'Unknown error'
                     ]);
+                    $user->wablas_sync_status = 'failed';
+                    $user->save();
                 }
             } catch (\Exception $e) {
-                // Exception saat sync, tetap simpan data user dan tandai status gagal
-                $user->wablas_sync_status = 'failed';
-                $user->wablas_synced_at = null;
-                $user->save();
-
-                Log::error('Wablas sync exception - data kept', [
+                \Log::error('Wablas sync exception in updateProfile', [
                     'user_id' => $user->id,
-                    'error' => $e->getMessage(),
+                    'error' => $e->getMessage()
                 ]);
+                $user->wablas_sync_status = 'failed';
+                $user->save();
             }
-        } elseif ($isDosen && !$hasWhatsAppChanges && $user->whatsapp_phone && $user->name) {
-            // Jika tidak ada perubahan WhatsApp fields tapi user sudah punya data WhatsApp,
-            // untuk saat ini tidak ada aksi khusus yang perlu dilakukan
         }
 
         return response()->json([
-            'message' => 'Profile updated successfully.',
-            'user' => $user->fresh(),
-            'wablas_synced' => $isDosen && $user->wablas_sync_status === 'synced',
+            'message' => 'Profil berhasil diperbarui',
+            'user' => $user,
+            'wablas_synced' => $wablasSynced
         ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Terjadi kesalahan saat memperbarui profil.',
+            'error' => $e->getMessage(),
+        ], 500);
     }
+}
 
     /**
      * Sync user contact ke Wablas

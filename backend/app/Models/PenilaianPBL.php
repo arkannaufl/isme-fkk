@@ -42,4 +42,8 @@ class PenilaianPBL extends Model
             ->logOnlyDirty()
             ->setDescriptionForEvent(fn(string $eventName) => "Penilaian PBL telah di-{$eventName}");
     }
+    public function jadwalPBL()
+    {
+        return $this->belongsTo(JadwalPBL::class, 'jadwal_pbl_id');
+    }
 }

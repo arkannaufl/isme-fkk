@@ -45,6 +45,7 @@ interface NilaiMataKuliah {
     jenis: string;
     nilai: number;
     tanggal: string;
+    topik?: string;
   }>;
   // Attendance data
   total_pertemuan?: number;
@@ -62,7 +63,11 @@ interface NilaiDetail {
   keterangan?: string;
 }
 
-const NilaiMahasiswa: React.FC = () => {
+interface NilaiMahasiswaProps {
+  isEmbedded?: boolean;
+}
+
+const NilaiMahasiswa: React.FC<NilaiMahasiswaProps> = ({ isEmbedded = false }) => {
   const [user, setUser] = useState<any>(null);
   const [scoreSummary, setScoreSummary] = useState<ScoreSummary | null>(null);
   const [nilaiMataKuliah, setNilaiMataKuliah] = useState<NilaiMataKuliah[]>([]);
@@ -83,7 +88,7 @@ const NilaiMahasiswa: React.FC = () => {
       setLoading(true);
       const userData = await getUser();
       setUser(userData);
-      
+
       if (userData?.id) {
         await Promise.all([
           fetchScoreSummary(userData.id),
@@ -126,7 +131,7 @@ const NilaiMahasiswa: React.FC = () => {
       const response = await api.get(`/mahasiswa/${userId}/attendance-summary`);
       if (response.data?.data) {
         setAttendanceSummary(response.data.data);
-        
+
         // Merge attendance data dengan nilai mata kuliah
         setNilaiMataKuliah((prev) => {
           return prev.map((nilai) => {
@@ -159,7 +164,7 @@ const NilaiMahasiswa: React.FC = () => {
 
     const matchesSemester =
       filterSemester === "all" || nilai.semester.toString() === filterSemester;
-    
+
     const matchesStatus =
       filterStatus === "all" || nilai.status === filterStatus;
 
@@ -198,14 +203,16 @@ const NilaiMahasiswa: React.FC = () => {
   // Skeleton Loader
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header Skeleton */}
-          <div className="mb-8">
-            <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
-            <div className="h-10 w-64 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
-            <div className="h-4 w-96 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-          </div>
+      <div className={isEmbedded ? "" : "min-h-screen bg-gray-50 dark:bg-gray-900"}>
+        <div className={isEmbedded ? "" : "mx-auto px-4 sm:px-6 lg:px-8 py-8"}>
+          {/* Header Skeleton - Only match layout structure if needed */}
+          {!isEmbedded && (
+            <div className="mb-8">
+              <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
+              <div className="h-10 w-64 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+              <div className="h-4 w-96 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+            </div>
+          )}
 
           {/* Summary Cards Skeleton */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -274,31 +281,33 @@ const NilaiMahasiswa: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="mb-8"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <FontAwesomeIcon
-              icon={faGraduationCap}
-              className="text-gray-500 dark:text-gray-400"
-            />
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Akademik
-            </span>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Nilai Akademik
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Lihat semua nilai yang telah Anda peroleh selama masa studi
-          </p>
-        </motion.div>
+    <div className={isEmbedded ? "" : "min-h-screen bg-gray-50 dark:bg-gray-900"}>
+      <div className={isEmbedded ? "" : "mx-auto px-4 sm:px-6 lg:px-8 py-8"}>
+        {/* Header - Only render if not embedded */}
+        {!isEmbedded && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <FontAwesomeIcon
+                icon={faGraduationCap}
+                className="text-gray-500 dark:text-gray-400"
+              />
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Akademik
+              </span>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Nilai Akademik
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Lihat semua nilai yang telah Anda peroleh selama masa studi
+            </p>
+          </motion.div>
+        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -554,11 +563,10 @@ const NilaiMahasiswa: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
-                            className={`text-sm font-medium ${
-                              nilai.nilai_akhir
-                                ? getNilaiColor(nilai.nilai_akhir)
-                                : "text-gray-400"
-                            }`}
+                            className={`text-sm font-medium ${nilai.nilai_akhir
+                              ? getNilaiColor(nilai.nilai_akhir)
+                              : "text-gray-400"
+                              }`}
                           >
                             {nilai.nilai_akhir
                               ? nilai.nilai_akhir.toFixed(2)
@@ -567,11 +575,10 @@ const NilaiMahasiswa: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
-                            className={`text-sm font-medium ${
-                              nilai.nilai_huruf
-                                ? getNilaiHurufColor(nilai.nilai_huruf)
-                                : "text-gray-400"
-                            }`}
+                            className={`text-sm font-medium ${nilai.nilai_huruf
+                              ? getNilaiHurufColor(nilai.nilai_huruf)
+                              : "text-gray-400"
+                              }`}
                           >
                             {nilai.nilai_huruf || "-"}
                           </span>
@@ -582,26 +589,24 @@ const NilaiMahasiswa: React.FC = () => {
                               <div className="flex items-center gap-2">
                                 <FontAwesomeIcon
                                   icon={faUserCheck}
-                                  className={`text-xs ${
-                                    nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 75
-                                      ? "text-green-600 dark:text-green-400"
-                                      : nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 50
+                                  className={`text-xs ${nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 75
+                                    ? "text-green-600 dark:text-green-400"
+                                    : nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 50
                                       ? "text-yellow-600 dark:text-yellow-400"
                                       : "text-red-600 dark:text-red-400"
-                                  }`}
+                                    }`}
                                 />
                                 <span className="text-xs text-gray-900 dark:text-white">
                                   {nilai.hadir || 0}/{nilai.total_pertemuan}
                                 </span>
                               </div>
                               <span
-                                className={`text-xs font-medium ${
-                                  nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 75
-                                    ? "text-green-600 dark:text-green-400"
-                                    : nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 50
+                                className={`text-xs font-medium ${nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 75
+                                  ? "text-green-600 dark:text-green-400"
+                                  : nilai.persentase_kehadiran && nilai.persentase_kehadiran >= 50
                                     ? "text-yellow-600 dark:text-yellow-400"
                                     : "text-red-600 dark:text-red-400"
-                                }`}
+                                  }`}
                               >
                                 {nilai.persentase_kehadiran?.toFixed(1) || 0}%
                               </span>
@@ -619,8 +624,8 @@ const NilaiMahasiswa: React.FC = () => {
                             {nilai.status === "lulus"
                               ? "Lulus"
                               : nilai.status === "tidak_lulus"
-                              ? "Tidak Lulus"
-                              : "Belum Dinilai"}
+                                ? "Tidak Lulus"
+                                : "Belum Dinilai"}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -655,6 +660,11 @@ const NilaiMahasiswa: React.FC = () => {
                                           <p className="text-sm font-medium text-gray-900 dark:text-white">
                                             {detail.jenis}
                                           </p>
+                                          {detail.topik && detail.topik !== '-' && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                              Topik: {detail.topik}
+                                            </p>
+                                          )}
                                         </div>
                                         <span
                                           className={`text-lg font-bold ${getNilaiColor(

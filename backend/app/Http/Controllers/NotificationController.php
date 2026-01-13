@@ -872,9 +872,40 @@ class NotificationController extends Controller
                         \Log::warning("Jurnal Reading jadwal ID: {$jadwalId} not found");
                     }
                     break;
+
+                case 'seminar_pleno':
+                    $jadwal = \App\Models\JadwalSeminarPleno::find($jadwalId);
+                    if ($jadwal) {
+                        $jadwal->update([
+                            'status_konfirmasi' => 'belum_konfirmasi',
+                            'alasan_konfirmasi' => null
+                        ]);
+
+                        // Ensure dosen is in dosen_ids
+                        $currentDosenIds = $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : [];
+                        if (!in_array($userId, $currentDosenIds)) {
+                            $currentDosenIds[] = $userId;
+                            $jadwal->update(['dosen_ids' => $currentDosenIds]);
+                        }
+                    }
+                    break;
+
+                default:
+                    // Generic fallback if type is not specifically handled
+                    $modelClass = '\\App\\Models\\Jadwal' . Str::studly($jadwalType);
+                    if (class_exists($modelClass)) {
+                        $jadwal = $modelClass::find($jadwalId);
+                        if ($jadwal && isset($jadwal->status_konfirmasi)) {
+                            $jadwal->update([
+                                'status_konfirmasi' => 'belum_konfirmasi',
+                                'alasan_konfirmasi' => null
+                            ]);
+                        }
+                    }
+                    break;
             }
         } catch (\Exception $e) {
-            \Log::error('Failed to reset schedule confirmation status: ' . $e->getMessage());
+            \Log::error("Error resetting confirmation for {$jadwalType} ID {$jadwalId}: " . $e->getMessage());
         }
     }
 

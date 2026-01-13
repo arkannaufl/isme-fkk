@@ -14,6 +14,8 @@ use App\Models\JadwalCSR;
 use App\Models\JadwalNonBlokNonCSR;
 use App\Models\JadwalPraktikum;
 use App\Models\JadwalAgendaKhusus;
+use App\Models\TahunAjaran;
+use App\Models\Semester;
 
 
 use App\Models\Notification;
@@ -50,8 +52,10 @@ class DashboardSuperAdminController extends Controller
             });
 
             // Get academic statistics dengan caching
-            $totalMataKuliah = Cache::remember('stats_total_mata_kuliah', 300, function () {
-                return MataKuliah::count();
+            $totalMataKuliah = Cache::remember('stats_total_mata_kuliah_active', 300, function () {
+                $activeTA = TahunAjaran::where('aktif', true)->first();
+                if (!$activeTA) return 0;
+                return $activeTA->mataKuliah()->count();
             });
             // Kelas feature removed - using kelompok kecil directly
             $totalRuangan = Cache::remember('stats_total_ruangan', 300, function () {
@@ -651,7 +655,9 @@ class DashboardSuperAdminController extends Controller
             $currentUsers = User::count();
             $currentMahasiswa = User::where('role', 'mahasiswa')->count();
             $currentDosen = User::where('role', 'dosen')->count();
-            $currentMataKuliah = MataKuliah::count();
+            
+            $activeTA = TahunAjaran::where('aktif', true)->first();
+            $currentMataKuliah = $activeTA ? $activeTA->mataKuliah()->count() : 0;
             
             // Get previous counts from cache (stored from last dashboard request)
             $cacheKey = 'dashboard_previous_counts';

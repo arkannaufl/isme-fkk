@@ -26,7 +26,7 @@ class JadwalPraktikumController extends Controller
     // List semua jadwal praktikum untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'kelompokKecil', 'dosen' => function ($query) {
+        $jadwal = JadwalPraktikum::WithoutSemesterFilter()->with(['mataKuliah', 'ruangan', 'kelompokKecil', 'dosen' => function ($query) {
             $query->select('users.id', 'users.name', 'users.nid', 'users.nidn', 'users.nuptk', 'users.signature_image')
                 ->withPivot('status_konfirmasi', 'alasan_konfirmasi');
         }])
@@ -624,42 +624,43 @@ class JadwalPraktikumController extends Controller
                 ->get();
 
             $mappedJadwal = $jadwal->map(function ($item) {
-                // For mahasiswa view, we show only active dosen (not "tidak_bisa")
-                // Filter out dosen with "tidak_bisa" status
-                $activeDosen = $item->dosen->filter(function ($dosen) {
-                    return $dosen->pivot->status_konfirmasi !== 'tidak_bisa';
-                });
+                // Return all assigned dosen with their individual status
+                $dosenData = $item->dosen->map(function ($d) {
+                    return [
+                        'id' => $d->id,
+                        'name' => $d->name,
+                        'status_konfirmasi' => $d->pivot->status_konfirmasi ?? 'belum_konfirmasi',
+                        'alasan_konfirmasi' => $d->pivot->alasan_konfirmasi ?? null,
+                    ];
+                })->toArray();
 
-                // If no active dosen, skip this jadwal entirely
-                if ($activeDosen->isEmpty()) {
-                    return null;
-                }
+                // If no dosen assigned at all, we might still want to show the schedule
+                // but usually there's at least one.
 
-                // Get status from the first active dosen
-                $firstActiveDosen = $activeDosen->first();
-                $statusKonfirmasi = 'belum_konfirmasi';
-
-                if ($firstActiveDosen && $firstActiveDosen->pivot) {
-                    $statusKonfirmasi = $firstActiveDosen->pivot->status_konfirmasi ?? 'belum_konfirmasi';
+                // Get status for the row badge (use the first one or logic to determine overall status)
+                $overallStatus = 'belum_konfirmasi';
+                if ($item->dosen->isNotEmpty()) {
+                    $firstDosen = $item->dosen->first();
+                    $overallStatus = $firstDosen->pivot->status_konfirmasi ?? 'belum_konfirmasi';
                 }
 
                 $groupNames = $item->kelompokKecil->pluck('nama_kelompok')->join(', ');
 
                 return [
                     'id' => $item->id,
-                    'tanggal' => $item->tanggal,
-                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
-                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                    'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                     'materi' => $item->materi ?? 'N/A',
                     'topik' => $item->topik ?? 'N/A',
                     'kelompok_kecil' => $groupNames ?: 'N/A',
-                    'dosen' => $activeDosen->map(fn($d) => ['id' => $d->id, 'name' => $d->name])->toArray(),
+                    'dosen' => $dosenData,
                     'ruangan' => $item->ruangan ? ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama] : null,
                     'jumlah_sesi' => $item->jumlah_sesi ?? 2,
-                    'status_konfirmasi' => $statusKonfirmasi,
+                    'status_konfirmasi' => $overallStatus,
                     'semester_type' => 'reguler',
                 ];
-            })->filter(); // Remove null entries
+            });
 
             return response()->json(['message' => 'Data jadwal Praktikum berhasil diambil', 'data' => $mappedJadwal]);
         } catch (\Exception $e) {
@@ -2091,7 +2092,7 @@ class JadwalPraktikumController extends Controller
             Log::info("Praktikum getKoordinatorPendingSignature - Blok/Semester pairs: " . json_encode($blokSemesterPairs->toArray()));
 
             // Cari jadwal praktikum yang sesuai dengan blok dan semester koordinator
-            $jadwalPraktikum = JadwalPraktikum::with(['mataKuliah', 'ruangan'])
+            $jadwalPraktikum = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'kelompokKecil'])
                 ->whereHas('mataKuliah', function ($query) use ($blokSemesterPairs, $semester) {
                     $query->where(function ($q) use ($blokSemesterPairs, $semester) {
                         foreach ($blokSemesterPairs as $pair) {
@@ -2128,6 +2129,16 @@ class JadwalPraktikumController extends Controller
 
             // Map hasil
             $result = $jadwalPraktikum->map(function ($jadwal) {
+                // kelompokKecil adalah collection (many-to-many), ambil yang pertama atau semua
+                $kelompokKecilData = null;
+                if ($jadwal->kelompokKecil && $jadwal->kelompokKecil->isNotEmpty()) {
+                    $firstKelompok = $jadwal->kelompokKecil->first();
+                    $kelompokKecilData = [
+                        'id' => $firstKelompok->id,
+                        'nama_kelompok' => $firstKelompok->nama_kelompok,
+                    ];
+                }
+
                 return [
                     'id' => $jadwal->id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
@@ -2136,10 +2147,7 @@ class JadwalPraktikumController extends Controller
                     'jam_mulai' => $jadwal->jam_mulai,
                     'jam_selesai' => $jadwal->jam_selesai,
                     'ruangan' => $jadwal->ruangan->nama ?? 'N/A',
-                    'kelompok_kecil' => $jadwal->kelompokKecil ? [
-                        'id' => $jadwal->kelompokKecil->id,
-                        'nama_kelompok' => $jadwal->kelompokKecil->nama_kelompok,
-                    ] : null,
+                    'kelompok_kecil' => $kelompokKecilData,
                     'materi' => $jadwal->materi,
                     'topik' => $jadwal->topik,
                     'koordinator_signature' => $jadwal->koordinator_signature,

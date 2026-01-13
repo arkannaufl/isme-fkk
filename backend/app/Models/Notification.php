@@ -7,9 +7,14 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use App\Traits\HasSemesterScope;
+
 class Notification extends Model
 {
+    use LogsActivity, HasSemesterScope;
+
     protected $fillable = [
+        'semester_id',
         'user_id',
         'title',
         'message',

@@ -13,7 +13,8 @@ class JadwalAgendaKhususController extends Controller
     // List semua jadwal agenda khusus untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalAgendaKhusus::with(['mataKuliah', 'ruangan'])
+        $jadwal = JadwalAgendaKhusus::WithoutSemesterFilter()
+            ->with(['mataKuliah', 'ruangan'])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')
@@ -1219,9 +1220,9 @@ class JadwalAgendaKhususController extends Controller
             $mappedJadwal = $jadwal->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'tanggal' => $item->tanggal,
-                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
-                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
+                    'jam_mulai' => str_replace(':', '.', substr($item->jam_mulai, 0, 5)),
+                    'jam_selesai' => str_replace(':', '.', substr($item->jam_selesai, 0, 5)),
                     'agenda' => $item->agenda ?? 'N/A',
                     'dosen' => [], // No dosen for agenda besar
                     'ruangan' => $item->ruangan ? ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama] : null,

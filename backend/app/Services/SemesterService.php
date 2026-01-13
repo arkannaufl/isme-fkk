@@ -34,57 +34,12 @@ class SemesterService
     }
 
     /**
-     * Menghitung semester mahasiswa berdasarkan tahun ajaran masuk dan semester aktif saat ini
+     * Menghitung semester mahasiswa (Sederhana: cukup +1 dari semester saat ini)
      */
     public function calculateStudentSemester($student, $activeSemester = null)
     {
-        // Jika mahasiswa belum punya data tahun ajaran masuk, gunakan semester yang ada
-        if (!$student->tahun_ajaran_masuk_id || !$student->semester_masuk) {
-            return $student->semester ?? 1;
-        }
-
-        // Jika tidak ada semester aktif, return semester yang ada
-        if (!$activeSemester) {
-            return $student->semester ?? 1;
-        }
-
-        // Ambil tahun ajaran masuk mahasiswa
-        $tahunAjaranMasuk = TahunAjaran::find($student->tahun_ajaran_masuk_id);
-        if (!$tahunAjaranMasuk) {
-            return $student->semester ?? 1;
-        }
-
-        // Hitung selisih tahun ajaran
-        $tahunMasuk = (int) explode('/', $tahunAjaranMasuk->tahun)[0];
-        $tahunAktif = (int) explode('/', $activeSemester->tahunAjaran->tahun)[0];
-        $selisihTahun = $tahunAktif - $tahunMasuk;
-
-        // Hitung semester dasar berdasarkan semester masuk
-        $semesterDasar = $student->semester_masuk === 'Ganjil' ? 1 : 2;
-
-        // Hitung semester berdasarkan selisih tahun dan semester aktif
-        $semesterHitung = $semesterDasar + ($selisihTahun * 2);
-
-        // Jika tahun ajaran sama, hitung berdasarkan semester aktif
-        if ($selisihTahun === 0) {
-            if ($student->semester_masuk === 'Ganjil' && $activeSemester->jenis === 'Genap') {
-                $semesterHitung = 2;
-            } elseif ($student->semester_masuk === 'Genap' && $activeSemester->jenis === 'Ganjil') {
-                $semesterHitung = 1;
-            } else {
-                $semesterHitung = $semesterDasar;
-            }
-        } else {
-            // Jika berbeda tahun, hitung berdasarkan semester aktif
-            if ($activeSemester->jenis === 'Ganjil') {
-                $semesterHitung = $semesterDasar + ($selisihTahun * 2);
-            } else {
-                $semesterHitung = $semesterDasar + ($selisihTahun * 2) + 1;
-            }
-        }
-
-        // Pastikan semester tidak melebihi 8 dan tidak kurang dari 1
-        return max(1, min($semesterHitung, 8));
+        $currentSemester = $student->semester ?? 1;
+        return $currentSemester + 1;
     }
 
     /**
@@ -103,18 +58,17 @@ class SemesterService
             $graduatedStudents = [];
 
             foreach ($students as $student) {
+                // PENTING: Mahasiswa Veteran tidak ikut naik semester
+                if ($student->is_veteran) {
+                    $updatedCount++; // Tetap dihitung sebagai ter-update (status-quo)
+                    continue;
+                }
+
                 $oldSemesterNumber = $student->semester ?? 1;
                 $newSemesterNumber = $this->calculateStudentSemester($student, $newSemester);
 
                 // Pastikan semester tidak kurang dari 1 dan tidak lebih dari 8
                 $finalSemesterNumber = max(1, min($newSemesterNumber, 8));
-                
-                // PENTING: Mencegah penurunan semester (mahasiswa tidak bisa mundur)
-                // Jika semester baru lebih kecil dari semester saat ini, tetap gunakan semester saat ini
-                // Ini mencegah mahasiswa turun semester saat kembali ke semester sebelumnya
-                if ($finalSemesterNumber < $oldSemesterNumber) {
-                    $finalSemesterNumber = $oldSemesterNumber;
-                }
                 
                 // Jika semester baru melebihi 8, mahasiswa lulus
                 if ($newSemesterNumber > 8) {
@@ -125,7 +79,7 @@ class SemesterService
                     $graduatedCount++;
                     $graduatedStudents[] = $student;
                 } else {
-                    // Update semester (hanya akan naik atau tetap, tidak akan turun)
+                    // Update semester
                     $student->update(['semester' => $finalSemesterNumber]);
                     $updatedCount++;
                 }
@@ -261,68 +215,73 @@ class SemesterService
      */
     private function updateStudentGroupings($oldSemester = null, $newSemester = null)
     {
-        if (!$newSemester) return;
+        if (!$newSemester || !$oldSemester) return;
 
         // Ambil semua mahasiswa yang aktif
         $students = User::where('role', 'mahasiswa')
             ->whereNotIn('status', ['lulus', 'keluar'])
             ->get();
 
-        $updatedKelompokBesar = 0;
-        $updatedKelompokKecil = 0;
+        $clonedKelompokBesar = 0;
+        $clonedKelompokKecil = 0;
 
         foreach ($students as $student) {
-            $oldSemesterNumber = $student->semester ?? 1;
-            $newSemesterNumber = $this->calculateStudentSemester($student, $newSemester);
+            // Ambil data kelompok dari semester LAMA
+            // Gunakan withoutSemesterFilter karena kita mencari data Histori (oldSemester)
             
-            // Pastikan semester tidak kurang dari 1 dan tidak lebih dari 8
-            $finalSemesterNumber = max(1, min($newSemesterNumber, 8));
-            
-            // PENTING: Mencegah penurunan semester (mahasiswa tidak bisa mundur)
-            if ($finalSemesterNumber < $oldSemesterNumber) {
-                $finalSemesterNumber = $oldSemesterNumber;
-            }
-            
-            // Hanya update kelompok yang sesuai dengan semester aktif (semester_id)
-            // Ini memastikan kelompok dari semester Ganjil tidak tercampur dengan Genap
-            $kelompokBesar = \App\Models\KelompokBesar::withoutSemesterFilter()
+            // 1. Clone Kelompok Besar
+            $oldKelompokBesar = \App\Models\KelompokBesar::withoutSemesterFilter()
                 ->where('mahasiswa_id', $student->id)
-                ->where('semester_id', $newSemester->id)
+                ->where('semester_id', $oldSemester->id)
                 ->first();
             
-            if ($kelompokBesar) {
-                $kelompokBesar->update([
-                    'semester' => $finalSemesterNumber,
-                    'semester_id' => $newSemester->id // Pastikan semester_id sesuai
-                ]);
-                $updatedKelompokBesar++;
+            if ($oldKelompokBesar) {
+                // Gunakan updateOrCreate untuk menghindari Duplicate entry
+                \App\Models\KelompokBesar::updateOrCreate(
+                    [
+                        'mahasiswa_id' => $student->id,
+                        'semester_id' => $newSemester->id,
+                    ],
+                    [
+                        'semester' => $student->semester // Update the level if it already exists
+                    ]
+                );
+                $clonedKelompokBesar++;
             }
 
-            // Update kelompok kecil yang sesuai dengan semester aktif
-            $kelompokKecil = \App\Models\KelompokKecil::withoutSemesterFilter()
+            // 2. Clone Kelompok Kecil
+            $oldKelompokKecil = \App\Models\KelompokKecil::withoutSemesterFilter()
                 ->where('mahasiswa_id', $student->id)
-                ->where('semester_id', $newSemester->id)
+                ->where('semester_id', $oldSemester->id)
                 ->first();
             
-            if ($kelompokKecil) {
-                $kelompokKecil->update([
-                    'semester' => $finalSemesterNumber,
-                    'semester_id' => $newSemester->id // Pastikan semester_id sesuai
-                ]);
-                $updatedKelompokKecil++;
+            if ($oldKelompokKecil) {
+                // Gunakan updateOrCreate untuk menghindari Duplicate entry
+                \App\Models\KelompokKecil::updateOrCreate(
+                    [
+                        'mahasiswa_id' => $student->id,
+                        'semester_id' => $newSemester->id,
+                    ],
+                    [
+                        'semester' => $student->semester,
+                        'nama_kelompok' => $oldKelompokKecil->nama_kelompok,
+                        'jumlah_kelompok' => $oldKelompokKecil->jumlah_kelompok
+                    ]
+                );
+                $clonedKelompokKecil++;
             }
         }
 
-        // Log aktivitas update pengelompokan
+        // Log aktivitas cloning pengelompokan
         activity()
             ->causedBy(Auth::user())
             ->withProperties([
-                'old_semester' => $oldSemester ? "{$oldSemester->jenis} ({$oldSemester->tahunAjaran->tahun})" : 'Tidak ada semester aktif',
+                'old_semester' => $oldSemester ? "{$oldSemester->jenis} ({$oldSemester->tahunAjaran->tahun})" : 'N/A',
                 'new_semester' => "{$newSemester->jenis} ({$newSemester->tahunAjaran->tahun})",
-                'updated_students' => $students->count(),
-                'updated_kelompok_besar' => $updatedKelompokBesar,
-                'updated_kelompok_kecil' => $updatedKelompokKecil
+                'total_students' => $students->count(),
+                'cloned_kelompok_besar' => $clonedKelompokBesar,
+                'cloned_kelompok_kecil' => $clonedKelompokKecil
             ])
-            ->log("Pengelompokan mahasiswa telah diupdate untuk semester {$newSemester->jenis} ({$newSemester->tahunAjaran->tahun})");
+            ->log("Kelompok mahasiswa telah disalin (migrasi) dari semester lama ke semester baru.");
     }
 }

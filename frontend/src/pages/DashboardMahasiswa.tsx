@@ -204,6 +204,7 @@ interface JadwalSeminarPleno {
   | "waiting_reschedule";
   status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
+  dosen?: any[];
   kelompok_besar?: {
     id: number;
     semester: number;
@@ -351,6 +352,13 @@ export default function DashboardMahasiswa() {
 
           // Check WhatsApp contact status
           const checkWhatsAppStatus = () => {
+            // Jika email sudah terverifikasi (email_verified === 1), maka jangan munculkan modal warning WhatsApp lagi
+            // User request: "jika email_verifed 1 maka tolong hide jangan munculkan lagi"
+            if (response.data.data.email_verified) {
+              setShowWhatsAppWarning(false);
+              return;
+            }
+
             const userData = getUser();
             if (!userData) return;
 
@@ -367,13 +375,16 @@ export default function DashboardMahasiswa() {
 
             setShowWhatsAppWarning(needsWhatsApp);
             // Update WhatsApp data dengan email dari emailStatus jika ada, dan pre-fill nomor dari telp jika ada
-            const prefillPhone =
-              userData.whatsapp_phone ||
-              (userData.telp
-                ? userData.telp.startsWith("62")
-                  ? userData.telp
-                  : userData.telp.replace(/^0/, "62")
-                : "");
+            const getValidWhatsApp = (wa: string | null, tp: string | null) => {
+              if (wa && wa.match(/^62\d+$/)) return wa;
+              const cleanedTelp = (tp || "").replace(/\D/g, "");
+              if (cleanedTelp.startsWith("0")) return "62" + cleanedTelp.substring(1);
+              if (cleanedTelp.startsWith("62")) return cleanedTelp;
+              if (cleanedTelp.length >= 9) return "62" + cleanedTelp; // Probable local number
+              return wa || "";
+            };
+
+            const prefillPhone = getValidWhatsApp(userData.whatsapp_phone, userData.telp);
 
             // Pastikan email untuk Wablas selalu ambil dari email verification yang sudah ada (jika sudah verified)
             const wablasEmail =
@@ -381,6 +392,13 @@ export default function DashboardMahasiswa() {
               userData.whatsapp_email || // Prioritas 2: WhatsApp email yang sudah ada
               userData.email || // Prioritas 3: Email user
               "";
+
+            // SYNC: Set newEmail agar placeholder tidak kosong jika ada historical email
+            if (!newEmailStatus.email || newEmailStatus.email === "") {
+              setNewEmail(wablasEmail);
+            } else {
+              setNewEmail(newEmailStatus.email);
+            }
 
             setWhatsAppData({
               name: userData.name || "",
@@ -408,17 +426,26 @@ export default function DashboardMahasiswa() {
             !userData.whatsapp_birth_day ||
             !userData.whatsapp_birth_day.trim();
           setShowWhatsAppWarning(needsWhatsApp);
-          const prefillPhone =
-            userData.whatsapp_phone ||
-            (userData.telp
-              ? userData.telp.startsWith("62")
-                ? userData.telp
-                : userData.telp.replace(/^0/, "62")
-              : "");
+          const getValidWhatsApp = (wa: string | null, tp: string | null) => {
+            if (wa && wa.match(/^62\d+$/)) return wa;
+            const cleanedTelp = (tp || "").replace(/\D/g, "");
+            if (cleanedTelp.startsWith("0")) return "62" + cleanedTelp.substring(1);
+            if (cleanedTelp.startsWith("62")) return cleanedTelp;
+            if (cleanedTelp.length >= 9) return "62" + cleanedTelp;
+            return wa || "";
+          };
+
+          const prefillPhone = getValidWhatsApp(userData.whatsapp_phone, userData.telp);
+
+          const historicalEmail = userData.whatsapp_email || userData.email || "";
+
+          // Set newEmail dari histori jika fetch error
+          setNewEmail(historicalEmail);
+
           setWhatsAppData({
             name: userData.name || "",
             whatsapp_phone: prefillPhone,
-            whatsapp_email: userData.whatsapp_email || userData.email || "",
+            whatsapp_email: historicalEmail,
             whatsapp_address: userData.whatsapp_address || "",
             whatsapp_birth_day: userData.whatsapp_birth_day || "",
           });
@@ -432,12 +459,15 @@ export default function DashboardMahasiswa() {
   // Listen for user-updated event to refresh email status
   useEffect(() => {
     const handleUserUpdated = () => {
-      const checkEmailStatus = async () => {
+      const checkStatus = async () => {
         try {
           const userData = getUser();
           if (!userData) return;
 
+          // Check Email Status
           const response = await api.get(`/users/${userData.id}/email-status`);
+          let isVerified = false;
+
           if (response.data.success) {
             const {
               is_email_valid,
@@ -445,6 +475,9 @@ export default function DashboardMahasiswa() {
               email,
               email_verified,
             } = response.data.data;
+
+            isVerified = !!email_verified;
+
             setEmailStatus({
               isEmailValid: is_email_valid,
               needsEmailUpdate: needs_email_update || !email_verified,
@@ -453,49 +486,58 @@ export default function DashboardMahasiswa() {
             setShowEmailWarning(needs_email_update || !email_verified);
             setNewEmail(email || "");
           }
+
+          // If email is verified (email_verified === 1), suppress WhatsApp warning too
+          if (isVerified) {
+            setShowWhatsAppWarning(false);
+          } else {
+            // If email not verified or check failed, check WhatsApp status
+            // Cek semua field yang required untuk WhatsApp
+            const needsWhatsApp =
+              !userData.whatsapp_phone ||
+              !userData.whatsapp_phone.match(/^62\d+$/) ||
+              !userData.name ||
+              !userData.name.trim() ||
+              !userData.whatsapp_address ||
+              !userData.whatsapp_address.trim() ||
+              !userData.whatsapp_birth_day ||
+              !userData.whatsapp_birth_day.trim();
+
+            setShowWhatsAppWarning(needsWhatsApp);
+          }
+
+          const getValidWhatsApp = (wa: string | null, tp: string | null) => {
+            if (wa && wa.match(/^62\d+$/)) return wa;
+            const cleanedTelp = (tp || "").replace(/\D/g, "");
+            if (cleanedTelp.startsWith("0")) return "62" + cleanedTelp.substring(1);
+            if (cleanedTelp.startsWith("62")) return cleanedTelp;
+            if (cleanedTelp.length >= 9) return "62" + cleanedTelp;
+            return wa || "";
+          };
+
+          const prefillPhone = getValidWhatsApp(userData.whatsapp_phone, userData.telp);
+
+          // Use current email status state or fallback
+          const wablasEmail =
+            response.data?.data?.email ||
+            userData.whatsapp_email ||
+            userData.email ||
+            "";
+
+          setWhatsAppData({
+            name: userData.name || "",
+            whatsapp_phone: prefillPhone,
+            whatsapp_email: wablasEmail,
+            whatsapp_address: userData.whatsapp_address || "",
+            whatsapp_birth_day: userData.whatsapp_birth_day || "",
+          });
+
         } catch (error) {
-          console.error("Error checking email status:", error);
+          console.error("Error updates check:", error);
         }
       };
 
-      checkEmailStatus();
-
-      // Refresh WhatsApp status
-      const userData = getUser();
-      if (userData) {
-        // Cek semua field yang required untuk WhatsApp
-        const needsWhatsApp =
-          !userData.whatsapp_phone ||
-          !userData.whatsapp_phone.match(/^62\d+$/) ||
-          !userData.name ||
-          !userData.name.trim() ||
-          !userData.whatsapp_address ||
-          !userData.whatsapp_address.trim() ||
-          !userData.whatsapp_birth_day ||
-          !userData.whatsapp_birth_day.trim();
-        setShowWhatsAppWarning(needsWhatsApp);
-        const prefillPhone =
-          userData.whatsapp_phone ||
-          (userData.telp
-            ? userData.telp.startsWith("62")
-              ? userData.telp
-              : userData.telp.replace(/^0/, "62")
-            : "");
-
-        const wablasEmail =
-          emailStatus?.email ||
-          userData.whatsapp_email ||
-          userData.email ||
-          "";
-
-        setWhatsAppData({
-          name: userData.name || "",
-          whatsapp_phone: prefillPhone,
-          whatsapp_email: wablasEmail,
-          whatsapp_address: userData.whatsapp_address || "",
-          whatsapp_birth_day: userData.whatsapp_birth_day || "",
-        });
-      }
+      checkStatus();
     };
 
     window.addEventListener("user-updated", handleUserUpdated);
@@ -503,6 +545,7 @@ export default function DashboardMahasiswa() {
       window.removeEventListener("user-updated", handleUserUpdated);
     };
   }, [emailStatus]);
+
 
   const semesterParams = useMemo(
     () =>
@@ -924,9 +967,7 @@ export default function DashboardMahasiswa() {
       }
 
       // Step 2: Update profile dengan WhatsApp data (akan trigger addContact di backend)
-      const wablasEmail = showEmailWarning
-        ? finalEmail
-        : emailStatus?.email || finalEmail;
+      const wablasEmail = whatsAppData.whatsapp_email;
 
       const response = await api.put("/profile", {
         name: whatsAppData.name || userData.name,
@@ -956,17 +997,12 @@ export default function DashboardMahasiswa() {
         setShowEmailWarning(false);
         setShowWhatsAppWarning(false);
 
-        // Show success modal
-        if (response.data.wablas_synced) {
-          localStorage.setItem("last_success_action", "whatsapp_sync");
-          setShowSuccessModal(true);
-        } else {
-          setErrorMessage(
-            response.data.message ||
-            "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
-          );
-          setShowErrorModal(true);
-        }
+        // Tampilkan success modal tanpa tergantung pada status sync Wablas.
+        localStorage.setItem(
+          "last_success_action",
+          response.data.wablas_synced ? "whatsapp_sync" : "email_verify"
+        );
+        setShowSuccessModal(true);
 
         // Dispatch event untuk refresh data - ini akan trigger pengecekan ulang
         // Jika data sudah lengkap, modal tidak akan muncul lagi
@@ -975,9 +1011,11 @@ export default function DashboardMahasiswa() {
     } catch (error: any) {
       console.error("Error saving email and WhatsApp:", error);
 
+      // Parse error message lebih spesifik
       let errorMsg = "Terjadi kesalahan saat menyimpan data.";
 
       if (error.response?.data?.errors) {
+        // Jika ada validation errors dari Laravel
         const errors = error.response.data.errors;
         const errorMessages: string[] = [];
 
@@ -997,6 +1035,11 @@ export default function DashboardMahasiswa() {
           errorMessages.push(
             `Email: ${Array.isArray(errors.email) ? errors.email[0] : errors.email
             }`
+          );
+        }
+        if (errors.name) {
+          errorMessages.push(
+            `Nama: ${Array.isArray(errors.name) ? errors.name[0] : errors.name}`
           );
         }
         if (errors.whatsapp_address) {
@@ -1021,6 +1064,8 @@ export default function DashboardMahasiswa() {
         }
       } else if (error.response?.data?.message) {
         errorMsg = error.response.data.message;
+      } else {
+        errorMsg = error.message || "Terjadi kesalahan";
       }
 
       setErrorMessage(errorMsg);
@@ -1038,8 +1083,16 @@ export default function DashboardMahasiswa() {
         | "bisa"
         | "tidak_bisa"
         | "waiting_reschedule",
-      statusReschedule?: "waiting" | "approved" | "rejected"
+      statusReschedule?: "waiting" | "approved" | "rejected",
+      isInternal: boolean = false
     ) => {
+      const userRole = localStorage.getItem("role");
+
+      // For mahasiswa, ONLY show status badges if isInternal=true (inside modal)
+      if (userRole === "mahasiswa" && !isInternal) {
+        return null;
+      }
+
       if (!statusKonfirmasi) return null;
 
       switch (statusKonfirmasi) {
@@ -1094,7 +1147,7 @@ export default function DashboardMahasiswa() {
                   icon={faCheckCircle}
                   className="w-3 h-3 mr-1"
                 />
-                Reschedule Disetujui - Menunggu Dosen
+                Reschedule Disetujui
               </span>
             );
           } else if (statusReschedule === "rejected") {
@@ -1107,11 +1160,18 @@ export default function DashboardMahasiswa() {
                 Reschedule Ditolak
               </span>
             );
+          } else if (statusReschedule === "waiting") {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
+                <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
+                Dosen Ajukan Reschedule
+              </span>
+            );
           } else {
             return (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
                 <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
-                Menunggu Dosen
+                Menunggu Konfirmasi
               </span>
             );
           }
@@ -1208,13 +1268,7 @@ export default function DashboardMahasiswa() {
                         </td>
                       </>
                     )}
-                    {jadwalType === "praktikum" && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {Array.isArray(item.kelompok_kecil)
-                          ? item.kelompok_kecil.map((k: any) => `Kelompok ${k.nama_kelompok}`).join(", ")
-                          : item.kelompok_kecil?.nama_kelompok ? `Kelompok ${item.kelompok_kecil.nama_kelompok}` : "-"}
-                      </td>
-                    )}
+
                     {jadwalType !== "pbl" && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {`${item.jumlah_sesi || 1} x 50 menit`}
@@ -1275,25 +1329,21 @@ export default function DashboardMahasiswa() {
                         </td>
                       )
                     )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang"
-                        ? item.pengampu || "N/A"
-                        : jadwalType === "agenda_besar"
-                          ? "-"
-                          : jadwalType === "kuliah_besar"
-                            ? item.dosen?.name || "N/A"
-                            : jadwalType === "praktikum"
-                              ? item.dosen
-                                ?.map((d: { id: number; name: string }) => d.name)
-                                .join(", ") || "N/A"
+                    {jadwalType !== "praktikum" && jadwalType !== "seminar_pleno" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang"
+                          ? item.pengampu || "N/A"
+                          : jadwalType === "agenda_besar"
+                            ? "-"
+                            : jadwalType === "kuliah_besar"
+                              ? item.dosen?.name || "N/A"
                               : jadwalType === "jurnal"
                                 ? item.dosen?.name || "N/A"
-                                : jadwalType === "seminar_pleno"
-                                  ? item.pengampu_names || "N/A"
-                                  : jadwalType === "pbl"
-                                    ? item.pengampu || "N/A"
-                                    : item.pengampu || item.dosen?.name || "N/A"}
-                    </td>
+                                : jadwalType === "pbl"
+                                  ? item.pengampu || "N/A"
+                                  : item.pengampu || item.dosen?.name || "N/A"}
+                      </td>
+                    )}
                     {/* Kolom Komentator untuk Seminar Proposal */}
                     {jadwalType === "bimbingan_akhir_sempro" && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1337,39 +1387,30 @@ export default function DashboardMahasiswa() {
                               (item.use_ruangan === false ? "-" : "N/A")
                               : item.ruangan?.nama || "N/A"}
                     </td>
-                    {/* Kolom Lihat Pengampu - hanya untuk praktikum */}
-                    {jadwalType === "praktikum" ? (
+                    {/* Kolom Lihat Pengampu - untuk praktikum dan seminar pleno */}
+                    {(jadwalType === "praktikum" || jadwalType === "seminar_pleno") && (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {getSemesterTypeBadge(item.semester_type)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPraktikumPengampu(item);
+                              setShowPraktikumPengampuModal(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium underline"
+                          >
+                            Lihat Pengampu
+                          </button>
+                        </td>
+                      </>
+                    )}
+                    {/* Kolom STATUS */}
+                    {headers.includes("STATUS") && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPraktikumPengampu(item);
-                            setShowPraktikumPengampuModal(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium underline"
-                        >
-                          Lihat Pengampu
-                        </button>
-                      </td>
-                    ) : jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" ? (
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                        {jadwalType === "agenda_besar"
-                          ? "-"
-                          : jadwalType === "kuliah_besar"
-                            ? item.dosen?.name || "N/A"
-                            : jadwalType === "jurnal"
-                              ? item.dosen?.name || "N/A"
-                              : jadwalType === "seminar_pleno"
-                                ? item.pengampu_names || "N/A"
-                                : jadwalType === "pbl"
-                                  ? item.pengampu || "N/A"
-                                  : item.pengampu || item.dosen?.name || "N/A"}
-                      </td>
-                    ) : null}
-                    {/* Kolom STATUS - untuk semua jadwal type kecuali praktikum */}
-                    {jadwalType === "praktikum" ? null : (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {jadwalType === "agenda_besar"
+                        {jadwalType === "agenda_besar" || jadwalType === "seminar_pleno"
                           ? "-"
                           : jadwalType === "non_blok_non_csr" &&
                             item.status_konfirmasi === "-"
@@ -1380,10 +1421,10 @@ export default function DashboardMahasiswa() {
                             )}
                       </td>
                     )}
-                    {/* Hanya tampilkan badge semester type jika bukan jadwal bimbingan akhir */}
-                    {jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" && (
+                    {/* Kolom JENIS (Semester Type) */}
+                    {headers.includes("JENIS") && (jadwalType !== "praktikum" && jadwalType !== "seminar_pleno") && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {getSemesterTypeBadge(item.semester_type)}
+                        {getSemesterTypeBadge(item.semester_type || "reguler")}
                       </td>
                     )}
                   </tr>
@@ -2066,7 +2107,6 @@ export default function DashboardMahasiswa() {
                       "NO",
                       "TANGGAL",
                       "PUKUL",
-                      "KELAS",
                       "WAKTU",
                       "MATERI",
                       "TOPIK",
@@ -2152,10 +2192,9 @@ export default function DashboardMahasiswa() {
                     "WAKTU",
                     "TOPIK",
                     "KOORDINATOR",
-                    "PENGAMPU",
                     "RUANGAN",
-                    "STATUS",
                     "JENIS",
+                    "PENGAMPU",
                   ],
                   "seminar_pleno",
                   "Tidak ada data Seminar Pleno"
@@ -2283,7 +2322,7 @@ export default function DashboardMahasiswa() {
                     </div>
                     <div>
                       <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
-                        Dosen Pengampu Praktikum
+                        {selectedPraktikumPengampu.hasOwnProperty('koordinator_names') ? 'Dosen Pengampu Seminar Pleno' : 'Dosen Pengampu Praktikum'}
                       </h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {selectedPraktikumPengampu.materi || selectedPraktikumPengampu.topik || "N/A"} - {selectedPraktikumPengampu.tanggal}
@@ -2326,7 +2365,8 @@ export default function DashboardMahasiswa() {
                         <div>
                           {getStatusBadge(
                             (d.status_konfirmasi || 'belum_konfirmasi') as "belum_konfirmasi" | "bisa" | "tidak_bisa" | "waiting_reschedule",
-                            undefined
+                            undefined,
+                            true
                           )}
                         </div>
                       </div>
@@ -2451,12 +2491,13 @@ export default function DashboardMahasiswa() {
                     <input
                       type="tel"
                       value={whatsAppData.whatsapp_phone}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
                         setWhatsAppData({
                           ...whatsAppData,
-                          whatsapp_phone: e.target.value,
-                        })
-                      }
+                          whatsapp_phone: val,
+                        });
+                      }}
                       placeholder="6281234567890"
                       className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -2466,33 +2507,31 @@ export default function DashboardMahasiswa() {
                     </p>
                   </div>
 
-                  {/* Email Verification - Hanya tampil jika email belum verified */}
-                  {showEmailWarning && (
-                    <div>
-                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
-                        Email (Verification){" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={newEmail || emailStatus?.email || ""}
-                        onChange={(e) => {
-                          const emailValue = e.target.value;
-                          setNewEmail(emailValue);
-                          setWhatsAppData({
-                            ...whatsAppData,
-                            whatsapp_email: emailValue,
-                          });
-                        }}
-                        placeholder="Masukkan email yang valid"
-                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        Email ini akan digunakan untuk verifikasi dan notifikasi.
-                      </p>
-                    </div>
-                  )}
+                  {/* Email Verification - Tampil untuk sinkronisasi dengan Wablas */}
+                  <div>
+                    <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      Email (Verification) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={newEmail || emailStatus?.email || ""}
+                      onChange={(e) => {
+                        const emailValue = e.target.value;
+                        setNewEmail(emailValue);
+                        // Realtime sync ke Email untuk Wablas
+                        setWhatsAppData({
+                          ...whatsAppData,
+                          whatsapp_email: emailValue,
+                        });
+                      }}
+                      placeholder="Masukkan email yang valid"
+                      className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      Email ini akan digunakan untuk verifikasi dan notifikasi. Email untuk Wablas akan otomatis mengikuti email ini.
+                    </p>
+                  </div>
 
                   {/* Email untuk Wablas (Read-only) */}
                   <div>
@@ -2501,19 +2540,15 @@ export default function DashboardMahasiswa() {
                     </label>
                     <input
                       type="email"
-                      value={
-                        showEmailWarning
-                          ? newEmail || emailStatus?.email || ""
-                          : emailStatus?.email || ""
-                      }
+                      value={whatsAppData.whatsapp_email}
                       readOnly={true}
                       placeholder="Otomatis sama dengan Email Verification"
                       className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed placeholder-gray-500 dark:placeholder-gray-400"
                     />
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                       {showEmailWarning
-                        ? "Otomatis sync dengan Email Verification di atas"
-                        : "Menggunakan email verification yang sudah terverifikasi"}
+                        ? "Otomatis sync dengan Email Verification di atas (tidak bisa diedit)"
+                        : "Menggunakan email verification yang sudah terverifikasi (tidak bisa diedit)"}
                     </p>
                   </div>
 
@@ -2572,15 +2607,16 @@ export default function DashboardMahasiswa() {
                       disabled={
                         updatingEmail ||
                         updatingWhatsApp ||
-                        (showEmailWarning && !newEmail.trim()) ||
                         !whatsAppData.name ||
+                        !whatsAppData.name.trim() ||
                         !whatsAppData.whatsapp_phone ||
                         !whatsAppData.whatsapp_phone.match(/^62\d+$/) ||
+                        !whatsAppData.whatsapp_email ||
+                        !whatsAppData.whatsapp_email.trim() ||
                         !whatsAppData.whatsapp_address ||
                         !whatsAppData.whatsapp_address.trim() ||
                         !whatsAppData.whatsapp_birth_day ||
-                        !whatsAppData.whatsapp_birth_day.trim() ||
-                        (!showEmailWarning && !emailStatus?.email)
+                        !whatsAppData.whatsapp_birth_day.trim()
                       }
                       className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                     >
@@ -2599,96 +2635,134 @@ export default function DashboardMahasiswa() {
       {/* Success Modal */}
       <AnimatePresence>
         {showSuccessModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100002] flex items-center justify-center"
-          >
+          <div className="fixed inset-0 z-[100002] flex items-center justify-center">
+            {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-500/20 dark:bg-gray-500/30 backdrop-blur-sm"
+              className="fixed inset-0 z-[100002] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowSuccessModal(false)}
             />
+
+            {/* Modal Content */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg z-[100003] max-w-md w-full mx-4"
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100003] max-h-[90vh] overflow-y-auto hide-scroll"
             >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
               <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <FontAwesomeIcon
                     icon={faCheckCircle}
                     className="w-8 h-8 text-green-600 dark:text-green-400"
                   />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                   Berhasil!
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  {localStorage.getItem("last_success_action") === "email_verify"
-                    ? "Email berhasil diverifikasi."
-                    : "Data berhasil disimpan dan disinkronkan ke Wablas."}
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  Data profil Anda telah berhasil disimpan.
                 </p>
                 <button
                   onClick={() => setShowSuccessModal(false)}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                 >
                   Tutup
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
       {/* Error Modal */}
       <AnimatePresence>
         {showErrorModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100002] flex items-center justify-center"
-          >
+          <div className="fixed inset-0 z-[100002] flex items-center justify-center">
+            {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-500/20 dark:bg-gray-500/30 backdrop-blur-sm"
+              className="fixed inset-0 z-[100002] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowErrorModal(false)}
             />
+
+            {/* Modal Content */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg z-[100003] max-w-md w-full mx-4"
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100003] max-h-[90vh] overflow-y-auto hide-scroll"
             >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowErrorModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
               <div className="text-center">
-                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <FontAwesomeIcon
                     icon={faTimesCircle}
                     className="w-8 h-8 text-red-600 dark:text-red-400"
                   />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                   Terjadi Kesalahan
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 whitespace-pre-line">
+                <p className="text-gray-600 dark:text-gray-400 mb-6 whitespace-pre-line">
                   {errorMessage}
                 </p>
                 <button
                   onClick={() => setShowErrorModal(false)}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                 >
                   Tutup
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

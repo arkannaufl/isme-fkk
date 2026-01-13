@@ -276,6 +276,11 @@ export const pblGenerateApi = {
     api.post('/pbl-generate/get-assignments', data),
 
   // Check generate status per blok
-  checkGenerateStatus: (blok: number) =>
-    api.get(`/pbl-generate/check-status?blok=${blok}`),
+  checkGenerateStatus: (blok: number, activeSemester?: string | null) => {
+    const params: any = { blok };
+    if (activeSemester) {
+      params.active_semester = activeSemester;
+    }
+    return api.get(`/pbl-generate/check-status`, { params });
+  },
 };

@@ -8,9 +8,11 @@ import {
   faChevronDown,
   faEye,
   faUpload,
+  faLayerGroup,
+  faSearch,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
-import api, { handleApiError } from "../utils/api";
+import api, { handleApiError, getUser } from "../utils/api";
 import * as XLSX from "xlsx";
 import { Listbox, Transition } from "@headlessui/react";
 import { useNavigate } from "react-router-dom";
@@ -359,6 +361,8 @@ export default function MataKuliah() {
   const [activeSemesterJenis, setActiveSemesterJenis] = useState<string | null>(
     null
   );
+  // Tambahkan state untuk tahun ajaran aktif
+  const [activeTahunAjaran, setActiveTahunAjaran] = useState<any | null>(null);
   // Tambahkan state untuk daftar peran kurikulum global
   const [peranKurikulumInput, setPeranKurikulumInput] = useState("");
   const [peranKurikulumList, setPeranKurikulumList] = useState<string[]>([]);
@@ -372,6 +376,8 @@ export default function MataKuliah() {
   const [modalError, setModalError] = useState<string | null>(null);
   // State untuk menyimpan kode original saat edit (untuk handle perubahan kode)
   const [originalKode, setOriginalKode] = useState<string | null>(null);
+  // State untuk menyimpan seluruh kode mata kuliah master untuk validasi duplikasi
+  const [masterKodes, setMasterKodes] = useState<string[]>([]);
 
   // State untuk menangani file RPS
   const [rpsFile, setRpsFile] = useState<File | null>(null);
@@ -411,6 +417,97 @@ export default function MataKuliah() {
   const [uploadMateriSuccess, setUploadMateriSuccess] = useState<string | null>(
     null
   );
+
+  // --- Kelola Mata Kuliah State ---
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [masterCourses, setMasterCourses] = useState<MataKuliah[]>([]);
+  const [selectedManageCodes, setSelectedManageCodes] = useState<string[]>([]);
+  const [manageSearch, setManageSearch] = useState("");
+  const [manageYearFilter, setManageYearFilter] = useState("all");
+  const [manageSemesterFilter, setManageSemesterFilter] = useState("all");
+  const [manageBlokFilter, setManageBlokFilter] = useState("all");
+  const extractYear = (dateStr: string | null | undefined): number | null => {
+    if (!dateStr) return null;
+    const s = String(dateStr).trim();
+    if (s.includes("/")) {
+      const parts = s.split("/");
+      if (parts[2]?.length === 4) return parseInt(parts[2]);
+      if (parts[0]?.length === 4) return parseInt(parts[0]);
+    }
+    if (s.includes("-")) {
+      const parts = s.split("-");
+      if (parts[0]?.length === 4) return parseInt(parts[0]);
+      if (parts[2]?.length === 4) return parseInt(parts[2]);
+    }
+    const d = new Date(s);
+    return isNaN(d.getFullYear()) ? null : d.getFullYear();
+  };
+
+  const uniqueMasterYears = Array.from(
+    new Set(
+      masterCourses
+        .map((mk) => extractYear(mk.tanggalMulai || mk.tanggal_mulai))
+        .filter((y): y is number => y !== null)
+    )
+  ).sort((a, b) => b - a);
+
+  const uniqueMasterSemesters = Array.from(
+    new Set(masterCourses.map((mk) => String(mk.semester)))
+  ).sort((a, b) => {
+    if (a === "Antara") return -1;
+    if (b === "Antara") return 1;
+    return parseInt(a) - parseInt(b);
+  });
+
+  const uniqueMasterBlocks = Array.from(
+    new Set(
+      masterCourses
+        .filter((mk) => mk.jenis === "Blok" && mk.blok !== null)
+        .map((mk) => mk.blok as number)
+    )
+  ).sort((a, b) => a - b);
+
+  const handleOpenManageModal = async () => {
+    try {
+      setLoading(true);
+      // Fetch ALL master courses
+      const res = await api.get("/mata-kuliah", { params: { all: true } });
+      const allCourses = res.data;
+      setMasterCourses(allCourses);
+
+      // User requested default 0 selection (Clean Slate)
+      setSelectedManageCodes([]);
+
+      setShowManageModal(true);
+    } catch (e: any) {
+      setError(handleApiError(e, "Gagal memuat master data."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveManageModal = async () => {
+    setIsSaving(true);
+    try {
+      await api.post("/mata-kuliah/assign-to-year", { codes: selectedManageCodes });
+      setSuccess("Mata Kuliah untuk tahun ajaran aktif berhasil diperbarui!");
+      setShowManageModal(false);
+      fetchData(); // Refresh list
+    } catch (e: any) {
+      setModalError(handleApiError(e, "Gagal menyimpan data."));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleManageCode = (kode: string) => {
+    if (selectedManageCodes.includes(kode)) {
+      setSelectedManageCodes(prev => prev.filter(c => c !== kode));
+    } else {
+      setSelectedManageCodes(prev => [...prev, kode]);
+    }
+  };
+
 
   // Fungsi untuk reset download state per file
 
@@ -476,6 +573,9 @@ export default function MataKuliah() {
   const fetchActiveSemester = async () => {
     try {
       const res = await api.get("/tahun-ajaran/active");
+      // Simpan data tahun ajaran aktif
+      setActiveTahunAjaran(res.data);
+
       // Ambil semester aktif (jika ada)
       const semester = res.data?.semesters?.[0];
       if (semester && semester.jenis) {
@@ -485,6 +585,7 @@ export default function MataKuliah() {
       }
     } catch (e) {
       setActiveSemesterJenis(null);
+      setActiveTahunAjaran(null);
     }
   };
 
@@ -541,6 +642,12 @@ export default function MataKuliah() {
   useEffect(() => {
     fetchActiveSemester();
     fetchData();
+    // Ambil semua kode master untuk validasi "Bentrok"
+    api.get("/mata-kuliah", { params: { all: true } }).then(res => {
+      if (Array.isArray(res.data)) {
+        setMasterKodes(res.data.map((mk: any) => mk.kode));
+      }
+    });
   }, []);
 
   // Fetch daftar peran kurikulum global (untuk referensi, bisa diambil dari semua mata kuliah atau manual)
@@ -591,8 +698,18 @@ export default function MataKuliah() {
       setSuccess(null);
       // Validasi custom sebelum submit
       // 1. Validasi kode mata kuliah
-      if (!form.kode || form.kode.trim().length === 0) {
-        setError("Kode mata kuliah harus diisi.");
+      // 1.1 Cek duplikasi kode di master data (Validasi "Bentrok")
+      const isDuplicateInMaster = masterKodes.includes(form.kode) && form.kode !== originalKode;
+      if (isDuplicateInMaster && !editMode) {
+        setModalError(`Maaf, terjadi BENTROK. Kode Mata Kuliah "${form.kode}" sudah digunakan di data Master.`);
+        setIsSaving(false);
+        return;
+      }
+
+      // 1.2 Cek duplikasi kode di data aktif tahun ajaran ini
+      const isDuplicateInActive = data.some(mk => mk.kode === form.kode && mk.kode !== originalKode);
+      if (isDuplicateInActive) {
+        setModalError(`Maaf, Kode Mata Kuliah "${form.kode}" sudah ada dalam daftar tahun ajaran aktif ini.`);
         setIsSaving(false);
         return;
       }
@@ -614,7 +731,7 @@ export default function MataKuliah() {
       }
       // Deteksi apakah kode berubah (hanya untuk edit mode)
       const isKodeChanged = editMode && originalKode && form.kode !== originalKode;
-      
+
       // 2. Tanggal blok tidak boleh overlap (diabaikan jika hanya kode yang berubah)
       if (form.jenis === "Blok" && !isKodeChanged) {
         const overlap = data.some(
@@ -677,10 +794,10 @@ export default function MataKuliah() {
           rpsFileName = rpsResponse.data.filename;
         } catch (error: any) {
           // Ambil error message dari backend
-          const errorMessage = error.response?.data?.error || 
-                               error.response?.data?.message || 
-                               error.message || 
-                               "Gagal mengupload file RPS";
+          const errorMessage = error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            "Gagal mengupload file RPS";
           setModalError(errorMessage); // Tampilkan error di modal, bukan di atas table
           setIsSaving(false);
           return;
@@ -714,10 +831,10 @@ export default function MataKuliah() {
           await Promise.all(uploadPromises);
         } catch (error: any) {
           // Ambil error message dari backend
-          const errorMessage = error.response?.data?.error || 
-                               error.response?.data?.message || 
-                               error.message || 
-                               "Gagal mengupload file materi";
+          const errorMessage = error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            "Gagal mengupload file materi";
           setModalError(errorMessage); // Tampilkan error di modal, bukan di atas table
           setIsSaving(false);
           return;
@@ -762,117 +879,117 @@ export default function MataKuliah() {
             rps_file: rpsFileName,
           });
           setSuccess("Data mata kuliah berhasil diperbarui");
-          
+
           // --- Sinkronisasi PBL ---
-        if (form.jenis === "Blok") {
-          // 1. Hapus modul yang dihapus
-          const oldIds = oldPblList.map((p) => p.id);
-          const newIds = pblList.map((p) => p.id).filter(Boolean);
-          const deletedIds = oldIds.filter((id) => !newIds.includes(id));
-          await Promise.all(deletedIds.map((id) => api.delete(`/pbls/${id}`)));
-          // 2. Update modul yang sudah ada
-          await Promise.all(
-            pblList
-              .filter((p) => p.id)
-              .map((p, idx) =>
-                api.put(`/pbls/${p.id}`, {
-                  modul_ke: String(idx + 1),
-                  nama_modul: p.nama_modul,
-                })
-              )
-          );
-          // 3. Tambah modul baru
-          await Promise.all(
-            pblList
-              .filter((p) => !p.id)
-              .map((p, idx) =>
-                api.post(`/mata-kuliah/${form.kode}/pbls`, {
-                  modul_ke: String(idx + 1),
-                  nama_modul: p.nama_modul,
-                })
-              )
-          );
-
-          // --- Sinkronisasi Jurnal Reading ---
-          // 1. Hapus topik yang dihapus
-          const oldJurnalIds = oldJurnalReadingList.map((j) => j.id);
-          const newJurnalIds = jurnalReadingList
-            .map((j) => j.id)
-            .filter(Boolean);
-          const deletedJurnalIds = oldJurnalIds.filter(
-            (id) => !newJurnalIds.includes(id)
-          );
-          await Promise.all(
-            deletedJurnalIds.map((id) => api.delete(`/jurnal-readings/${id}`))
-          );
-          // 2. Update topik yang sudah ada
-          await Promise.all(
-            jurnalReadingList
-              .filter((j) => j.id)
-              .map((j, idx) =>
-                api.put(`/jurnal-readings/${j.id}`, {
-                  topik_ke: String(idx + 1),
-                  nama_topik: j.nama_topik,
-                })
-              )
-          );
-          // 3. Tambah topik baru
-          await Promise.all(
-            jurnalReadingList
-              .filter((j) => !j.id)
-              .map((j, idx) =>
-                api.post(`/mata-kuliah/${form.kode}/jurnal-readings`, {
-                  topik_ke: String(idx + 1),
-                  nama_topik: j.nama_topik,
-                })
-              )
-          );
-        }
-
-        // Sinkronisasi CSR (hanya jika bukan semester Antara)
-        if (form.semester !== "Antara") {
-
-          try {
-            // 1. Update/POST CSR dengan keahlian
+          if (form.jenis === "Blok") {
+            // 1. Hapus modul yang dihapus
+            const oldIds = oldPblList.map((p) => p.id);
+            const newIds = pblList.map((p) => p.id).filter(Boolean);
+            const deletedIds = oldIds.filter((id) => !newIds.includes(id));
+            await Promise.all(deletedIds.map((id) => api.delete(`/pbls/${id}`)));
+            // 2. Update modul yang sudah ada
             await Promise.all(
-              csrList.map(async (csr, index) => {
-                const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
-                const keahlianList = csrKeahlian[csrId] || [];
-
-                if (csr.id) {
-                  // PUT - Update CSR yang sudah ada
-                  await api.put(`/csrs/${csr.id}`, {
-                    nomor_csr: csr.nomor_csr,
-                    tanggal_mulai: toDateYMD(csr.tanggal_mulai),
-                    tanggal_akhir: toDateYMD(csr.tanggal_akhir),
-                    keahlian_required: keahlianList,
-                  });
-                } else {
-                  // POST - Create new CSR
-                  await api.post(`/mata-kuliah/${form.kode}/csrs`, {
-                    nomor_csr: csr.nomor_csr,
-                    tanggal_mulai: toDateYMD(csr.tanggal_mulai),
-                    tanggal_akhir: toDateYMD(csr.tanggal_akhir),
-                    keahlian_required: keahlianList,
-                  });
-                }
-              })
+              pblList
+                .filter((p) => p.id)
+                .map((p, idx) =>
+                  api.put(`/pbls/${p.id}`, {
+                    modul_ke: String(idx + 1),
+                    nama_modul: p.nama_modul,
+                  })
+                )
+            );
+            // 3. Tambah modul baru
+            await Promise.all(
+              pblList
+                .filter((p) => !p.id)
+                .map((p, idx) =>
+                  api.post(`/mata-kuliah/${form.kode}/pbls`, {
+                    modul_ke: String(idx + 1),
+                    nama_modul: p.nama_modul,
+                  })
+                )
             );
 
-            // 2. DELETE CSR yang dihapus
-            await Promise.all(
-              deletedCsrIds.map(async (id) => {
-                try {
-                  await api.delete(`/csrs/${id}`);
-                } catch (err) {
-                }
-              })
+            // --- Sinkronisasi Jurnal Reading ---
+            // 1. Hapus topik yang dihapus
+            const oldJurnalIds = oldJurnalReadingList.map((j) => j.id);
+            const newJurnalIds = jurnalReadingList
+              .map((j) => j.id)
+              .filter(Boolean);
+            const deletedJurnalIds = oldJurnalIds.filter(
+              (id) => !newJurnalIds.includes(id)
             );
-
-          } catch (err) {
-            // Don't throw error, just log it
+            await Promise.all(
+              deletedJurnalIds.map((id) => api.delete(`/jurnal-readings/${id}`))
+            );
+            // 2. Update topik yang sudah ada
+            await Promise.all(
+              jurnalReadingList
+                .filter((j) => j.id)
+                .map((j, idx) =>
+                  api.put(`/jurnal-readings/${j.id}`, {
+                    topik_ke: String(idx + 1),
+                    nama_topik: j.nama_topik,
+                  })
+                )
+            );
+            // 3. Tambah topik baru
+            await Promise.all(
+              jurnalReadingList
+                .filter((j) => !j.id)
+                .map((j, idx) =>
+                  api.post(`/mata-kuliah/${form.kode}/jurnal-readings`, {
+                    topik_ke: String(idx + 1),
+                    nama_topik: j.nama_topik,
+                  })
+                )
+            );
           }
-        }
+
+          // Sinkronisasi CSR (hanya jika bukan semester Antara)
+          if (form.semester !== "Antara") {
+
+            try {
+              // 1. Update/POST CSR dengan keahlian
+              await Promise.all(
+                csrList.map(async (csr, index) => {
+                  const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
+                  const keahlianList = csrKeahlian[csrId] || [];
+
+                  if (csr.id) {
+                    // PUT - Update CSR yang sudah ada
+                    await api.put(`/csrs/${csr.id}`, {
+                      nomor_csr: csr.nomor_csr,
+                      tanggal_mulai: toDateYMD(csr.tanggal_mulai),
+                      tanggal_akhir: toDateYMD(csr.tanggal_akhir),
+                      keahlian_required: keahlianList,
+                    });
+                  } else {
+                    // POST - Create new CSR
+                    await api.post(`/mata-kuliah/${form.kode}/csrs`, {
+                      nomor_csr: csr.nomor_csr,
+                      tanggal_mulai: toDateYMD(csr.tanggal_mulai),
+                      tanggal_akhir: toDateYMD(csr.tanggal_akhir),
+                      keahlian_required: keahlianList,
+                    });
+                  }
+                })
+              );
+
+              // 2. DELETE CSR yang dihapus
+              await Promise.all(
+                deletedCsrIds.map(async (id) => {
+                  try {
+                    await api.delete(`/csrs/${id}`);
+                  } catch (err) {
+                  }
+                })
+              );
+
+            } catch (err) {
+              // Don't throw error, just log it
+            }
+          }
         } // End else untuk update normal (kode tidak berubah)
       } else {
         await api.post("/mata-kuliah", {
@@ -894,43 +1011,31 @@ export default function MataKuliah() {
               },
             });
           } catch (error: any) {
-            // Ambil error message dari backend
-            const errorMessage = error.response?.data?.error || 
-                                 error.response?.data?.message || 
-                                 error.message || 
-                                 "Gagal mengupload file RPS";
-            setModalError(errorMessage); // Tampilkan error di modal
-            console.error("Error uploading RPS:", error);
+            setModalError(error.response?.data?.error || error.response?.data?.message || "Gagal mengupload file RPS");
           }
         }
 
         if (materiFiles.length > 0) {
           try {
-            const uploadPromises = materiItems.map(async (item) => {
-              const file = materiFiles.find((f) => f.name === item.filename);
-              if (!file) return;
+            await Promise.all(
+              materiItems.map(async (item) => {
+                const file = materiFiles.find((f) => f.name === item.filename);
+                if (!file) return;
 
-              const materiFormData = new FormData();
-              materiFormData.append("materi_file", file);
-              materiFormData.append("kode", form.kode);
-              materiFormData.append("judul", item.judul);
+                const materiFormData = new FormData();
+                materiFormData.append("materi_file", file);
+                materiFormData.append("kode", form.kode);
+                materiFormData.append("judul", item.judul);
 
-              await api.post("/mata-kuliah/upload-materi", materiFormData, {
-                headers: {
-                  "Content-Type": "multipart/form-data",
-                },
-              });
-            });
-
-            await Promise.all(uploadPromises);
+                await api.post("/mata-kuliah/upload-materi", materiFormData, {
+                  headers: {
+                    "Content-Type": "multipart/form-data",
+                  },
+                });
+              })
+            );
           } catch (error: any) {
-            // Ambil error message dari backend
-            const errorMessage = error.response?.data?.error || 
-                                 error.response?.data?.message || 
-                                 error.message || 
-                                 "Gagal mengupload file materi";
-            setModalError(errorMessage); // Tampilkan error di modal
-            console.error("Error uploading materi:", error);
+            setModalError(error.response?.data?.error || error.response?.data?.message || "Gagal mengupload file materi");
           }
         }
       }
@@ -948,7 +1053,6 @@ export default function MataKuliah() {
         ) {
           await Promise.all(
             csrList.map((csr, index) => {
-              // Ambil keahlian dari state csrKeahlian, bukan dari csr.keahlian_required
               const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
               const keahlianList = csrKeahlian[csrId] || [];
 
@@ -956,7 +1060,7 @@ export default function MataKuliah() {
                 nomor_csr: csr.nomor_csr,
                 tanggal_mulai: toDateYMD(csr.tanggal_mulai),
                 tanggal_akhir: toDateYMD(csr.tanggal_akhir),
-                keahlian_required: keahlianList, // Ambil dari state csrKeahlian
+                keahlian_required: keahlianList,
               });
             })
           );
@@ -974,11 +1078,14 @@ export default function MataKuliah() {
       }
     } catch (error: any) {
       // Tampilkan error di modal, bukan di atas table
-      if (error.response?.data?.errors) {
+      if (error.response?.status === 422) {
+        const serverErrors = error.response?.data?.errors;
+        const errorMessage = serverErrors?.kode?.[0] || error.response?.data?.message || "Kode ini sudah terdaftar.";
+        setModalError(`Gagal simpan: ${errorMessage}`);
+      } else if (error.response?.data?.errors) {
         const errorMessages = Object.values(error.response.data.errors).flat();
         setModalError(errorMessages.join(", "));
       } else if (error.response?.data?.error) {
-        // Prioritas untuk error dari backend
         setModalError(error.response.data.error);
       } else if (error.response?.data?.message) {
         setModalError(error.response.data.message);
@@ -988,7 +1095,6 @@ export default function MataKuliah() {
         setModalError("Gagal menyimpan data mata kuliah");
       }
     } finally {
-      // handleSaveData finished, isSaving set to false
       setIsSaving(false);
     }
   };
@@ -1003,11 +1109,12 @@ export default function MataKuliah() {
       setIsDeleting(true);
       try {
         setSuccess(null);
-        await api.delete(`/mata-kuliah/${selectedDeleteKode}`);
-        setSuccess("Data mata kuliah berhasil dihapus");
+        // Using detach-from-year instead of hard delete to support Clean Slate/Scoping
+        await api.post('/mata-kuliah/detach-from-year', { kode: selectedDeleteKode });
+        setSuccess("Mata kuliah berhasil dihapus dari periode ini");
         fetchData();
       } catch (error) {
-        setError("Gagal menghapus data mata kuliah");
+        setError("Gagal melepaskan mata kuliah dari periode ini");
       } finally {
         setIsDeleting(false);
         setShowDeleteModal(false);
@@ -1032,14 +1139,14 @@ export default function MataKuliah() {
         mk.semester === "Antara"
           ? []
           : Array.isArray(mk.peran_dalam_kurikulum)
-          ? mk.peran_dalam_kurikulum
-          : [],
+            ? mk.peran_dalam_kurikulum
+            : [],
       keahlian_required:
         mk.semester === "Antara"
           ? []
           : Array.isArray(mk.keahlian_required)
-          ? mk.keahlian_required
-          : [],
+            ? mk.keahlian_required
+            : [],
     });
     // Simpan kode original untuk handle perubahan kode
     setOriginalKode(mk.kode);
@@ -1191,26 +1298,26 @@ export default function MataKuliah() {
         const peran_dalam_kurikulum =
           typeof row.peran_dalam_kurikulum === "string"
             ? row.peran_dalam_kurikulum
-                .split(",")
-                .map((item: string) => item.trim())
-                .filter((item: string) => item !== "")
+              .split(",")
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
             : Array.isArray(row.peran_dalam_kurikulum)
-            ? row.peran_dalam_kurikulum
+              ? row.peran_dalam_kurikulum
                 .map((item: string) => item.trim())
                 .filter((item: string) => item !== "")
-            : [];
+              : [];
 
         const keahlian_required =
           typeof row.keahlian_required === "string"
             ? row.keahlian_required
-                .split(",")
-                .map((item: string) => item.trim())
-                .filter((item: string) => item !== "")
+              .split(",")
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
             : Array.isArray(row.keahlian_required)
-            ? row.keahlian_required
+              ? row.keahlian_required
                 .map((item: string) => item.trim())
                 .filter((item: string) => item !== "")
-            : [];
+              : [];
 
         return {
           ...row,
@@ -1278,24 +1385,34 @@ export default function MataKuliah() {
     jenis: "Blok" | "Non Blok",
     blok: number | null = null
   ): string => {
+    // Ambil 2 digit tahun dari tahun ajaran aktif
+    let yearPrefix = "";
+    if (activeTahunAjaran && activeTahunAjaran.tahun) {
+      // Format tahun biasanya "2022/2023" atau "2022"
+      const yearStr = String(activeTahunAjaran.tahun);
+      const yearMatch = yearStr.match(/\d{4}/);
+      if (yearMatch) {
+        yearPrefix = yearMatch[0].substring(2);
+      }
+    }
+
     if (semester === "Antara") {
       // Semester Antara
       if (jenis === "Blok" && blok) {
-        // MKA001, MKA002, MKA003, MKA004
-        return `MKA${blok.toString().padStart(3, '0')}`;
+        // MKA[YY]001, MKA[YY]002, MKA[YY]003, MKA[YY]004
+        return `MKA${yearPrefix}${blok.toString().padStart(3, '0')}`;
       } else if (jenis === "Non Blok") {
-        return "MKA005";
+        return `MKA${yearPrefix}005`;
       }
     } else {
       // Semester Reguler (1-7)
       const semesterNum = Number(semester);
       if (jenis === "Blok" && blok) {
-        // MKB101, MKB102, MKB201, MKB202, dll
-        // Format: MKB + semester (1 digit) + blok (2 digit)
-        return `MKB${semesterNum}${blok.toString().padStart(2, '0')}`;
+        // MKB[YY][semester][blok]
+        // Contoh: MKB22101
+        return `MKB${yearPrefix}${semesterNum}${blok.toString().padStart(2, '0')}`;
       } else if (jenis === "Non Blok") {
-        // MKU001, MKU002, MKU003, dll
-        return `MKU${semesterNum.toString().padStart(3, '0')}`;
+        return `MKU${yearPrefix}${semesterNum.toString().padStart(3, '0')}`;
       }
     }
     return "";
@@ -1395,8 +1512,8 @@ export default function MataKuliah() {
     new Set(
       Array.isArray(data)
         ? data
-            .filter((d) => d.jenis === "Blok" && d.blok !== null)
-            .map((d) => d.blok)
+          .filter((d) => d.jenis === "Blok" && d.blok !== null)
+          .map((d) => d.blok)
         : []
     )
   )
@@ -1987,8 +2104,7 @@ export default function MataKuliah() {
         const blokValue = Number(row.blok);
         if (!Number.isInteger(blokValue) || blokValue < 1) {
           errors.push(
-            `Baris ${
-              index + 2
+            `Baris ${index + 2
             }: Nomor blok harus berupa bilangan bulat positif (1, 2, 3, dst.).`
           );
         }
@@ -2027,9 +2143,9 @@ export default function MataKuliah() {
         const arrayValue =
           typeof value === "string"
             ? value
-                .split(",")
-                .map((item) => item.trim())
-                .filter((item) => item !== "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter((item) => item !== "")
             : value;
         newData[rowIdx] = { ...newData[rowIdx], [key]: arrayValue };
       } else {
@@ -2141,11 +2257,11 @@ export default function MataKuliah() {
       const peranValue = Array.isArray(row.peran_dalam_kurikulum)
         ? row.peran_dalam_kurikulum
         : typeof row.peran_dalam_kurikulum === "string"
-        ? row.peran_dalam_kurikulum
+          ? row.peran_dalam_kurikulum
             .split(",")
             .map((p) => p.trim())
             .filter((p) => p !== "")
-        : [];
+          : [];
 
       if (!peranValue || peranValue.length === 0) {
         errors.push({
@@ -2158,11 +2274,11 @@ export default function MataKuliah() {
       const peranValue = Array.isArray(row.peran_dalam_kurikulum)
         ? row.peran_dalam_kurikulum
         : typeof row.peran_dalam_kurikulum === "string"
-        ? row.peran_dalam_kurikulum
+          ? row.peran_dalam_kurikulum
             .split(",")
             .map((p) => p.trim())
             .filter((p) => p !== "")
-        : [];
+          : [];
 
       if (peranValue && peranValue.length > 0) {
         errors.push({
@@ -2178,11 +2294,11 @@ export default function MataKuliah() {
       const keahlianValue = Array.isArray(row.keahlian_required)
         ? row.keahlian_required
         : typeof row.keahlian_required === "string"
-        ? row.keahlian_required
+          ? row.keahlian_required
             .split(",")
             .map((k) => k.trim())
             .filter((k) => k !== "")
-        : [];
+          : [];
 
       if (!keahlianValue || keahlianValue.length === 0) {
         errors.push({
@@ -2195,11 +2311,11 @@ export default function MataKuliah() {
       const keahlianValue = Array.isArray(row.keahlian_required)
         ? row.keahlian_required
         : typeof row.keahlian_required === "string"
-        ? row.keahlian_required
+          ? row.keahlian_required
             .split(",")
             .map((k) => k.trim())
             .filter((k) => k !== "")
-        : [];
+          : [];
 
       if (keahlianValue && keahlianValue.length > 0) {
         errors.push({
@@ -2467,8 +2583,7 @@ export default function MataKuliah() {
       setSuccess(`File ${fileName} berhasil diunduh!`);
     } catch (error) {
       setError(
-        `Gagal mengunduh file: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `Gagal mengunduh file: ${error instanceof Error ? error.message : "Unknown error"
         }`
       );
     } finally {
@@ -2554,7 +2669,7 @@ export default function MataKuliah() {
 
           // Tambahkan file ke ZIP
           zip.file(fileName, fileBlob);
-        } catch (error) {}
+        } catch (error) { }
       }
 
       // Cek apakah ada file yang berhasil di-download
@@ -2577,8 +2692,7 @@ export default function MataKuliah() {
       link.href = url;
       link.setAttribute(
         "download",
-        `Materi_${kode}_${
-          new Date().toISOString().split("T")[0]
+        `Materi_${kode}_${new Date().toISOString().split("T")[0]
         }_${Date.now()}.zip`
       );
       link.style.display = "none";
@@ -2612,8 +2726,7 @@ export default function MataKuliah() {
       setSuccess(`${zipFiles.length} materi berhasil diunduh dalam file ZIP!`);
     } catch (error) {
       setError(
-        `Gagal mengunduh ZIP: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `Gagal mengunduh ZIP: ${error instanceof Error ? error.message : "Unknown error"
         }`
       );
     } finally {
@@ -2748,8 +2861,17 @@ export default function MataKuliah() {
               onClick={handleOpenModal}
               className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out transform"
             >
-              Input Data
+              Input Data Baru
             </button>
+            {getUser()?.role !== 'tim_akademik' && (
+              <button
+                onClick={handleOpenManageModal}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-medium shadow-theme-xs hover:bg-indigo-600 transition-all duration-300 ease-in-out transform"
+              >
+                <FontAwesomeIcon icon={faLayerGroup} />
+                Ambil dari Master
+              </button>
+            )}
             <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
               <FontAwesomeIcon
                 icon={faFileExcel}
@@ -2830,7 +2952,7 @@ export default function MataKuliah() {
                   semester === "Antara" ||
                   (Array.isArray(data) &&
                     data.find((mk) => mk.semester === semester)?.periode ===
-                      activeSemesterJenis);
+                    activeSemesterJenis);
 
                 return (
                   <option key={semester} value={semester}>
@@ -2838,8 +2960,8 @@ export default function MataKuliah() {
                       ? "Semester Antara"
                       : `Semester ${semester}`}
                     {isActivePeriod &&
-                    activeSemesterJenis &&
-                    semester !== "Antara"
+                      activeSemesterJenis &&
+                      semester !== "Antara"
                       ? ` (${activeSemesterJenis})`
                       : ""}
                   </option>
@@ -3016,15 +3138,13 @@ export default function MataKuliah() {
                                 return (
                                   <td
                                     key={colKey}
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                      isEditing
-                                        ? "border-2 border-brand-500"
-                                        : ""
-                                    } ${
-                                      cellError
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                      ? "border-2 border-brand-500"
+                                      : ""
+                                      } ${cellError
                                         ? "bg-red-100 dark:bg-red-900/30"
                                         : ""
-                                    }`}
+                                      }`}
                                     onClick={() =>
                                       setEditingCell({
                                         row: globalRowIdx,
@@ -3039,15 +3159,15 @@ export default function MataKuliah() {
                                         value={
                                           Array.isArray(
                                             previewData[editingCell.row][
-                                              editingCell.key
+                                            editingCell.key
                                             ]
                                           )
                                             ? previewData[editingCell.row][
-                                                editingCell.key
-                                              ].join(", ")
+                                              editingCell.key
+                                            ].join(", ")
                                             : previewData[editingCell.row][
-                                                editingCell.key
-                                              ] || ""
+                                            editingCell.key
+                                            ] || ""
                                         }
                                         onChange={(e) => {
                                           let val = e.target.value;
@@ -3118,11 +3238,10 @@ export default function MataKuliah() {
                     <button
                       key={i}
                       onClick={() => setPreviewPage(i + 1)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 ${
-                        previewPage === i + 1
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      } transition`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 ${previewPage === i + 1
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        } transition`}
                     >
                       {i + 1}
                     </button>
@@ -3154,11 +3273,10 @@ export default function MataKuliah() {
               </button>
               <button
                 className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs flex items-center justify-center min-w-[160px] transition
-                ${
-                  isSaving || loading
+                ${isSaving || loading
                     ? "bg-emerald-800 text-white opacity-60 cursor-not-allowed"
                     : "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
-                }`}
+                  }`}
                 onClick={handleSubmitImport}
                 disabled={isSaving || loading}
               >
@@ -3277,12 +3395,11 @@ export default function MataKuliah() {
                         setSelectedRows(filteredData.map((mk) => mk.kode));
                       }
                     }}
-                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                      filteredData.length > 0 &&
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${filteredData.length > 0 &&
                       filteredData.every((mk) => selectedRows.includes(mk.kode))
-                        ? "bg-brand-500 border-brand-500"
-                        : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                    } cursor-pointer`}
+                      ? "bg-brand-500 border-brand-500"
+                      : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                      } cursor-pointer`}
                   >
                     {filteredData.length > 0 &&
                       filteredData.every((mk) =>
@@ -3439,11 +3556,10 @@ export default function MataKuliah() {
                             setSelectedRows([...selectedRows, mk.kode]);
                           }
                         }}
-                        className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                          selectedRows.includes(mk.kode)
-                            ? "bg-brand-500 border-brand-500"
-                            : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                        } cursor-pointer`}
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedRows.includes(mk.kode)
+                          ? "bg-brand-500 border-brand-500"
+                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                          } cursor-pointer`}
                       >
                         {selectedRows.includes(mk.kode) && (
                           <svg
@@ -3484,20 +3600,20 @@ export default function MataKuliah() {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
                       {mk.tanggalMulai || mk.tanggal_mulai
                         ? new Date(
-                            mk.tanggalMulai || mk.tanggal_mulai || ""
-                          ).toLocaleDateString("id-ID")
+                          mk.tanggalMulai || mk.tanggal_mulai || ""
+                        ).toLocaleDateString("id-ID")
                         : "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
                       {mk.tanggalAkhir || mk.tanggal_akhir
                         ? new Date(
-                            mk.tanggalAkhir || mk.tanggal_akhir || ""
-                          ).toLocaleDateString("id-ID")
+                          mk.tanggalAkhir || mk.tanggal_akhir || ""
+                        ).toLocaleDateString("id-ID")
                         : "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
                       {(mk.durasiMinggu ?? mk.durasi_minggu) !== null &&
-                      (mk.durasiMinggu ?? mk.durasi_minggu) !== undefined
+                        (mk.durasiMinggu ?? mk.durasi_minggu) !== undefined
                         ? `${mk.durasiMinggu ?? mk.durasi_minggu} Minggu`
                         : "-"}
                     </td>
@@ -3510,13 +3626,13 @@ export default function MataKuliah() {
                     </td>
                     <td className="px-6 py-4 whitespace-pre-line text-gray-800 dark:text-white/90 align-middle min-w-[300px]">
                       {Array.isArray(mk.peran_dalam_kurikulum) &&
-                      mk.peran_dalam_kurikulum.length > 0
+                        mk.peran_dalam_kurikulum.length > 0
                         ? mk.peran_dalam_kurikulum.join(", ")
                         : "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-pre-line text-gray-800 dark:text-white/90 align-middle min-w-[200px]">
                       {Array.isArray(mk.keahlian_required) &&
-                      mk.keahlian_required.length > 0
+                        mk.keahlian_required.length > 0
                         ? mk.keahlian_required.join(", ")
                         : "-"}
                     </td>
@@ -3788,11 +3904,10 @@ export default function MataKuliah() {
               {/* Always show first page */}
               <button
                 onClick={() => setPage(1)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                  page === 1
-                    ? "bg-brand-500 text-white"
-                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                }`}
+                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === 1
+                  ? "bg-brand-500 text-white"
+                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
               >
                 1
               </button>
@@ -3820,11 +3935,10 @@ export default function MataKuliah() {
                   <button
                     key={i}
                     onClick={() => setPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      page === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === pageNum
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -3842,11 +3956,10 @@ export default function MataKuliah() {
               {totalPages > 1 && (
                 <button
                   onClick={() => setPage(totalPages)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    page === totalPages
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === totalPages
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {totalPages}
                 </button>
@@ -3909,7 +4022,7 @@ export default function MataKuliah() {
                     {editMode ? "Edit Mata Kuliah" : "Tambah Mata Kuliah"}
                   </h2>
                 </div>
-                
+
                 {/* Error Message di Modal */}
                 {modalError && (
                   <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -3933,7 +4046,7 @@ export default function MataKuliah() {
                     </div>
                   </div>
                 )}
-                
+
                 <div>
                   <div className="mb-3 sm:mb-4">
                     <label
@@ -3958,11 +4071,10 @@ export default function MataKuliah() {
                           ? (e) => setForm({ ...form, kode: e.target.value })
                           : undefined
                       }
-                      className={`w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 font-normal text-sm sm:text-base ${
-                        editMode
-                          ? "bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
-                          : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
-                      }`}
+                      className={`w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 font-normal text-sm sm:text-base ${editMode
+                        ? "bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
+                        }`}
                       placeholder={
                         editMode
                           ? "Masukkan kode mata kuliah"
@@ -4187,13 +4299,13 @@ export default function MataKuliah() {
                                 nomor_csr: `${form.semester}.${newCsrNumber}`,
                                 tanggal_mulai: blok
                                   ? blok.tanggalMulai ||
-                                    blok.tanggal_mulai ||
-                                    ""
+                                  blok.tanggal_mulai ||
+                                  ""
                                   : "",
                                 tanggal_akhir: blok
                                   ? blok.tanggalAkhir ||
-                                    blok.tanggal_akhir ||
-                                    ""
+                                  blok.tanggal_akhir ||
+                                  ""
                                   : "",
                                 keahlian_required: [],
                               };
@@ -4244,9 +4356,9 @@ export default function MataKuliah() {
                                         list.map((c, i) =>
                                           i === idx
                                             ? {
-                                                ...c,
-                                                nomor_csr: e.target.value,
-                                              }
+                                              ...c,
+                                              nomor_csr: e.target.value,
+                                            }
                                             : c
                                         )
                                       )
@@ -4261,9 +4373,9 @@ export default function MataKuliah() {
                                         list.map((c, i) =>
                                           i === idx
                                             ? {
-                                                ...c,
-                                                tanggal_mulai: e.target.value,
-                                              }
+                                              ...c,
+                                              tanggal_mulai: e.target.value,
+                                            }
                                             : c
                                         )
                                       )
@@ -4278,9 +4390,9 @@ export default function MataKuliah() {
                                         list.map((c, i) =>
                                           i === idx
                                             ? {
-                                                ...c,
-                                                tanggal_akhir: e.target.value,
-                                              }
+                                              ...c,
+                                              tanggal_akhir: e.target.value,
+                                            }
                                             : c
                                         )
                                       )
@@ -4626,7 +4738,7 @@ export default function MataKuliah() {
                             <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
                               <span className="block truncate">
                                 {Array.isArray(form.peran_dalam_kurikulum) &&
-                                form.peran_dalam_kurikulum.length > 0
+                                  form.peran_dalam_kurikulum.length > 0
                                   ? form.peran_dalam_kurikulum.join(", ")
                                   : "Pilih Peran"}
                               </span>
@@ -4660,10 +4772,9 @@ export default function MataKuliah() {
                                     <Listbox.Option
                                       key={peran}
                                       className={({ active }) =>
-                                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                          active
-                                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                            : "text-gray-900 dark:text-gray-100"
+                                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                                          : "text-gray-900 dark:text-gray-100"
                                         }`
                                       }
                                       value={peran}
@@ -4671,11 +4782,10 @@ export default function MataKuliah() {
                                       {({ selected }) => (
                                         <div className="flex items-center justify-between">
                                           <span
-                                            className={`block truncate ${
-                                              selected
-                                                ? "font-medium"
-                                                : "font-normal"
-                                            }`}
+                                            className={`block truncate ${selected
+                                              ? "font-medium"
+                                              : "font-normal"
+                                              }`}
                                           >
                                             {peran}
                                           </span>
@@ -4734,15 +4844,15 @@ export default function MataKuliah() {
                                   prev.peran_dalam_kurikulum
                                 )
                                   ? [
-                                      ...prev.peran_dalam_kurikulum,
-                                      peranKurikulumInput.trim(),
-                                    ]
+                                    ...prev.peran_dalam_kurikulum,
+                                    peranKurikulumInput.trim(),
+                                  ]
                                   : typeof prev.peran_dalam_kurikulum ===
-                                      "string" &&
+                                    "string" &&
                                     String(
                                       prev.peran_dalam_kurikulum || ""
                                     ).trim() !== ""
-                                  ? [
+                                    ? [
                                       ...String(
                                         prev.peran_dalam_kurikulum || ""
                                       )
@@ -4751,7 +4861,7 @@ export default function MataKuliah() {
                                         .filter((k: string) => k !== ""),
                                       peranKurikulumInput.trim(),
                                     ]
-                                  : [peranKurikulumInput.trim()],
+                                    : [peranKurikulumInput.trim()],
                               }));
                               setPeranKurikulumInput("");
                             }
@@ -4790,7 +4900,7 @@ export default function MataKuliah() {
                             <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
                               <span className="block truncate">
                                 {Array.isArray(form.keahlian_required) &&
-                                form.keahlian_required.length > 0
+                                  form.keahlian_required.length > 0
                                   ? form.keahlian_required.join(", ")
                                   : "Pilih Keahlian"}
                               </span>
@@ -4824,10 +4934,9 @@ export default function MataKuliah() {
                                     <Listbox.Option
                                       key={keahlian}
                                       className={({ active }) =>
-                                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                          active
-                                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                            : "text-gray-900 dark:text-gray-100"
+                                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${active
+                                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                                          : "text-gray-900 dark:text-gray-100"
                                         }`
                                       }
                                       value={keahlian}
@@ -4835,11 +4944,10 @@ export default function MataKuliah() {
                                       {({ selected }) => (
                                         <div className="flex items-center justify-between">
                                           <span
-                                            className={`block truncate ${
-                                              selected
-                                                ? "font-medium"
-                                                : "font-normal"
-                                            }`}
+                                            className={`block truncate ${selected
+                                              ? "font-medium"
+                                              : "font-normal"
+                                              }`}
                                           >
                                             {keahlian}
                                           </span>
@@ -4894,22 +5002,22 @@ export default function MataKuliah() {
                                   prev.keahlian_required
                                 )
                                   ? [
-                                      ...prev.keahlian_required,
-                                      keahlianInput.trim(),
-                                    ]
+                                    ...prev.keahlian_required,
+                                    keahlianInput.trim(),
+                                  ]
                                   : typeof prev.keahlian_required ===
-                                      "string" &&
+                                    "string" &&
                                     String(
                                       prev.keahlian_required || ""
                                     ).trim() !== ""
-                                  ? [
+                                    ? [
                                       ...String(prev.keahlian_required || "")
                                         .split(",")
                                         .map((k: any) => String(k).trim())
                                         .filter((k: string) => k !== ""),
                                       keahlianInput.trim(),
                                     ]
-                                  : [keahlianInput.trim()],
+                                    : [keahlianInput.trim()],
                               }));
                               setKeahlianInput("");
                             }
@@ -5014,7 +5122,7 @@ export default function MataKuliah() {
                     {form.tanggalMulai &&
                       form.tanggalAkhir &&
                       new Date(form.tanggalAkhir) <
-                        new Date(form.tanggalMulai) && (
+                      new Date(form.tanggalMulai) && (
                         <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-4">
                           Tanggal Akhir harus setelah Tanggal Mulai.
                         </div>
@@ -5263,9 +5371,8 @@ export default function MataKuliah() {
                         !form.kode.trim() || !form.nama.trim() || isSaving
                       }
                       className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
-                      title={`Kode: ${form.kode.trim() ? "✓" : "✗"}, Nama: ${
-                        form.nama.trim() ? "✓" : "✗"
-                      }`}
+                      title={`Kode: ${form.kode.trim() ? "✓" : "✗"}, Nama: ${form.nama.trim() ? "✓" : "✗"
+                        }`}
                     >
                       {isSaving ? (
                         <>
@@ -5413,11 +5520,10 @@ export default function MataKuliah() {
         <button
           disabled={selectedRows.length === 0 || loading}
           onClick={handleBulkDelete}
-          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-            selectedRows.length === 0 || loading
-              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-              : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${selectedRows.length === 0 || loading
+            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+            : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+            }`}
         >
           {loading ? "Menghapus..." : `Hapus Terpilih (${selectedRows.length})`}
         </button>
@@ -5957,8 +6063,8 @@ export default function MataKuliah() {
                                         materiItem?.judul !== undefined
                                           ? materiItem.judul
                                           : file.name.length <= 30
-                                          ? file.name
-                                          : file.name.slice(0, 27) + "..."
+                                            ? file.name
+                                            : file.name.slice(0, 27) + "..."
                                       }
                                       onChange={(e) => {
                                         const itemIndex = materiItems.findIndex(
@@ -5973,39 +6079,38 @@ export default function MataKuliah() {
                                         }
                                       }}
                                       placeholder="Edit judul materi..."
-                                      className={`w-full px-3 py-2 text-xs border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:border-transparent relative z-30 pointer-events-auto text-left ${
-                                        materiItem?.judul === ""
-                                          ? "border-red-300 dark:border-red-600 focus:ring-red-500"
-                                          : (() => {
-                                              // Cek apakah judul ini duplikat
-                                              const allJuduls = [
-                                                ...materiItems
-                                                  .map((item) => item.judul)
-                                                  .filter(
-                                                    (judul) => judul !== ""
-                                                  ),
-                                                ...existingMateriItems
-                                                  .filter(
-                                                    (item) =>
-                                                      !materiToDelete.includes(
-                                                        item.id
-                                                      )
+                                      className={`w-full px-3 py-2 text-xs border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:border-transparent relative z-30 pointer-events-auto text-left ${materiItem?.judul === ""
+                                        ? "border-red-300 dark:border-red-600 focus:ring-red-500"
+                                        : (() => {
+                                          // Cek apakah judul ini duplikat
+                                          const allJuduls = [
+                                            ...materiItems
+                                              .map((item) => item.judul)
+                                              .filter(
+                                                (judul) => judul !== ""
+                                              ),
+                                            ...existingMateriItems
+                                              .filter(
+                                                (item) =>
+                                                  !materiToDelete.includes(
+                                                    item.id
                                                   )
-                                                  .map((item) => item.judul)
-                                                  .filter(
-                                                    (judul) => judul !== ""
-                                                  ),
-                                              ];
-                                              const isDuplicate =
-                                                allJuduls.filter(
-                                                  (judul) =>
-                                                    judul === materiItem?.judul
-                                                ).length > 1;
-                                              return isDuplicate
-                                                ? "border-orange-300 dark:border-orange-600 focus:ring-orange-500"
-                                                : "border-green-200 dark:border-green-700 focus:ring-green-500";
-                                            })()
-                                      }`}
+                                              )
+                                              .map((item) => item.judul)
+                                              .filter(
+                                                (judul) => judul !== ""
+                                              ),
+                                          ];
+                                          const isDuplicate =
+                                            allJuduls.filter(
+                                              (judul) =>
+                                                judul === materiItem?.judul
+                                            ).length > 1;
+                                          return isDuplicate
+                                            ? "border-orange-300 dark:border-orange-600 focus:ring-orange-500"
+                                            : "border-green-200 dark:border-green-700 focus:ring-green-500";
+                                        })()
+                                        }`}
                                     />
                                     {materiItem?.judul === "" && (
                                       <p className="text-xs text-red-600 dark:text-red-400 mt-1 text-left">
@@ -6093,28 +6198,25 @@ export default function MataKuliah() {
                       {existingMateriItems.map((item, idx) => (
                         <div
                           key={idx}
-                          className={`w-full border rounded-lg p-4 ${
-                            materiToDelete.includes(item.id)
-                              ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-                              : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                          }`}
+                          className={`w-full border rounded-lg p-4 ${materiToDelete.includes(item.id)
+                            ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                            : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                            }`}
                         >
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center space-x-3">
                               <div className="flex-shrink-0">
                                 <div
-                                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                    materiToDelete.includes(item.id)
-                                      ? "bg-red-100 dark:bg-red-800"
-                                      : "bg-blue-100 dark:bg-blue-800"
-                                  }`}
+                                  className={`w-10 h-10 rounded-full flex items-center justify-center ${materiToDelete.includes(item.id)
+                                    ? "bg-red-100 dark:bg-red-800"
+                                    : "bg-blue-100 dark:bg-blue-800"
+                                    }`}
                                 >
                                   <svg
-                                    className={`w-5 h-5 ${
-                                      materiToDelete.includes(item.id)
-                                        ? "text-red-600 dark:text-red-400"
-                                        : "text-blue-600 dark:text-blue-400"
-                                    }`}
+                                    className={`w-5 h-5 ${materiToDelete.includes(item.id)
+                                      ? "text-red-600 dark:text-red-400"
+                                      : "text-blue-600 dark:text-blue-400"
+                                      }`}
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -6130,11 +6232,10 @@ export default function MataKuliah() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p
-                                  className={`text-sm font-medium truncate ${
-                                    materiToDelete.includes(item.id)
-                                      ? "text-red-800 dark:text-red-200"
-                                      : "text-blue-800 dark:text-blue-200"
-                                  }`}
+                                  className={`text-sm font-medium truncate ${materiToDelete.includes(item.id)
+                                    ? "text-red-800 dark:text-red-200"
+                                    : "text-blue-800 dark:text-blue-200"
+                                    }`}
                                   title={item.judul}
                                 >
                                   {item.judul.length <= 30
@@ -6142,11 +6243,10 @@ export default function MataKuliah() {
                                     : item.judul.slice(0, 27) + "..."}
                                 </p>
                                 <p
-                                  className={`text-xs text-left w-full ${
-                                    materiToDelete.includes(item.id)
-                                      ? "text-red-600 dark:text-red-400"
-                                      : "text-blue-600 dark:text-blue-400"
-                                  }`}
+                                  className={`text-xs text-left w-full ${materiToDelete.includes(item.id)
+                                    ? "text-red-600 dark:text-red-400"
+                                    : "text-blue-600 dark:text-blue-400"
+                                    }`}
                                   title={item.filename}
                                 >
                                   {item.filename.length <= 30
@@ -6185,11 +6285,10 @@ export default function MataKuliah() {
                                   );
                                 }
                               }}
-                              className={`flex-shrink-0 p-2 rounded-lg transition-all duration-200 relative z-30 border ${
-                                materiToDelete.includes(item.id)
-                                  ? "text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 border-green-200 dark:border-green-700 hover:border-green-300 dark:hover:border-green-600"
-                                  : "text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
-                              }`}
+                              className={`flex-shrink-0 p-2 rounded-lg transition-all duration-200 relative z-30 border ${materiToDelete.includes(item.id)
+                                ? "text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 border-green-200 dark:border-green-700 hover:border-green-300 dark:hover:border-green-600"
+                                : "text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
+                                }`}
                               title={
                                 materiToDelete.includes(item.id)
                                   ? "Batal hapus"
@@ -6231,11 +6330,10 @@ export default function MataKuliah() {
                           {/* Input Judul untuk existing materi */}
                           <div className="mt-3 relative z-30">
                             <label
-                              className={`block text-xs font-medium mb-1 ${
-                                materiToDelete.includes(item.id)
-                                  ? "text-red-700 dark:text-red-300"
-                                  : "text-blue-700 dark:text-blue-300"
-                              }`}
+                              className={`block text-xs font-medium mb-1 ${materiToDelete.includes(item.id)
+                                ? "text-red-700 dark:text-red-300"
+                                : "text-blue-700 dark:text-blue-300"
+                                }`}
                             >
                               {materiToDelete.includes(item.id)
                                 ? "Judul (akan dihapus):"
@@ -6257,34 +6355,33 @@ export default function MataKuliah() {
                                 );
                               }}
                               placeholder="Edit judul materi..."
-                              className={`w-full px-3 py-2 text-xs border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:border-transparent relative z-30 pointer-events-auto ${
-                                materiToDelete.includes(item.id)
-                                  ? "border-red-200 dark:border-red-700 text-red-800 dark:text-red-200 focus:ring-red-500"
-                                  : item.judul === ""
+                              className={`w-full px-3 py-2 text-xs border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:border-transparent relative z-30 pointer-events-auto ${materiToDelete.includes(item.id)
+                                ? "border-red-200 dark:border-red-700 text-red-800 dark:text-red-200 focus:ring-red-500"
+                                : item.judul === ""
                                   ? "border-red-300 dark:border-red-600 text-red-800 dark:text-red-200 focus:ring-red-500"
                                   : (() => {
-                                      // Cek apakah judul ini duplikat
-                                      const allJuduls = [
-                                        ...materiItems
-                                          .map((item) => item.judul)
-                                          .filter((judul) => judul !== ""),
-                                        ...existingMateriItems
-                                          .filter(
-                                            (item) =>
-                                              !materiToDelete.includes(item.id)
-                                          )
-                                          .map((item) => item.judul)
-                                          .filter((judul) => judul !== ""),
-                                      ];
-                                      const isDuplicate =
-                                        allJuduls.filter(
-                                          (judul) => judul === item.judul
-                                        ).length > 1;
-                                      return isDuplicate
-                                        ? "border-orange-300 dark:border-orange-600 focus:ring-orange-500"
-                                        : "border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200 focus:ring-blue-500";
-                                    })()
-                              }`}
+                                    // Cek apakah judul ini duplikat
+                                    const allJuduls = [
+                                      ...materiItems
+                                        .map((item) => item.judul)
+                                        .filter((judul) => judul !== ""),
+                                      ...existingMateriItems
+                                        .filter(
+                                          (item) =>
+                                            !materiToDelete.includes(item.id)
+                                        )
+                                        .map((item) => item.judul)
+                                        .filter((judul) => judul !== ""),
+                                    ];
+                                    const isDuplicate =
+                                      allJuduls.filter(
+                                        (judul) => judul === item.judul
+                                      ).length > 1;
+                                    return isDuplicate
+                                      ? "border-orange-300 dark:border-orange-600 focus:ring-orange-500"
+                                      : "border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200 focus:ring-blue-500";
+                                  })()
+                                }`}
                             />
                             {item.judul === "" &&
                               !materiToDelete.includes(item.id) && (
@@ -6331,36 +6428,36 @@ export default function MataKuliah() {
                     (item) =>
                       item.judul === "" && !materiToDelete.includes(item.id)
                   )) && (
-                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0">
-                        <svg
-                          className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                          Perhatian: Ada judul materi yang kosong
-                        </h3>
-                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                          Semua materi harus memiliki judul sebelum dapat
-                          disimpan. Silakan isi judul untuk materi yang ditandai
-                          dengan tanda bintang (*).
-                        </p>
+                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                          <svg
+                            className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                            />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                            Perhatian: Ada judul materi yang kosong
+                          </h3>
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            Semua materi harus memiliki judul sebelum dapat
+                            disimpan. Silakan isi judul untuk materi yang ditandai
+                            dengan tanda bintang (*).
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Warning Section untuk Judul Duplikat */}
                 {(() => {
@@ -6867,10 +6964,9 @@ export default function MataKuliah() {
                       );
                     })()
                   }
-                  className={`px-6 py-2 rounded-lg text-sm font-medium transition ${
-                    (materiFiles.length === 0 &&
-                      existingMateriItems.length === 0 &&
-                      materiToDelete.length === 0) ||
+                  className={`px-6 py-2 rounded-lg text-sm font-medium transition ${(materiFiles.length === 0 &&
+                    existingMateriItems.length === 0 &&
+                    materiToDelete.length === 0) ||
                     materiItems.some((item) => item.judul === "") ||
                     existingMateriItems.some(
                       (item) =>
@@ -6928,9 +7024,9 @@ export default function MataKuliah() {
                         crossDuplicateFilenames.length > 0
                       );
                     })()
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
-                  }`}
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
+                    }`}
                 >
                   {(() => {
                     const hasEmptyJudul =
@@ -7070,7 +7166,7 @@ export default function MataKuliah() {
               {/* Content */}
               <div className="py-6">
                 {selectedMateriMataKuliah.materi &&
-                selectedMateriMataKuliah.materi.length > 0 ? (
+                  selectedMateriMataKuliah.materi.length > 0 ? (
                   <div className="space-y-4">
                     {/* Download All Button */}
                     <div className="flex justify-start gap-2">
@@ -7279,6 +7375,208 @@ export default function MataKuliah() {
                 >
                   Tutup
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showManageModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowManageModal(false)}
+            ></motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden z-[100001]"
+            >
+              {/* Modal Content Header (No border-b, unified look) */}
+              <div className="px-8 pt-8 pb-4 flex justify-between items-start relative">
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                    <FontAwesomeIcon icon={faLayerGroup} className="text-2xl" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      Kelola Mata Kuliah Tahun Ajaran Aktif
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih dari <span className="font-semibold text-indigo-600 dark:text-indigo-400">Master Data</span> untuk periode ini.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowManageModal(false)}
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white transition-all"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              {/* Search & Filter Bar (Integrated styling) */}
+              <div className="px-8 py-4 flex flex-col gap-4">
+                <div className="relative w-full">
+                  <FontAwesomeIcon icon={faSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari Mata Kuliah atau Kode..."
+                    value={manageSearch}
+                    onChange={(e) => setManageSearch(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center flex-1 min-w-[140px]">
+                    <select
+                      value={manageYearFilter}
+                      onChange={(e) => setManageYearFilter(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    >
+                      <option value="all">📅 SEMUA TAHUN</option>
+                      {uniqueMasterYears.map(year => (
+                        <option key={year} value={year.toString()}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center flex-1 min-w-[140px]">
+                    <select
+                      value={manageSemesterFilter}
+                      onChange={(e) => setManageSemesterFilter(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    >
+                      <option value="all">🎓 SEMUA SEMESTER</option>
+                      {uniqueMasterSemesters.map(sem => (
+                        <option key={sem} value={sem}>{sem.toUpperCase()}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center flex-1 min-w-[140px]">
+                    <select
+                      value={manageBlokFilter}
+                      onChange={(e) => setManageBlokFilter(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    >
+                      <option value="all">📦 SEMUA BLOK</option>
+                      {uniqueMasterBlocks.map(blk => (
+                        <option key={blk} value={blk.toString()}>BLOK KE-{blk}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Courses Grid */}
+              <div className="flex-1 overflow-y-auto px-8 py-4 modern-scrollbar bg-gray-50/30 dark:bg-gray-900/10">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {masterCourses
+                    .filter(mk => {
+                      const searchMatch = mk.nama.toLowerCase().includes(manageSearch.toLowerCase()) ||
+                        mk.kode.toLowerCase().includes(manageSearch.toLowerCase());
+                      const mkDate = mk.tanggalMulai || mk.tanggal_mulai;
+                      const yearMatch = manageYearFilter === "all" ||
+                        (extractYear(mkDate)?.toString() === manageYearFilter);
+                      const semesterMatch = manageSemesterFilter === "all" ||
+                        String(mk.semester) === manageSemesterFilter;
+                      const blockMatch = manageBlokFilter === "all" ||
+                        (mk.jenis === "Blok" && String(mk.blok) === manageBlokFilter);
+                      return searchMatch && yearMatch && semesterMatch && blockMatch;
+                    })
+                    .map((mk) => {
+                      const isSelected = selectedManageCodes.includes(mk.kode);
+                      const mkYear = extractYear(mk.tanggalMulai || mk.tanggal_mulai);
+                      return (
+                        <div
+                          key={mk.kode}
+                          onClick={() => toggleManageCode(mk.kode)}
+                          className={`group relative p-5 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-full ${isSelected
+                            ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20 ring-1 ring-indigo-500 shadow-lg shadow-indigo-500/10'
+                            : 'border-white dark:border-gray-800 hover:border-indigo-300 dark:hover:border-indigo-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-xl hover:translate-y-[-2px]'
+                            }`}
+                        >
+                          {/* Selection Indicator */}
+                          <div className={`absolute top-0 right-0 w-12 h-12 flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-500 text-white' : 'opacity-0 scale-90 translate-x-4 -translate-y-4'
+                            }`} style={{ borderRadius: '0 0 0 100%' }}>
+                            <svg className="w-5 h-5 ml-2 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+
+                          <div className="flex items-start justify-between mb-3 pr-8">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${mk.jenis === 'Blok'
+                              ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+                              : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                              }`}>
+                              {mk.jenis === 'Blok' && mk.blok ? `BLOK ${mk.blok}` : mk.jenis}
+                            </span>
+                            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wider">
+                              {mk.kode}
+                            </span>
+                          </div>
+
+                          <h4 className="font-bold text-gray-900 dark:text-white leading-snug mb-4 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
+                            {mk.nama}
+                          </h4>
+
+                          <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800/50 grid grid-cols-2 gap-2">
+                            <div>
+                              <p className="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-black">Semester</p>
+                              <p className="text-xs font-bold text-gray-700 dark:text-gray-300 truncate">
+                                {String(mk.semester).replace("Semester ", "")}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-black">Tahun</p>
+                              <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{mkYear || '-'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Modal Footer (Improved spacing and style) */}
+              <div className="px-8 py-8 border-t border-gray-50 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="px-4 py-2 rounded-2xl bg-indigo-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20">
+                    <FontAwesomeIcon icon={faLayerGroup} />
+                    {selectedManageCodes.length} Terpilih
+                  </div>
+                </div>
+
+                <div className="flex gap-3 w-full sm:w-auto">
+                  <button
+                    onClick={() => setShowManageModal(false)}
+                    className="flex-1 sm:flex-none px-8 py-3 text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-2xl transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleSaveManageModal}
+                    disabled={isSaving}
+                    className="flex-1 sm:flex-none px-10 py-3 text-sm font-bold text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 hover:translate-y-[-1px] active:translate-y-[0px]"
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Menyimpan...
+                      </>
+                    ) : (
+                      'Simpan Perubahan'
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

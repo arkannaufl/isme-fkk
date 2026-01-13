@@ -256,12 +256,13 @@ class PBLGenerateController extends Controller
     }
 
     /**
-     * Cek status generate per blok
+     * Cek status generate per blok dan semester
      */
     public function checkGenerateStatus(Request $request)
     {
         try {
             $blok = $request->query('blok');
+            $activeSemester = $request->query('active_semester'); // Ganjil atau Genap
 
             if (!$blok) {
                 return response()->json([
@@ -271,17 +272,29 @@ class PBLGenerateController extends Controller
             }
 
             // Cari semua mata kuliah dengan blok yang diminta
-            $mataKuliahList = MataKuliah::where('blok', $blok)
-                ->where('jenis', 'Blok')
-                ->get();
+            $mataKuliahQuery = MataKuliah::where('blok', $blok)
+                ->where('jenis', 'Blok');
+
+            // Filter berdasarkan semester jika active_semester diberikan
+            if ($activeSemester) {
+                // Tentukan semester yang sesuai dengan periode aktif
+                if ($activeSemester === 'Ganjil') {
+                    $mataKuliahQuery->whereIn('semester', [1, 3, 5, 7]);
+                } elseif ($activeSemester === 'Genap') {
+                    $mataKuliahQuery->whereIn('semester', [2, 4, 6, 8]);
+                }
+            }
+
+            $mataKuliahList = $mataKuliahQuery->get();
 
             if ($mataKuliahList->isEmpty()) {
                 return response()->json([
                     'success' => true,
                     'data' => [
                         'blok' => $blok,
+                        'active_semester' => $activeSemester,
                         'is_generated' => false,
-                        'message' => 'Blok tidak ditemukan'
+                        'message' => 'Blok tidak ditemukan untuk semester ini'
                     ]
                 ]);
             }
@@ -295,8 +308,9 @@ class PBLGenerateController extends Controller
                     'success' => true,
                     'data' => [
                         'blok' => $blok,
+                        'active_semester' => $activeSemester,
                         'is_generated' => false,
-                        'message' => 'Tidak ada modul PBL untuk blok ini'
+                        'message' => 'Tidak ada modul PBL untuk blok ini di semester ini'
                     ]
                 ]);
             }
@@ -311,10 +325,11 @@ class PBLGenerateController extends Controller
                 'success' => true,
                 'data' => [
                     'blok' => $blok,
+                    'active_semester' => $activeSemester,
                     'is_generated' => $isGenerated,
                     'assignment_count' => $assignments,
                     'pbl_count' => $pbls->count(),
-                    'message' => $isGenerated ? 'Blok sudah di-generate' : 'Blok belum di-generate'
+                    'message' => $isGenerated ? 'Blok sudah di-generate untuk semester ini' : 'Blok belum di-generate untuk semester ini'
                 ]
             ]);
         } catch (\Exception $e) {

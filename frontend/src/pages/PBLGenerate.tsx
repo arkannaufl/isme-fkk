@@ -348,7 +348,11 @@ export default function PBLGenerate() {
         setPblData(pblMap);
         setJurnalReadingData(jurnalMap);
         setCsrKeahlianData(csrKeahlianMap);
-        setDosenList(Array.isArray(dosenRes.data) ? dosenRes.data : []);
+        // Handle pagination response
+        const dosenData = Array.isArray(dosenRes.data)
+          ? dosenRes.data
+          : (dosenRes.data?.data || []);
+        setDosenList(dosenData);
 
         // Set active semester
         const semester = activeSemesterRes.data?.semesters?.[0];
@@ -425,8 +429,8 @@ export default function PBLGenerate() {
         // Calculate statistics
         calculateStatistics(
           filteredBlokMataKuliah,
-          Array.isArray(dosenRes.data) 
-            ? dosenRes.data 
+          Array.isArray(dosenRes.data)
+            ? dosenRes.data
             : (dosenRes.data?.data || []),
           kelompokKecilRes.data || [],
           semester?.jenis,
@@ -511,11 +515,11 @@ export default function PBLGenerate() {
           params: { _ts: Date.now() },
         });
         // Handle pagination response
-        const dosenData = Array.isArray(freshDosen.data) 
-          ? freshDosen.data 
+        const dosenData = Array.isArray(freshDosen.data)
+          ? freshDosen.data
           : (freshDosen.data?.data || []);
         setDosenList(Array.isArray(dosenData) ? dosenData : []);
-      } catch (error) {}
+      } catch (error) { }
     };
 
     window.addEventListener("pbl-assignment-updated", handleAssignmentUpdate);
@@ -605,7 +609,7 @@ export default function PBLGenerate() {
         });
         setKelompokKecilData(newKelompokKecilData);
         setKelompokKecilCache(newKelompokKecilData); // Update cache
-      } catch (error) {}
+      } catch (error) { }
     },
     []
   );
@@ -685,11 +689,11 @@ export default function PBLGenerate() {
     // Filter mata kuliah by active semester
     const filteredMataKuliah = activeSemester
       ? mataKuliahList.filter(
-          (mk: MataKuliah) =>
-            mk.periode &&
-            mk.periode.trim().toLowerCase() ===
-              activeSemester.trim().toLowerCase()
-        )
+        (mk: MataKuliah) =>
+          mk.periode &&
+          mk.periode.trim().toLowerCase() ===
+          activeSemester.trim().toLowerCase()
+      )
       : mataKuliahList;
 
     // Calculate kelompok kecil count (unique nama_kelompok for active semester)
@@ -830,15 +834,15 @@ export default function PBLGenerate() {
 
     const result = activeSemesterJenis
       ? blokMataKuliah.filter(
-          (mk: MataKuliah) =>
-            mk.periode &&
-            mk.periode.trim().toLowerCase() ===
-              activeSemesterJenis.trim().toLowerCase() &&
-            String(mk.semester) !== "Antara" // Exclude semester "Antara"
-        )
+        (mk: MataKuliah) =>
+          mk.periode &&
+          mk.periode.trim().toLowerCase() ===
+          activeSemesterJenis.trim().toLowerCase() &&
+          String(mk.semester) !== "Antara" // Exclude semester "Antara"
+      )
       : blokMataKuliah.filter(
-          (mk: MataKuliah) => String(mk.semester) !== "Antara" // Always exclude semester "Antara"
-        );
+        (mk: MataKuliah) => String(mk.semester) !== "Antara" // Always exclude semester "Antara"
+      );
 
     return result;
   }, [blokMataKuliah, activeSemesterJenis]);
@@ -1330,8 +1334,8 @@ export default function PBLGenerate() {
             keahlianCocok >= 4
               ? "tinggi"
               : keahlianCocok >= 2
-              ? "sedang"
-              : "rendah",
+                ? "sedang"
+                : "rendah",
         };
       });
 
@@ -1576,8 +1580,8 @@ export default function PBLGenerate() {
         params: { _ts: Date.now() },
       });
       // Handle pagination response
-      const dosenData = Array.isArray(freshDosenRes.data) 
-        ? freshDosenRes.data 
+      const dosenData = Array.isArray(freshDosenRes.data)
+        ? freshDosenRes.data
         : (freshDosenRes.data?.data || []);
       setDosenList(dosenData);
 
@@ -1599,7 +1603,7 @@ export default function PBLGenerate() {
       } else {
         setAssignedDosen({});
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Validasi data
 
@@ -2153,8 +2157,7 @@ export default function PBLGenerate() {
         if (response.data.success) {
           const summary = response.data.summary;
           setSuccess(
-            `Berhasil generate ${summary.success} assignments!${
-              summary.error > 0 ? ` (${summary.error} gagal)` : ""
+            `Berhasil generate ${summary.success} assignments!${summary.error > 0 ? ` (${summary.error} gagal)` : ""
             }`
           );
 
@@ -2239,7 +2242,7 @@ export default function PBLGenerate() {
                 _ts: Date.now(),
               },
             });
-          } catch (error) {}
+          } catch (error) { }
         } else {
           setError(resetRes.data.message);
         }
@@ -2257,10 +2260,10 @@ export default function PBLGenerate() {
           try {
             const assignedDosenRes = allPblIds.length
               ? await api.post(
-                  "/pbl-generate/get-assignments",
-                  { pbl_ids: allPblIds },
-                  { params: { _ts: Date.now() } }
-                )
+                "/pbl-generate/get-assignments",
+                { pbl_ids: allPblIds },
+                { params: { _ts: Date.now() } }
+              )
               : null;
             if (assignedDosenRes?.data?.success) {
               setAssignedDosen(assignedDosenRes.data.data);
@@ -2280,11 +2283,11 @@ export default function PBLGenerate() {
               params: { _ts: Date.now() },
             });
             // Handle pagination response
-            const dosenData = Array.isArray(freshDosen.data) 
-              ? freshDosen.data 
+            const dosenData = Array.isArray(freshDosen.data)
+              ? freshDosen.data
               : (freshDosen.data?.data || []);
             setDosenList(dosenData);
-          } catch {}
+          } catch { }
         })(),
       ]);
     } catch (err: any) {
@@ -2837,13 +2840,12 @@ export default function PBLGenerate() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    pblStatistics.dataFreshness === "fresh"
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${pblStatistics.dataFreshness === "fresh"
                       ? "bg-green-500"
                       : pblStatistics.dataFreshness === "stale"
-                      ? "bg-yellow-500"
-                      : "bg-red-500"
-                  }`}
+                        ? "bg-yellow-500"
+                        : "bg-red-500"
+                    }`}
                 >
                   <FontAwesomeIcon
                     icon={faCog}
@@ -2865,26 +2867,24 @@ export default function PBLGenerate() {
               <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
                 <div className="flex items-center gap-2">
                   <div
-                    className={`w-2 h-2 rounded-full ${
-                      pblStatistics.dataFreshness === "fresh"
+                    className={`w-2 h-2 rounded-full ${pblStatistics.dataFreshness === "fresh"
                         ? "bg-green-400"
                         : pblStatistics.dataFreshness === "stale"
-                        ? "bg-yellow-400"
-                        : "bg-red-400"
-                    }`}
+                          ? "bg-yellow-400"
+                          : "bg-red-400"
+                      }`}
                   ></div>
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Data Status
                   </span>
                 </div>
                 <span
-                  className={`text-sm font-semibold ${
-                    pblStatistics.dataFreshness === "fresh"
+                  className={`text-sm font-semibold ${pblStatistics.dataFreshness === "fresh"
                       ? "text-green-600 dark:text-green-400"
                       : pblStatistics.dataFreshness === "stale"
-                      ? "text-yellow-600 dark:text-yellow-400"
-                      : "text-red-600 dark:text-red-400"
-                  }`}
+                        ? "text-yellow-600 dark:text-yellow-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
                 >
                   {pblStatistics.dataFreshness}
                 </span>
@@ -3004,13 +3004,12 @@ export default function PBLGenerate() {
                     Semester {semester}
                   </h4>
                   <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      data.completionRate >= 90
+                    className={`text-xs px-2 py-1 rounded-full ${data.completionRate >= 90
                         ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
                         : data.completionRate >= 70
-                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                        : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                    }`}
+                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                      }`}
                   >
                     {data.completionRate.toFixed(1)}%
                   </span>
@@ -3035,7 +3034,7 @@ export default function PBLGenerate() {
                     <span>
                       {Math.round(
                         data.kelompokCount *
-                          (data.totalPBL + (data.totalJurnalReading || 0))
+                        (data.totalPBL + (data.totalJurnalReading || 0))
                       )}{" "}
                       dosen
                     </span>
@@ -3187,11 +3186,10 @@ export default function PBLGenerate() {
               handleGenerateDosen();
             }}
             disabled={isGenerating}
-            className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all duration-200 ${
-              isGenerating
+            className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all duration-200 ${isGenerating
                 ? "bg-gray-400 dark:bg-gray-600 text-gray-200 cursor-not-allowed"
                 : "bg-green-600 hover:bg-green-700 text-white shadow-theme-xs hover:shadow-theme-sm"
-            }`}
+              }`}
           >
             <FontAwesomeIcon
               icon={isGenerating ? faSpinner : faCog}
@@ -3236,10 +3234,10 @@ export default function PBLGenerate() {
               try {
                 // Refresh data dosen
                 const dosenRes = await api.get("/users?role=dosen&per_page=1000");
-                
+
                 // Handle pagination response
-                const dosenData = Array.isArray(dosenRes.data) 
-                  ? dosenRes.data 
+                const dosenData = Array.isArray(dosenRes.data)
+                  ? dosenRes.data
                   : (dosenRes.data?.data || []);
 
                 // Cek dosen rizqiirkhamm setelah refresh
@@ -3265,11 +3263,10 @@ export default function PBLGenerate() {
           <button
             onClick={handleResetDosen}
             disabled={resetLoading}
-            className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all duration-200 ${
-              resetLoading
+            className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all duration-200 ${resetLoading
                 ? "bg-gray-400 dark:bg-gray-600 text-gray-200 cursor-not-allowed"
                 : "bg-red-600 hover:bg-red-700 text-white shadow-theme-xs hover:shadow-theme-sm"
-            }`}
+              }`}
           >
             <FontAwesomeIcon
               icon={resetLoading ? faSpinner : faCog}
@@ -3542,11 +3539,10 @@ export default function PBLGenerate() {
                               Modul {pbl.modul_ke} - {pbl.nama_modul}
                             </h5>
                             <span
-                              className={`text-xs px-3 py-1 rounded-full font-medium ${
-                                assigned.length > 0
+                              className={`text-xs px-3 py-1 rounded-full font-medium ${assigned.length > 0
                                   ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
                                   : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300"
-                              }`}
+                                }`}
                             >
                               {assigned.length > 0
                                 ? "Sudah Ditugaskan"
@@ -3576,7 +3572,7 @@ export default function PBLGenerate() {
                                         (peran: any) =>
                                           peran.tipe_peran === "koordinator" &&
                                           peran.semester ===
-                                            String(currentSemester) &&
+                                          String(currentSemester) &&
                                           currentMataKuliah.includes(
                                             peran.mata_kuliah_kode
                                           )
@@ -3586,7 +3582,7 @@ export default function PBLGenerate() {
                                       (peran: any) =>
                                         peran.tipe_peran === "tim_blok" &&
                                         peran.semester ===
-                                          String(currentSemester) &&
+                                        String(currentSemester) &&
                                         currentMataKuliah.includes(
                                           peran.mata_kuliah_kode
                                         )
@@ -3636,11 +3632,11 @@ export default function PBLGenerate() {
                                     dosen.keahlian
                                   )
                                     ? dosen.keahlian.some((k) =>
-                                        k.toLowerCase().includes("standby")
-                                      )
+                                      k.toLowerCase().includes("standby")
+                                    )
                                     : (dosen.keahlian || "")
-                                        .toLowerCase()
-                                        .includes("standby");
+                                      .toLowerCase()
+                                      .includes("standby");
 
                                   // Jika standby, override warna
                                   if (isStandby) {
@@ -3669,7 +3665,7 @@ export default function PBLGenerate() {
                                             title="Jumlah penugasan"
                                           >
                                             {typeof dosen.pbl_assignment_count ===
-                                            "number"
+                                              "number"
                                               ? dosen.pbl_assignment_count
                                               : 0}
                                             x

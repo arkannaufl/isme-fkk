@@ -16,6 +16,9 @@ class TahunAjaranSeeder extends Seeder
     {
         DB::transaction(function () {
             $tahunAjarans = [
+                ['tahun' => '2019/2020', 'aktif' => false],
+                ['tahun' => '2020/2021', 'aktif' => false],
+                ['tahun' => '2021/2022', 'aktif' => false],
                 ['tahun' => '2022/2023', 'aktif' => true],
                 ['tahun' => '2023/2024', 'aktif' => false],
                 ['tahun' => '2024/2025', 'aktif' => false],

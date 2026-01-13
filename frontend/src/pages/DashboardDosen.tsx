@@ -664,13 +664,16 @@ export default function DashboardDosen() {
 
             setShowWhatsAppWarning(needsWhatsApp);
             // Update WhatsApp data dengan email dari emailStatus jika ada, dan pre-fill nomor dari telp jika ada
-            const prefillPhone =
-              userData.whatsapp_phone ||
-              (userData.telp
-                ? userData.telp.startsWith("62")
-                  ? userData.telp
-                  : userData.telp.replace(/^0/, "62")
-                : "");
+            const getValidWhatsApp = (wa: string | null, tp: string | null) => {
+              if (wa && wa.match(/^62\d+$/)) return wa;
+              const cleanedTelp = (tp || "").replace(/\D/g, "");
+              if (cleanedTelp.startsWith("0")) return "62" + cleanedTelp.substring(1);
+              if (cleanedTelp.startsWith("62")) return cleanedTelp;
+              if (cleanedTelp.length >= 9) return "62" + cleanedTelp;
+              return wa || "";
+            };
+
+            const prefillPhone = getValidWhatsApp(userData.whatsapp_phone, userData.telp);
 
             // Pastikan email untuk Wablas selalu ambil dari email verification yang sudah ada (jika sudah verified)
             // atau dari email user jika belum verified
@@ -679,6 +682,13 @@ export default function DashboardDosen() {
               userData.whatsapp_email || // Prioritas 2: WhatsApp email yang sudah ada
               userData.email || // Prioritas 3: Email user
               "";
+
+            // SYNC: Set newEmail agar placeholder tidak kosong jika ada historical email
+            if (!newEmailStatus.email || newEmailStatus.email === "") {
+              setNewEmail(wablasEmail);
+            } else {
+              setNewEmail(newEmailStatus.email);
+            }
 
             setWhatsAppData({
               name: userData.name || "", // Pre-fill dari data yang ada
@@ -700,17 +710,26 @@ export default function DashboardDosen() {
             !userData.whatsapp_phone ||
             !userData.whatsapp_phone.match(/^62\d+$/);
           setShowWhatsAppWarning(needsWhatsApp);
-          const prefillPhone =
-            userData.whatsapp_phone ||
-            (userData.telp
-              ? userData.telp.startsWith("62")
-                ? userData.telp
-                : userData.telp.replace(/^0/, "62")
-              : "");
+          const getValidWhatsApp = (wa: string | null, tp: string | null) => {
+            if (wa && wa.match(/^62\d+$/)) return wa;
+            const cleanedTelp = (tp || "").replace(/\D/g, "");
+            if (cleanedTelp.startsWith("0")) return "62" + cleanedTelp.substring(1);
+            if (cleanedTelp.startsWith("62")) return cleanedTelp;
+            if (cleanedTelp.length >= 9) return "62" + cleanedTelp;
+            return wa || "";
+          };
+
+          const prefillPhone = getValidWhatsApp(userData.whatsapp_phone, userData.telp);
+
+          const historicalEmail = userData.whatsapp_email || userData.email || "";
+
+          // Set newEmail dari histori jika fetch error
+          setNewEmail(historicalEmail);
+
           setWhatsAppData({
             name: userData.name || "",
             whatsapp_phone: prefillPhone,
-            whatsapp_email: userData.whatsapp_email || userData.email || "",
+            whatsapp_email: historicalEmail,
             whatsapp_address: userData.whatsapp_address || "",
             whatsapp_birth_day: userData.whatsapp_birth_day || "",
           });
@@ -760,13 +779,16 @@ export default function DashboardDosen() {
           !userData.whatsapp_phone || !userData.whatsapp_phone.match(/^62\d+$/);
         setShowWhatsAppWarning(needsWhatsApp);
         // Update WhatsApp data dengan email dari emailStatus jika ada, dan pre-fill nomor dari data sebelumnya
-        const prefillPhone =
-          userData.whatsapp_phone ||
-          (userData.telp
-            ? userData.telp.startsWith("62")
-              ? userData.telp
-              : userData.telp.replace(/^0/, "62")
-            : "");
+        const getValidWhatsApp = (wa: string | null, tp: string | null) => {
+          if (wa && wa.match(/^62\d+$/)) return wa;
+          const cleanedTelp = (tp || "").replace(/\D/g, "");
+          if (cleanedTelp.startsWith("0")) return "62" + cleanedTelp.substring(1);
+          if (cleanedTelp.startsWith("62")) return cleanedTelp;
+          if (cleanedTelp.length >= 9) return "62" + cleanedTelp;
+          return wa || "";
+        };
+
+        const prefillPhone = getValidWhatsApp(userData.whatsapp_phone, userData.telp);
 
         // Pastikan email untuk Wablas selalu ambil dari email verification yang sudah ada (jika sudah verified)
         const wablasEmail =
@@ -774,6 +796,9 @@ export default function DashboardDosen() {
           userData.whatsapp_email || // Prioritas 2: WhatsApp email yang sudah ada
           userData.email || // Prioritas 3: Email user
           "";
+
+        // SYNC: Set newEmail agar placeholder tidak kosong jika ada historical email
+        setNewEmail(wablasEmail);
 
         setWhatsAppData({
           name: userData.name || "", // Pre-fill dari data yang ada
@@ -1380,12 +1405,7 @@ export default function DashboardDosen() {
       }
 
       // Step 2: Update profile dengan WhatsApp data (akan trigger addContact di backend)
-      // Pastikan whatsapp_email SELALU sama dengan finalEmail (Email Verification)
-      // Jika email sudah verified, gunakan email dari emailStatus
-      // Jika email belum verified, gunakan finalEmail dari step 1
-      const wablasEmail = showEmailWarning
-        ? finalEmail
-        : emailStatus?.email || finalEmail;
+      const wablasEmail = whatsAppData.whatsapp_email;
 
       const response = await api.put("/profile", {
         name: whatsAppData.name || userData.name, // Required untuk Wablas, ambil dari form
@@ -2109,20 +2129,24 @@ export default function DashboardDosen() {
                           </td>
                         </>
                       )}
-                      {/* Kolom JENIS BARIS (Materi/Agenda) badge - hanya untuk non_blok_non_csr yang bukan bimbingan akhir */}
                       {jadwalType === "non_blok_non_csr" && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.jenis_baris === "materi"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
-                              : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-700"
-                              }`}
-                          >
-                            {item.jenis_baris === "materi"
-                              ? "Materi"
-                              : "Agenda"}
-                          </span>
-                        </td>
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.jenis_baris === "materi"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
+                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-700"
+                                }`}
+                            >
+                              {item.jenis_baris === "materi"
+                                ? "Materi"
+                                : "Agenda"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-medium">
+                            {item.tipe || "N/A"}
+                          </td>
+                        </>
                       )}
                       {jadwalType === "persamaan_persepsi" ||
                         jadwalType === "seminar_pleno" ? (
@@ -2833,7 +2857,7 @@ export default function DashboardDosen() {
               </tbody>
             </table>
           </div>
-        </div>
+        </div >
       );
     },
     [
@@ -3126,12 +3150,13 @@ export default function DashboardDosen() {
                       <input
                         type="tel"
                         value={whatsAppData.whatsapp_phone}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
                           setWhatsAppData({
                             ...whatsAppData,
-                            whatsapp_phone: e.target.value,
-                          })
-                        }
+                            whatsapp_phone: val,
+                          });
+                        }}
                         placeholder="6281234567890"
                         className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
@@ -3141,36 +3166,31 @@ export default function DashboardDosen() {
                       </p>
                     </div>
 
-                    {/* Email Verification - Hanya tampil jika email belum verified */}
-                    {showEmailWarning && (
-                      <div>
-                        <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
-                          Email (Verification){" "}
-                          <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="email"
-                          value={newEmail || emailStatus?.email || ""}
-                          onChange={(e) => {
-                            const emailValue = e.target.value;
-                            setNewEmail(emailValue);
-                            // Realtime sync ke Email untuk Wablas
-                            setWhatsAppData({
-                              ...whatsAppData,
-                              whatsapp_email: emailValue,
-                            });
-                          }}
-                          placeholder="Masukkan email yang valid"
-                          className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          required
-                        />
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          Email ini akan digunakan untuk verifikasi dan
-                          notifikasi. Email untuk Wablas akan otomatis mengikuti
-                          email ini.
-                        </p>
-                      </div>
-                    )}
+                    {/* Email Verification - Tampil untuk sinkronisasi dengan Wablas */}
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Email (Verification) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={newEmail || emailStatus?.email || ""}
+                        onChange={(e) => {
+                          const emailValue = e.target.value;
+                          setNewEmail(emailValue);
+                          // Realtime sync ke Email untuk Wablas
+                          setWhatsAppData({
+                            ...whatsAppData,
+                            whatsapp_email: emailValue,
+                          });
+                        }}
+                        placeholder="Masukkan email yang valid"
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Email ini akan digunakan untuk verifikasi dan notifikasi. Email untuk Wablas akan otomatis mengikuti email ini.
+                      </p>
+                    </div>
 
                     {/* Email untuk Wablas (SELALU read-only, SELALU sync dengan Email Verification) */}
                     <div>
@@ -3179,14 +3199,7 @@ export default function DashboardDosen() {
                       </label>
                       <input
                         type="email"
-                        value={
-                          // SELALU sync dengan Email Verification
-                          // Jika showEmailWarning, ambil dari newEmail (realtime saat user mengetik)
-                          // Jika tidak showEmailWarning, ambil dari emailStatus (email yang sudah verified)
-                          showEmailWarning
-                            ? newEmail || emailStatus?.email || "" // Ikut ketikan realtime dari Email Verification
-                            : emailStatus?.email || "" // Ambil dari email verified yang sudah ada
-                        }
+                        value={whatsAppData.whatsapp_email}
                         readOnly={true} // SELALU read-only, tidak bisa diedit manual
                         placeholder="Otomatis sama dengan Email Verification"
                         className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed placeholder-gray-500 dark:placeholder-gray-400"
@@ -3247,10 +3260,12 @@ export default function DashboardDosen() {
                         disabled={
                           updatingEmail ||
                           updatingWhatsApp ||
-                          (showEmailWarning && !newEmail.trim()) ||
                           !whatsAppData.name ||
+                          !whatsAppData.name.trim() ||
                           !whatsAppData.whatsapp_phone ||
                           !whatsAppData.whatsapp_phone.match(/^62\d+$/) ||
+                          !whatsAppData.whatsapp_email ||
+                          !whatsAppData.whatsapp_email.trim() ||
                           !whatsAppData.whatsapp_address ||
                           !whatsAppData.whatsapp_address.trim() ||
                           !whatsAppData.whatsapp_birth_day ||
@@ -4556,7 +4571,7 @@ export default function DashboardDosen() {
                       "PUKUL",
                       "WAKTU",
                       "TOPIK",
-                      "KATEGORI",
+                      "MATA KULIAH",
                       "JENIS CSR",
                       "PENGAMPU",
                       "DOSEN PENGGANTI",
@@ -4668,6 +4683,7 @@ export default function DashboardDosen() {
                     "WAKTU",
                     "MATERI/AGENDA",
                     "JENIS",
+                    "TIPE",
                     "PENGAMPU",
                     "DOSEN PENGGANTI",
                     "KELOMPOK",
@@ -5274,16 +5290,10 @@ export default function DashboardDosen() {
                   />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  {localStorage.getItem("last_success_action") ===
-                    "whatsapp_sync"
-                    ? "Data WhatsApp Berhasil Disinkronkan!"
-                    : "Email Berhasil Diaktifkan!"}
+                  Berhasil!
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  {localStorage.getItem("last_success_action") ===
-                    "whatsapp_sync"
-                    ? "Data WhatsApp Anda telah berhasil disinkronkan ke Wablas. Anda akan menerima notifikasi jadwal melalui WhatsApp dan melalui Email."
-                    : "Email Anda telah berhasil diaktifkan. Anda akan menerima notifikasi pengingat jadwal melalui Email."}
+                  Data profil Anda telah berhasil disimpan.
                 </p>
                 <button
                   onClick={() => {
@@ -5292,7 +5302,7 @@ export default function DashboardDosen() {
                   }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                 >
-                  OK
+                  Tutup
                 </button>
               </div>
             </motion.div>

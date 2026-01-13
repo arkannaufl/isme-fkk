@@ -28,6 +28,7 @@ interface MahasiswaKeabsenan {
   telp: string;
   username: string;
   semester: number;
+  status: string;
   kelompok_kecil?: string;
   kelompok_besar?: string;
   total_kehadiran: number;
@@ -53,7 +54,11 @@ interface MahasiswaKeabsenan {
   }[];
 }
 
-const DetailMahasiswaKeabsenan: React.FC = () => {
+interface DetailMahasiswaKeabsenanProps {
+  isEmbedded?: boolean;
+}
+
+const DetailMahasiswaKeabsenan: React.FC<DetailMahasiswaKeabsenanProps> = ({ isEmbedded = false }) => {
   const [mahasiswaData, setMahasiswaData] = useState<MahasiswaKeabsenan | null>(
     null
   );
@@ -95,6 +100,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
         telp: data.mahasiswa.telp,
         username: data.mahasiswa.username,
         semester: data.mahasiswa.semester,
+        status: data.mahasiswa.status,
         kelompok_kecil: data.mahasiswa.kelompok_kecil,
         kelompok_besar: data.mahasiswa.kelompok_besar,
         total_kehadiran: data.statistik.total_kehadiran,
@@ -118,13 +124,13 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "hadir":
-        return "bg-green-500 text-white";
+        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-800";
       case "tidak_hadir":
-        return "bg-red-500 text-white";
+        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-800";
       case "waiting":
-        return "bg-gray-500 text-white";
+        return "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300 border border-gray-200 dark:border-gray-800";
       default:
-        return "bg-gray-500 text-white";
+        return "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300 border border-gray-200 dark:border-gray-800";
     }
   };
 
@@ -153,6 +159,10 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
         return "bg-orange-500 text-white";
       case "csr":
         return "bg-red-500 text-white";
+      case "seminar_pleno":
+        return "bg-indigo-500 text-white";
+      case "non_blok_non_csr":
+        return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700";
       default:
         return "bg-gray-500 text-white";
     }
@@ -170,6 +180,10 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
         return "PBL";
       case "csr":
         return "CSR";
+      case "seminar_pleno":
+        return "Seminar Pleno";
+      case "non_blok_non_csr":
+        return "Non Blok Non CSR";
       default:
         return jenis;
     }
@@ -418,7 +432,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
       yPos += 8;
       yPos = addText(`NID          : ${mahasiswaData.nid}`, margin, yPos);
       yPos += 8;
-      yPos = addText(`Semester     : ${mahasiswaData.semester}`, margin, yPos);
+      yPos = addText(`Semester     : ${mahasiswaData.status === 'lulus' ? 'Lulus' : mahasiswaData.semester}`, margin, yPos);
       yPos += 8;
       yPos = addText(`Kelompok     : ${mahasiswaData.kelompok_kecil}`, margin, yPos);
       yPos += 8;
@@ -494,11 +508,11 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
       // Tabel detail kehadiran
       doc.setFontSize(10);
       doc.setFont("times", "bold");
-      
+
       // Header tabel
       const pageWidth = doc.internal.pageSize.width;
       const availableWidth = pageWidth - margin * 2;
-      
+
       // Sesuaikan posisi kolom dengan distribusi yang lebih proporsional
       const colTanggal = margin;
       const colMataKuliah = margin + availableWidth * 0.15;
@@ -531,12 +545,13 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
         }
 
         const tanggal = new Date(kehadiran.tanggal).toLocaleDateString("id-ID");
-        const mataKuliah = kehadiran.mata_kuliah.length > 15 
+        const mataKuliah = kehadiran.mata_kuliah.length > 15
           ? kehadiran.mata_kuliah.substring(0, 15) + "..."
           : kehadiran.mata_kuliah;
-        const jenis = kehadiran.jenis_jadwal.length > 8
-          ? kehadiran.jenis_jadwal.substring(0, 8) + "..."
-          : kehadiran.jenis_jadwal;
+        const labelJenis = getJenisJadwalLabel(kehadiran.jenis_jadwal);
+        const jenis = labelJenis.length > 12
+          ? labelJenis.substring(0, 12) + "..."
+          : labelJenis;
         const status = kehadiran.status;
         const waktu = `${kehadiran.jam_mulai} - ${kehadiran.jam_selesai}`;
         const ruangan = kehadiran.ruangan.length > 10
@@ -635,14 +650,16 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header Skeleton */}
-          <div className="mb-8">
-            <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
-            <div className="h-10 w-80 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
-            <div className="h-4 w-96 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-          </div>
+      <div className={isEmbedded ? "" : "min-h-screen bg-gray-50 dark:bg-gray-900"}>
+        <div className={isEmbedded ? "" : "mx-auto px-4 sm:px-6 lg:px-8 py-8"}>
+          {/* Header Skeleton - Only match layout structure if needed */}
+          {!isEmbedded && (
+            <div className="mb-8">
+              <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
+              <div className="h-10 w-80 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+              <div className="h-4 w-96 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+            </div>
+          )}
 
           {/* Informasi Mahasiswa Skeleton */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
@@ -654,12 +671,12 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {Array.from({ length: 4 }).map((_, i) => (
+              {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="space-y-2">
                   <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
                   <div className="h-5 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                  </div>
-                ))}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -693,8 +710,8 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
-                  <div className="h-12 w-full bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
-                </div>
+                <div className="h-12 w-full bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+              </div>
               <div className="flex gap-4">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="h-12 w-32 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
@@ -709,8 +726,8 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
                 <div className="h-10 w-24 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"></div>
-                </div>
               </div>
+            </div>
             <div className="overflow-x-auto hide-scrollbar" style={{
               scrollbarWidth: 'none', /* Firefox */
               msOverflowStyle: 'none', /* Internet Explorer 10+ */
@@ -746,15 +763,17 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className={isEmbedded ? "p-8" : "min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center"}>
         <div className="text-center">
           <p className="text-red-500 mb-4">{error}</p>
-          <button
-            onClick={() => window.history.back()}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-          >
-            Kembali
-          </button>
+          {!isEmbedded && (
+            <button
+              onClick={() => window.history.back()}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+            >
+              Kembali
+            </button>
+          )}
         </div>
       </div>
     );
@@ -762,7 +781,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
 
   if (!mahasiswaData) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className={isEmbedded ? "p-8" : "min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center"}>
         <div className="text-center">
           <p className="text-gray-500 dark:text-gray-400">
             Data mahasiswa tidak ditemukan
@@ -781,196 +800,183 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
           }
         `
       }} />
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
+      <div className={isEmbedded ? "" : "min-h-screen bg-gray-50 dark:bg-gray-900"}>
+        <div className={isEmbedded ? "" : "mx-auto px-4 sm:px-6 lg:px-8 py-8"}>
+          {/* Header - Only render if not embedded */}
+          {!isEmbedded && (
+            <div className="mb-8">
               <button
                 onClick={() => window.history.back()}
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition mb-4"
+                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition mb-4"
               >
                 <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
                 Kembali
               </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Detail Keabsenan Mahasiswa
-            </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-              Rekapitulasi dan detail kehadiran mahasiswa dalam kegiatan akademik
-            </p>
-        </div>
-
-        {/* Informasi Mahasiswa */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
-              <FontAwesomeIcon icon={faUser} className="w-6 h-6 text-white" />
-              </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                  {mahasiswaData.nama}
-                </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {mahasiswaData.nid} • Semester {mahasiswaData.semester}
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Detail Keabsenan Mahasiswa
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Rekapitulasi dan detail kehadiran mahasiswa dalam kegiatan akademik
               </p>
             </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
-              <p className="text-sm text-gray-900 dark:text-white font-medium">
+          )}
+
+
+
+          {/* Informasi Mahasiswa */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
+                <FontAwesomeIcon icon={faUser} className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {mahasiswaData.nama}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {mahasiswaData.nid} • {mahasiswaData.status === 'lulus' ? 'Lulus' : `Semester ${mahasiswaData.semester}`}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
+                <p className="text-sm text-gray-900 dark:text-white font-medium">
                   {mahasiswaData.email}
                 </p>
               </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Telepon
-              </p>
-              <p className="text-sm text-gray-900 dark:text-white font-medium">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Telepon
+                </p>
+                <p className="text-sm text-gray-900 dark:text-white font-medium">
                   {mahasiswaData.telp}
                 </p>
               </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Kelompok Kecil
-              </p>
-              <p className="text-sm text-gray-900 dark:text-white font-medium">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Kelompok Kecil
+                </p>
+                <p className="text-sm text-gray-900 dark:text-white font-medium">
                   {mahasiswaData.kelompok_kecil || "-"}
                 </p>
               </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Kelompok Besar
-              </p>
-              <p className="text-sm text-gray-900 dark:text-white font-medium">
-                  Semester {mahasiswaData.semester}
-                </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Statistik Kehadiran */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                <FontAwesomeIcon
-                  icon={faCheckCircle}
-                  className="w-6 h-6 text-white"
-                />
-              </div>
-              <div>
+              <div className="space-y-2">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Hadir
+                  Kelompok Besar
                 </p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {mahasiswaData.total_kehadiran}
+                <p className="text-sm text-gray-900 dark:text-white font-medium">
+                  {mahasiswaData.status === 'lulus' ? 'Lulus' : `Semester ${mahasiswaData.semester}`}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
-                <FontAwesomeIcon
-                  icon={faTimesCircle}
-                  className="w-6 h-6 text-white"
-                />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Tidak Hadir
-                </p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {mahasiswaData.total_absensi}
-                </p>
+          {/* Statistik Kehadiran */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-6 h-6 text-white"
+                  />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Hadir
+                  </p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">
+                    {mahasiswaData.total_kehadiran}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gray-500 rounded-xl flex items-center justify-center">
-                <FontAwesomeIcon
-                  icon={faClock}
-                  className="w-6 h-6 text-white"
-                />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Menunggu
-                </p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {mahasiswaData.total_waiting}
-                </p>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faTimesCircle}
+                    className="w-6 h-6 text-white"
+                  />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Tidak Hadir
+                  </p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">
+                    {mahasiswaData.total_absensi}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                <FontAwesomeIcon
-                  icon={faChartBar}
-                  className="w-6 h-6 text-white"
-                />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Persentase
-                </p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {mahasiswaData.persentase_kehadiran.toFixed(1)}%
-                </p>
+
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faChartBar}
+                    className="w-6 h-6 text-white"
+                  />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Persentase
+                  </p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">
+                    {mahasiswaData.persentase_kehadiran.toFixed(1)}%
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
           {/* Status Kehadiran */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Status Kehadiran
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Evaluasi keseluruhan kehadiran mahasiswa
-              </p>
-            </div>
-                <span
-              className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${getStatusKehadiranColor(
-                    mahasiswaData.status_kehadiran
-                  )}`}
-                >
-                  {getStatusKehadiranLabel(mahasiswaData.status_kehadiran)}
-                </span>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Status Kehadiran
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Evaluasi keseluruhan kehadiran mahasiswa
+                </p>
+              </div>
+              <span
+                className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${getStatusKehadiranColor(
+                  mahasiswaData.status_kehadiran
+                )}`}
+              >
+                {getStatusKehadiranLabel(mahasiswaData.status_kehadiran)}
+              </span>
             </div>
           </div>
 
           {/* Filter dan Search */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FontAwesomeIcon
-                    icon={faSearch}
-                    className="h-5 w-5 text-gray-400"
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FontAwesomeIcon
+                      icon={faSearch}
+                      className="h-5 w-5 text-gray-400"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Cari mata kuliah, dosen, atau ruangan..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
-                <input
-                  type="text"
-                  placeholder="Cari mata kuliah, dosen, atau ruangan..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
               </div>
-            </div>
-            <div className="flex gap-4">
+              <div className="flex gap-4">
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -996,12 +1002,12 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 >
                   <option value="tanggal">Urutkan berdasarkan Tanggal</option>
-                <option value="mata_kuliah">
-                  Urutkan berdasarkan Mata Kuliah
-                </option>
+                  <option value="mata_kuliah">
+                    Urutkan berdasarkan Mata Kuliah
+                  </option>
                   <option value="status">Urutkan berdasarkan Status</option>
                   <option value="jenis_jadwal">Urutkan berdasarkan Jenis</option>
                 </select>
@@ -1013,170 +1019,157 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
                 >
                   <FontAwesomeIcon icon={faSort} className="w-5 h-5" />
                 </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Detail Kehadiran */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          {/* Detail Kehadiran */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Detail Kehadiran
                 </h3>
-              <button
-                onClick={exportPDF}
-                className="inline-flex text-sm items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
-              >
-                <FontAwesomeIcon icon={faDownload} className="w-3 h-3" />
-                Export PDF
-              </button>
+                <button
+                  onClick={exportPDF}
+                  className="inline-flex text-sm items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
+                >
+                  <FontAwesomeIcon icon={faDownload} className="w-3 h-3" />
+                  Export PDF
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div 
-            className="overflow-x-auto hide-scrollbar"
-            style={{
-              scrollbarWidth: 'none', /* Firefox */
-              msOverflowStyle: 'none', /* Internet Explorer 10+ */
-            }}
-          >
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Tanggal
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Mata Kuliah
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Tipe
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Jenis
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Waktu
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Ruangan
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Dosen
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Alasan/Catatan
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredKehadiran.map((item, index) => (
-                  <tr
-                    key={item.id}
-                    className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                      index % 2 === 0
+            <div
+              className="overflow-x-auto hide-scrollbar"
+              style={{
+                scrollbarWidth: 'none', /* Firefox */
+                msOverflowStyle: 'none', /* Internet Explorer 10+ */
+              }}
+            >
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Tanggal
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Mata Kuliah
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Tipe
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Jenis
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Waktu
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Ruangan
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Dosen
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Alasan/Catatan
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredKehadiran.map((item, index) => (
+                    <tr
+                      key={`${item.jenis_jadwal}-${item.id}`}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${index % 2 === 0
                         ? "bg-white dark:bg-gray-800"
                         : "bg-gray-50 dark:bg-gray-700"
-                    }`}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        }`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {formatDate(item.tanggal)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                         {item.mata_kuliah}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                         {item.jenis_detail || "-"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getJenisJadwalColor(
-                          item.jenis_jadwal
-                        )}`}
-                      >
-                        {getJenisJadwalLabel(item.jenis_jadwal)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <FontAwesomeIcon
-                          icon={getStatusIcon(item.status)}
-                          className={`w-4 h-4 ${
-                            item.status === "hadir"
-                              ? "text-white"
-                              : item.status === "tidak_hadir"
-                              ? "text-white"
-                              : item.status === "waiting"
-                              ? "text-white"
-                              : "text-white"
-                          }`}
-                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getJenisJadwalColor(
+                            item.jenis_jadwal
+                          )}`}
+                        >
+                          {getJenisJadwalLabel(item.jenis_jadwal)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
                             item.status
                           )}`}
                         >
+                          <FontAwesomeIcon
+                            icon={getStatusIcon(item.status)}
+                            className="w-3 h-3"
+                          />
                           {item.status === "tidak_hadir"
                             ? "Tidak Hadir"
                             : item.status === "hadir"
-                            ? "Hadir"
-                            : item.status === "waiting"
-                            ? "Menunggu"
-                            : item.status}
+                              ? "Hadir"
+                              : item.status}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {item.jam_mulai} - {item.jam_selesai}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {item.ruangan}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {item.dosen}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {item.alasan || "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          {filteredKehadiran.length === 0 && (
-            <div className="text-center py-12">
+            {filteredKehadiran.length === 0 && (
+              <div className="text-center py-12">
                 <FontAwesomeIcon
                   icon={faCalendarAlt}
-                className="w-12 h-12 text-gray-400 mx-auto mb-4"
-              />
-              <p className="text-gray-500 dark:text-gray-400">
-                Tidak ada data kehadiran yang sesuai dengan filter
-              </p>
-            </div>
-          )}
-        </div>
+                  className="w-12 h-12 text-gray-400 mx-auto mb-4"
+                />
+                <p className="text-gray-500 dark:text-gray-400">
+                  Tidak ada data kehadiran yang sesuai dengan filter
+                </p>
+              </div>
+            )}
+          </div>
 
-        {/* Summary */}
-        <div className="mt-8 text-center">
-          <p className="text-gray-600 dark:text-gray-400">
-            Menampilkan{" "}
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {filteredKehadiran.length}
-            </span>{" "}
-            dari{" "}
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {mahasiswaData.detail_kehadiran.length}
-            </span>{" "}
-            data kehadiran
-          </p>
+          {/* Summary */}
+          <div className="mt-8 text-center">
+            <p className="text-gray-600 dark:text-gray-400">
+              Menampilkan{" "}
+              <span className="font-semibold text-gray-900 dark:text-white">
+                {filteredKehadiran.length}
+              </span>{" "}
+              dari{" "}
+              <span className="font-semibold text-gray-900 dark:text-white">
+                {mahasiswaData.detail_kehadiran.length}
+              </span>{" "}
+              data kehadiran
+            </p>
+          </div>
         </div>
-      </div>
-    </div>
+      </div >
     </>
   );
 };

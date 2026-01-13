@@ -46,6 +46,11 @@ class TahunAjaranController extends Controller
                 'jenis' => 'Genap',
                 'aktif' => false,
             ]);
+
+            $tahunAjaran->semesters()->create([
+                'jenis' => 'Antara',
+                'aktif' => false,
+            ]);
             
             return $tahunAjaran;
         });
@@ -67,12 +72,12 @@ class TahunAjaranController extends Controller
         return response()->json(null, 204);
     }
 
-    public function activate(TahunAjaran $tahunAjaran)
+    public function activate(Request $request, TahunAjaran $tahunAjaran)
     {
         // Simpan semester lama untuk perbandingan
         $oldSemester = $this->semesterService->getActiveSemester();
         
-        DB::transaction(function () use ($tahunAjaran) {
+        $result = DB::transaction(function () use ($request, $tahunAjaran, $oldSemester) {
             // Deactivate all other academic years
             TahunAjaran::where('id', '!=', $tahunAjaran->id)->update(['aktif' => false]);
             
@@ -90,11 +95,17 @@ class TahunAjaranController extends Controller
             if ($firstSemester) {
                 $firstSemester->update(['aktif' => true]);
             }
+            
+            // Update student semesters if requested
+            if ($request->boolean('update_student_semester')) {
+                $this->semesterService->updateAllStudentSemesters($oldSemester, $firstSemester);
+            }
+            
+            return $tahunAjaran->load('semesters');
         });
 
         // PENTING: Data master mahasiswa TIDAK diubah saat pergantian tahun ajaran
-        // Field semester (1-8) di tabel users tetap seperti semula
-        // Kelompok sudah terpisah per semester_id (Ganjil/Genap berbeda)
+        // KECUALI jika update_student_semester = true
         
         // Clear cache users saat pergantian tahun ajaran untuk refresh data
         Cache::flush();
@@ -102,12 +113,13 @@ class TahunAjaranController extends Controller
         activity()
             ->causedBy(Auth::user())
             ->performedOn($tahunAjaran)
+            ->withProperties(['update_student_semester' => $request->boolean('update_student_semester')])
             ->log("Mengaktifkan tahun ajaran {$tahunAjaran->tahun}");
 
-        return response()->json($tahunAjaran->load('semesters'));
+        return response()->json($result);
     }
     
-    public function activateSemester(Semester $semester)
+    public function activateSemester(Request $request, Semester $semester)
     {
         // A semester can only be activated if its parent tahun_ajaran is active
         if (!$semester->tahunAjaran->aktif) {
@@ -117,18 +129,20 @@ class TahunAjaranController extends Controller
         // Simpan semester lama untuk perbandingan
         $oldSemester = $this->semesterService->getActiveSemester();
 
-        DB::transaction(function () use ($semester) {
+        $result = DB::transaction(function () use ($request, $semester, $oldSemester) {
             // Deactivate all other semesters
             Semester::where('id', '!=', $semester->id)->update(['aktif' => false]);
 
             // Activate the selected semester
             $semester->update(['aktif' => true]);
+            
+            // Update student semesters if requested
+            if ($request->boolean('update_student_semester')) {
+                $this->semesterService->updateAllStudentSemesters($oldSemester, $semester);
+            }
+            
+            return $semester->load('tahunAjaran.semesters');
         });
-
-        // PENTING: Data master mahasiswa TIDAK diubah saat pergantian semester
-        // Field semester (1-8) di tabel users tetap seperti semula
-        // Kelompok sudah terpisah per semester_id (Ganjil/Genap berbeda)
-        // Kelompok hanya dibuat saat Generate, tidak diupdate otomatis
         
         // Clear cache users saat pergantian semester untuk refresh data
         Cache::flush();
@@ -136,10 +150,14 @@ class TahunAjaranController extends Controller
         activity()
             ->causedBy(Auth::user())
             ->performedOn($semester->tahunAjaran)
-            ->withProperties(['semester_id' => $semester->id, 'jenis' => $semester->jenis])
+            ->withProperties([
+                'semester_id' => $semester->id, 
+                'jenis' => $semester->jenis,
+                'update_student_semester' => $request->boolean('update_student_semester')
+            ])
             ->log("Mengaktifkan semester {$semester->jenis} pada tahun ajaran {$semester->tahunAjaran->tahun}");
         
-        return response()->json($semester->load('tahunAjaran.semesters'));
+        return response()->json($result);
     }
 
     public function active()

@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import PageBreadCrumb from '../components/common/PageBreadCrumb';
 import BoxCubeIcon from '../icons/box-cube.svg';
 import { pblGenerateApi } from '../api/generateApi';
+import api from '../utils/api';
 
 // Dummy blok data (replace with API call if needed)
 const blokList = [
@@ -29,23 +30,39 @@ export default function PBL() {
   const [blokStatuses, setBlokStatuses] = useState<BlokStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [showClearCacheModal, setShowClearCacheModal] = useState(false);
+  const [activeSemester, setActiveSemester] = useState<string | null>(null);
 
   // Fungsi untuk refresh status blok
   const refreshBlokStatus = async () => {
     setLoading(true);
-    
+
     try {
+      // Fetch active semester first
+      let currentActiveSemester = activeSemester;
+      if (!currentActiveSemester) {
+        try {
+          const tahunAjaranRes = await api.get('/tahun-ajaran/active');
+          const semester = tahunAjaranRes.data?.semesters?.[0];
+          if (semester && semester.jenis) {
+            currentActiveSemester = semester.jenis;
+            setActiveSemester(currentActiveSemester);
+          }
+        } catch (error) {
+          console.error('Failed to fetch active semester:', error);
+        }
+      }
+
       const statusPromises = blokList.map(async (blok) => {
         try {
-          const response = await pblGenerateApi.checkGenerateStatus(blok.blokId);
-          
+          const response = await pblGenerateApi.checkGenerateStatus(blok.blokId, currentActiveSemester);
+
           // Hanya gunakan data dari API (database)
           const responseData = response.data;
           const isGenerated = responseData.success && responseData.data?.is_generated === true;
           const assignmentCount = responseData.data?.assignment_count || 0;
           const pblCount = responseData.data?.pbl_count || 0;
           const message = responseData.data?.message || 'Status unknown';
-          
+
           return {
             blokId: blok.blokId,
             nama: blok.nama,
@@ -61,13 +78,13 @@ export default function PBL() {
             status: error.response?.status,
             data: error.response?.data
           });
-          
+
           // Retry dengan delay
           await new Promise(resolve => setTimeout(resolve, 2000));
-          
+
           try {
-            const retryResponse = await pblGenerateApi.checkGenerateStatus(blok.blokId);
-            
+            const retryResponse = await pblGenerateApi.checkGenerateStatus(blok.blokId, currentActiveSemester);
+
             return {
               blokId: blok.blokId,
               nama: blok.nama,
@@ -78,7 +95,7 @@ export default function PBL() {
             };
           } catch (retryError) {
             console.error(`❌ Retry failed for blok ${blok.blokId}:`, retryError);
-            
+
             // Jika retry gagal, return status false
             return {
               blokId: blok.blokId,
@@ -104,12 +121,12 @@ export default function PBL() {
   // Cek status generate untuk semua blok
   useEffect(() => {
     refreshBlokStatus();
-    
+
     // Auto refresh setiap 5 menit (300000ms) - tidak terlalu sering
     const interval = setInterval(() => {
       refreshBlokStatus();
     }, 300000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -161,7 +178,7 @@ export default function PBL() {
                 </svg>
                 {loading ? 'Loading...' : 'Refresh'}
               </button>
-              
+
               <button
                 onClick={handleClearCache}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200"
@@ -216,18 +233,16 @@ export default function PBL() {
               {blokStatuses.map((blok) => (
                 <div
                   key={blok.blokId}
-                  className={`group block rounded-xl border shadow-theme-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-theme-lg px-6 py-8 ${
-                    blok.isGenerated
-                      ? 'border-green-200 bg-white dark:border-green-800 dark:bg-white/[0.03] hover:border-green-500'
-                      : 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50 hover:border-orange-500'
-                  }`}
+                  className={`group block rounded-xl border shadow-theme-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-theme-lg px-6 py-8 ${blok.isGenerated
+                    ? 'border-green-200 bg-white dark:border-green-800 dark:bg-white/[0.03] hover:border-green-500'
+                    : 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50 hover:border-orange-500'
+                    }`}
                 >
                   <div className="flex flex-col items-center text-center gap-4">
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors duration-200 ${
-                      blok.isGenerated
-                        ? 'bg-green-500 group-hover:bg-green-600'
-                        : 'bg-orange-500 group-hover:bg-orange-600'
-                    }`}>
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors duration-200 ${blok.isGenerated
+                      ? 'bg-green-500 group-hover:bg-green-600'
+                      : 'bg-orange-500 group-hover:bg-orange-600'
+                      }`}>
                       {blok.isGenerated ? (
                         <FontAwesomeIcon icon={faCheckCircle} className="w-8 h-8 text-white" />
                       ) : (
@@ -235,9 +250,8 @@ export default function PBL() {
                       )}
                     </div>
                     <div>
-                      <span className={`text-xl font-semibold block mb-1 ${
-                        blok.isGenerated ? 'text-green-500' : 'text-orange-500'
-                      }`}>
+                      <span className={`text-xl font-semibold block mb-1 ${blok.isGenerated ? 'text-green-500' : 'text-orange-500'
+                        }`}>
                         {blok.nama}
                       </span>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -256,11 +270,10 @@ export default function PBL() {
                       <button
                         onClick={() => handleLihatDetail(blok.blokId)}
                         disabled={!blok.isGenerated}
-                        className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition ${
-                          blok.isGenerated
-                            ? 'bg-brand-500 text-white hover:bg-brand-600'
-                            : 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
-                        }`}
+                        className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition ${blok.isGenerated
+                          ? 'bg-brand-500 text-white hover:bg-brand-600'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
+                          }`}
                       >
                         Lihat Detail
                       </button>
@@ -277,7 +290,7 @@ export default function PBL() {
               ))}
             </div>
           )}
-          
+
           {/* Keahlian Management Section */}
           <div className="mt-8 p-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl">
             <div className="flex items-center gap-3 mb-4">
@@ -309,7 +322,7 @@ export default function PBL() {
         {showClearCacheModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -317,7 +330,7 @@ export default function PBL() {
               onClick={handleCancelClearCache}
             ></motion.div>
             {/* Modal Content */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -344,14 +357,14 @@ export default function PBL() {
                   />
                 </svg>
               </button>
-              
+
               <div>
                 <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
                     Clear Cache
                   </h2>
                 </div>
-                
+
                 <div className="mb-6">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
@@ -378,7 +391,7 @@ export default function PBL() {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <div className="flex items-start space-x-3">
                       <svg
@@ -399,13 +412,13 @@ export default function PBL() {
                           Peringatan Keadaan Darurat!
                         </p>
                         <p className="text-sm text-red-700 dark:text-red-300">
-                          Tindakan ini akan menghapus semua cache status generate PBL. 
+                          Tindakan ini akan menghapus semua cache status generate PBL.
                           <strong> Sebelum melanjutkan, hubungi developer atau administrator sistem.</strong>
                         </p>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     <p className="mb-2">Tindakan ini akan:</p>
                     <ul className="list-disc list-inside space-y-1 ml-2">
@@ -415,7 +428,7 @@ export default function PBL() {
                     </ul>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end gap-2 pt-2 relative z-20">
                   <button
                     onClick={handleCancelClearCache}

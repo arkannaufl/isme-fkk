@@ -95,6 +95,18 @@ export default function UserIKD() {
     try {
       setLoading(true);
       setError(null);
+
+      // Get current user's role
+      const getUser = () => {
+        try {
+          return JSON.parse(localStorage.getItem("user") || "{}");
+        } catch {
+          return {};
+        }
+      };
+      const currentUser = getUser();
+      const currentUserRole = currentUser?.role || "";
+
       // Mapping Unit Kerja ke role format
       const roleMapping: { [key: string]: string } = {
         Akademik: "akademik", // Role baru, berbeda dari tim_akademik
@@ -113,11 +125,24 @@ export default function UserIKD() {
       const allUsers: UserIKD[] = [];
       let fetchErrors: string[] = [];
 
+      // Determine which roles to fetch based on current user's role
+      // super_admin and ketua_ikd can see all IKD users
+      const isSuperAdminOrKetuaIKD = currentUserRole === "super_admin" || currentUserRole === "ketua_ikd";
+
       // Fetch users untuk setiap role yang sesuai dengan Unit Kerja
       // Catatan: "Dosen" tidak di-fetch karena sudah ada di halaman Dosen sendiri
+      console.log('Current user role:', currentUserRole);
+      console.log('Is super_admin or ketua_ikd:', isSuperAdminOrKetuaIKD);
+      console.log('Fetching users for roles:', UNIT_KERJA_OPTIONS);
+
       for (const unitKerja of UNIT_KERJA_OPTIONS) {
         const role = roleMapping[unitKerja];
-        if (!role) continue;
+        if (!role) {
+          console.warn(`No role mapping found for ${unitKerja}`);
+          continue;
+        }
+
+        console.log(`Fetching users for role: ${role} (${unitKerja})`);
 
         try {
           // Tambahkan timestamp untuk cache busting agar mendapatkan data terbaru
@@ -129,6 +154,9 @@ export default function UserIKD() {
               _t: cacheBuster
             }
           }); // Request 2000 items per page for consistency with master data
+
+          console.log(`Response for ${role}:`, res.data);
+
           let users: any[] = [];
 
           // Handle berbagai format response
@@ -156,6 +184,8 @@ export default function UserIKD() {
             }
           }
 
+          console.log(`Found ${users.length} users for role ${role}`);
+
           // Map role kembali ke Unit Kerja format untuk display
           const mappedUsers = users.map((user) => ({
             ...user,
@@ -166,7 +196,7 @@ export default function UserIKD() {
         } catch (err: any) {
           // Log error tapi continue untuk role lain
           const errorMsg = err?.response?.data?.message || err?.message || 'Unknown error';
-          console.warn(`Error fetching users for role ${role} (${unitKerja}):`, errorMsg);
+          console.error(`Error fetching users for role ${role} (${unitKerja}):`, errorMsg, err);
           fetchErrors.push(`${unitKerja}: ${errorMsg}`);
           continue;
         }
