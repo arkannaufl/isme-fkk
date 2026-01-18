@@ -40,7 +40,6 @@ interface JadwalNonBlokNonCSR {
   dosen_id?: number;
   dosen_ids?: number[];
   ruangan_id: number | null;
-  kelompok_besar_id?: number | null;
   kelompok_besar_antara_id?: number | null;
   use_ruangan?: boolean;
   dosen_names?: string;
@@ -71,14 +70,14 @@ interface RuanganOption {
   gedung?: string;
 }
 
-export default function DetailNonBlokNonCSR() {
+export default function DetailNonBlokNonCSRAntara() {
   const { kode } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<MataKuliah | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State untuk modal input jadwal materi
+  // State untuk modal input materi kuliah
   const [showModal, setShowModal] = useState(false);
   const [jadwalMateri, setJadwalMateri] = useState<JadwalNonBlokNonCSR[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -100,25 +99,24 @@ export default function DetailNonBlokNonCSR() {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedDeleteIndex, setSelectedDeleteIndex] = useState<number | null>(null);
-  
+
   // State untuk bulk delete
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  
+
   // State untuk dropdown options
   const [dosenList, setDosenList] = useState<DosenOption[]>([]);
   const [ruanganList, setRuanganList] = useState<RuanganOption[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
-  const [kelompokBesarAgendaOptions, setKelompokBesarAgendaOptions] = useState<{id: string | number, label: string, jumlah_mahasiswa: number}[]>([]);
-  const [kelompokBesarAntaraOptions, setKelompokBesarAntaraOptions] = useState<{id: number, label: string, jumlah_mahasiswa: number, mahasiswa_ids?: number[], mahasiswa?: {id: number, name: string, email: string, ipk?: number}[]}[]>([]);
+  const [kelompokBesarOptions, setKelompokBesarOptions] = useState<{ id: number, label: string, jumlah_mahasiswa: number, mahasiswa_ids?: number[], mahasiswa?: { id: number, name: string, email: string, ipk?: number }[] }[]>([]);
   const [showKelompokBesarAntaraModal, setShowKelompokBesarAntaraModal] = useState(false);
 
   // Pagination state for Non-CSR schedule
   const [nonCsrPage, setNonCsrPage] = useState(1);
   const [nonCsrPageSize, setNonCsrPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  
+
   // Memoized ruangan options untuk optimisasi performa
   const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
 
@@ -136,11 +134,11 @@ export default function DetailNonBlokNonCSR() {
   const resetPagination = useCallback(() => {
     setNonCsrPage(1);
   }, []);
-  
+
   // State untuk modal kelola kelompok
   const [activeTab, setActiveTab] = useState<'besar' | 'kecil'>('besar');
-  const [selectedMahasiswa, setSelectedMahasiswa] = useState<{id: number, name: string, email: string, ipk?: number}[]>([]);
-  const [allMahasiswaOptions, setAllMahasiswaOptions] = useState<{id: number, name: string, email: string, ipk?: number}[]>([]);
+  const [selectedMahasiswa, setSelectedMahasiswa] = useState<{ id: number, name: string, email: string, ipk?: number }[]>([]);
+  const [allMahasiswaOptions, setAllMahasiswaOptions] = useState<{ id: number, name: string, email: string, ipk?: number }[]>([]);
   const [isLoadingMahasiswa, setIsLoadingMahasiswa] = useState(false);
   const [isLoadingKelompok, setIsLoadingKelompok] = useState(false);
   const [isCreatingKelompok, setIsCreatingKelompok] = useState(false);
@@ -154,12 +152,8 @@ export default function DetailNonBlokNonCSR() {
     nama_kelompok: '',
     mahasiswa_ids: [] as number[]
   });
-  const [kelompokKecilAntaraList, setKelompokKecilAntaraList] = useState<{id: number, nama_kelompok: string, mahasiswa_ids: number[]}[]>([]);
-  const [isLoadingKelompokKecil, setIsLoadingKelompokKecil] = useState(false);
-  const [searchMahasiswaKelompokKecil, setSearchMahasiswaKelompokKecil] = useState('');
-  const [filterIPKKelompokKecil, setFilterIPKKelompokKecil] = useState('semua');
+  const [kelompokKecilAntaraList, setKelompokKecilAntaraList] = useState<{ id: number, nama_kelompok: string, mahasiswa_ids: number[] }[]>([]);
   const [isCreatingKelompokKecilAntara, setIsCreatingKelompokKecilAntara] = useState(false);
-  const [isLoadingKelompokKecilAntara, setIsLoadingKelompokKecilAntara] = useState(false);
 
   // Reset form function - optimized with useCallback
   const resetForm = useCallback(() => {
@@ -181,27 +175,12 @@ export default function DetailNonBlokNonCSR() {
     setErrorBackend('');
   }, []);
 
-  // Fetch kelompok besar options untuk agenda khusus
-  const fetchKelompokBesarAgendaOptions = async () => {
-    if (!data) return;
-    try {
-      // Halaman ini khusus untuk semester Antara, selalu gunakan kelompok besar antara
-      const res = await api.get(`/kelompok-besar-antara`);
-      setKelompokBesarAgendaOptions(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      // Error handling is done by handleApiError
-    }
-  };
-
-
-
-  // Fetch kelompok besar antara options
-  const fetchKelompokBesarAntaraOptions = async () => {
+  // Fetch kelompok besar options
+  const fetchKelompokBesarOptions = async () => {
     if (!data) return;
     try {
       const res = await api.get(`/kelompok-besar-antara`);
-      
-      setKelompokBesarAntaraOptions(Array.isArray(res.data) ? res.data : []);
+      setKelompokBesarOptions(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       // Error handling is done by handleApiError
     }
@@ -231,7 +210,7 @@ export default function DetailNonBlokNonCSR() {
       await api.post(`/kelompok-besar-antara`, kelompokBesarAntaraForm);
       setKelompokBesarAntaraForm({ nama_kelompok: '', mahasiswa_ids: [] });
       setSelectedMahasiswa([]);
-      await fetchKelompokBesarAntaraOptions();
+      await fetchKelompokBesarOptions();
       alert('Kelompok besar berhasil dibuat!');
     } catch (err) {
       alert('Gagal membuat kelompok besar antara');
@@ -242,12 +221,12 @@ export default function DetailNonBlokNonCSR() {
 
   const deleteKelompokBesarAntara = async (id: number) => {
     if (!data) return;
-    
+
     if (!confirm('Apakah Anda yakin ingin menghapus kelompok ini?')) return;
-    
+
     try {
       await api.delete(`/kelompok-besar-antara/${id}`);
-      await fetchKelompokBesarAntaraOptions();
+      await fetchKelompokBesarOptions();
     } catch (err) {
       alert('Gagal menghapus kelompok besar antara');
     }
@@ -255,14 +234,14 @@ export default function DetailNonBlokNonCSR() {
 
   const fetchKelompokKecilAntara = async () => {
     if (!data) return;
-    setIsLoadingKelompokKecil(true);
+    setIsLoadingKelompok(true);
     try {
       const res = await api.get(`/kelompok-kecil-antara`);
       setKelompokKecilAntaraList(res.data || []);
     } catch (err) {
       // Error handling is done by handleApiError
     } finally {
-      setIsLoadingKelompokKecil(false);
+      setIsLoadingKelompok(false);
     }
   };
 
@@ -288,9 +267,9 @@ export default function DetailNonBlokNonCSR() {
 
   const deleteKelompokKecilAntara = async (id: number) => {
     if (!data) return;
-    
+
     if (!confirm('Apakah Anda yakin ingin menghapus kelompok ini?')) return;
-    
+
     try {
       await api.delete(`/kelompok-kecil-antara/${id}`);
       await fetchKelompokKecilAntara();
@@ -301,7 +280,7 @@ export default function DetailNonBlokNonCSR() {
 
   const getTotalGroupedStudents = () => {
     const allGroupedStudents = new Set([
-      ...kelompokBesarAntaraOptions.flatMap(k => k.mahasiswa?.map(m => m.id) || []),
+      ...kelompokBesarOptions.flatMap(k => k.mahasiswa?.map(m => m.id) || []),
       ...kelompokKecilAntaraList.flatMap(k => k.mahasiswa_ids)
     ]);
     return allGroupedStudents.size;
@@ -312,7 +291,7 @@ export default function DetailNonBlokNonCSR() {
 
     // Filter berdasarkan pencarian
     if (searchMahasiswa) {
-      filtered = filtered.filter(m => 
+      filtered = filtered.filter(m =>
         m.name.toLowerCase().includes(searchMahasiswa.toLowerCase()) ||
         m.email.toLowerCase().includes(searchMahasiswa.toLowerCase())
       );
@@ -337,24 +316,24 @@ export default function DetailNonBlokNonCSR() {
   // Fetch batch data untuk optimasi performa - optimized with useCallback
   const fetchBatchData = useCallback(async () => {
     if (!kode) return;
-    
+
     setLoading(true);
-    
+
     try {
       const response = await api.get(`/non-blok-non-csr/${kode}/batch-data`);
       const batchData = response.data;
-      
+
       // Set mata kuliah data
       setData(batchData.mata_kuliah);
-      
+
       // Set jadwal Non-Blok Non-CSR data
       setJadwalMateri(batchData.jadwal_non_blok_non_csr);
-      
+
       // Set reference data
       setDosenList(batchData.dosen_list);
       setRuanganList(batchData.ruangan_list);
       setJamOptions(batchData.jam_options);
-      
+
     } catch (error: any) {
       setError(handleApiError(error, 'Memuat data batch'));
     } finally {
@@ -365,16 +344,16 @@ export default function DetailNonBlokNonCSR() {
   // Helper functions - optimized with useCallback
   const formatTanggalKonsisten = useCallback((dateStr: string) => {
     if (!dateStr) return '';
-    
+
     const date = new Date(dateStr);
     const hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const hariIndo = hari[date.getDay()];
-    
+
     // Format tanggal DD/MM/YYYY
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
-    
+
     return `${hariIndo}, ${day}/${month}/${year}`;
   }, []);
 
@@ -437,7 +416,7 @@ export default function DetailNonBlokNonCSR() {
 
   function handleEditJadwal(idx: number) {
     const row = jadwalMateri[idx];
-    
+
     // Format tanggal untuk input date (YYYY-MM-DD)
     let formattedTanggal = '';
     if (row.tanggal) {
@@ -450,13 +429,13 @@ export default function DetailNonBlokNonCSR() {
         formattedTanggal = '';
       }
     }
-    
+
     // Konversi format jam dari HH:MM ke HH.MM untuk dropdown
     const formatJamUntukDropdown = (jam: string) => {
       if (!jam) return '';
       return jam.replace(':', '.');
     };
-    
+
     setForm({
       hariTanggal: formattedTanggal,
       jamMulai: formatJamUntukDropdown(row.jam_mulai),
@@ -480,10 +459,10 @@ export default function DetailNonBlokNonCSR() {
     const jadwal = jadwalMateri[idx];
     try {
       await api.delete(`/non-blok-non-csr/jadwal/${kode}/${jadwal.id}`);
-      
+
       // Refresh data dengan batch API
       await fetchBatchData();
-      
+
       setShowDeleteModal(false);
       setSelectedDeleteIndex(null);
     } catch (error: any) {
@@ -498,26 +477,26 @@ export default function DetailNonBlokNonCSR() {
 
   const confirmBulkDelete = async () => {
     if (!kode) return;
-    
+
     setIsBulkDeleting(true);
-    
+
     try {
       // Delete all selected items
       await Promise.all(selectedItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
-      
+
       // Show success message
       setSuccessMessage(`${selectedItems.length} jadwal berhasil dihapus.`);
       setTimeout(() => setSuccessMessage(''), 3000);
-      
+
       // Clear selected items
       setSelectedItems([]);
-      
+
       // Close modal after successful delete
       setShowBulkDeleteModal(false);
-      
+
       // Refresh data
       await fetchBatchData();
-      
+
     } catch (error) {
       setErrorBackend('Gagal menghapus jadwal yang dipilih');
     } finally {
@@ -527,7 +506,7 @@ export default function DetailNonBlokNonCSR() {
 
   const handleSelectAll = (allItems: any[]) => {
     const allIds = allItems.map(item => item.id).filter(id => id !== undefined);
-    
+
     if (selectedItems.length === allIds.length) {
       setSelectedItems([]);
     } else {
@@ -550,7 +529,7 @@ export default function DetailNonBlokNonCSR() {
       setErrorForm('Semua field wajib harus diisi!');
       return;
     }
-    
+
     setIsSaving(true);
     try {
       const jadwalData = {
@@ -567,16 +546,16 @@ export default function DetailNonBlokNonCSR() {
         use_ruangan: form.useRuangan,
       };
 
-    if (editIndex !== null) {
+      if (editIndex !== null) {
         const jadwal = jadwalMateri[editIndex];
         await api.put(`/non-blok-non-csr/jadwal/${kode}/${jadwal.id}`, jadwalData);
       } else {
         await api.post(`/non-blok-non-csr/jadwal/${kode}`, jadwalData);
       }
-      
+
       // Refresh data dengan batch API
       await fetchBatchData();
-      
+
       setShowModal(false);
       resetForm();
     } catch (error: any) {
@@ -594,7 +573,7 @@ export default function DetailNonBlokNonCSR() {
   // Fetch kelompok besar options saat modal agenda khusus dibuka
   useEffect(() => {
     if (showModal && form.jenisBaris === 'agenda') {
-      fetchKelompokBesarAgendaOptions();
+      fetchKelompokBesarOptions();
     }
   }, [showModal, form.jenisBaris]);
 
@@ -603,7 +582,7 @@ export default function DetailNonBlokNonCSR() {
   // Fetch kelompok besar antara options saat komponen mount
   useEffect(() => {
     if (data) {
-      fetchKelompokBesarAntaraOptions();
+      fetchKelompokBesarOptions();
     }
   }, [data]);
 
@@ -611,7 +590,7 @@ export default function DetailNonBlokNonCSR() {
   useEffect(() => {
     if (showKelompokBesarAntaraModal) {
       fetchAllMahasiswaOptions();
-      fetchKelompokBesarAntaraOptions();
+      fetchKelompokBesarOptions();
       fetchKelompokKecilAntara();
     }
   }, [showKelompokBesarAntaraModal]);
@@ -621,7 +600,7 @@ export default function DetailNonBlokNonCSR() {
       {/* Header skeleton */}
       <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
       <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
-      
+
       {/* Info Mata Kuliah skeleton */}
       <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
@@ -643,7 +622,7 @@ export default function DetailNonBlokNonCSR() {
           </div>
         ))}
       </div>
-      
+
       {/* Jadwal Non-Blok Non-CSR skeleton */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -719,7 +698,9 @@ export default function DetailNonBlokNonCSR() {
           Kembali
         </button>
       </div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Non CSR Semester {data.semester}</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+        {data.nama}
+      </h1>
       <p className="text-gray-500 dark:text-gray-400 text-base mb-8">Informasi lengkap mata kuliah non blok Non-CSR</p>
 
       {/* Card Info Utama */}
@@ -738,7 +719,7 @@ export default function DetailNonBlokNonCSR() {
             <div className="text-base text-gray-800 dark:text-white">Semester {data.semester}</div>
           </div>
           <div>
-            <div className="mb-2 text-gray-500 text-xs font-semibold suppercase">Periode</div>
+            <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Periode</div>
             <div className="text-base text-gray-800 dark:text-white">{data.periode}</div>
           </div>
           <div>
@@ -760,11 +741,11 @@ export default function DetailNonBlokNonCSR() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Mulai</div>
-          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : data.tanggalMulai ? new Date(data.tanggalMulai).toLocaleDateString('id-ID') : '-' )}</div>
+          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : data.tanggalMulai ? new Date(data.tanggalMulai).toLocaleDateString('id-ID') : '-')}</div>
         </div>
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Akhir</div>
-          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : data.tanggalAkhir ? new Date(data.tanggalAkhir).toLocaleDateString('id-ID') : '-' )}</div>
+          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : data.tanggalAkhir ? new Date(data.tanggalAkhir).toLocaleDateString('id-ID') : '-')}</div>
         </div>
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Durasi Minggu</div>
@@ -792,7 +773,7 @@ export default function DetailNonBlokNonCSR() {
           </div>
           <button
             onClick={() => setShowKelompokBesarAntaraModal(true)}
-            className="px-4 py-2 rounded-lg bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 transition flex items-center space-x-2"
+            className="px-4 py-2 rounded-lg bg-purple-500 text-white text-sm font-medium shadow-theme-xs hover:bg-purple-600 transition-all duration-300 flex items-center space-x-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -802,7 +783,7 @@ export default function DetailNonBlokNonCSR() {
         </div>
       </div>
 
-      {/* TOMBOL TAMBAH JADWAL MATERI */}
+      {/* TOMBOL TAMBAH MATERI KULIAH */}
       <div className="flex justify-end mb-4">
         <button
           onClick={() => {
@@ -832,7 +813,7 @@ export default function DetailNonBlokNonCSR() {
         )}
       </AnimatePresence>
 
-      {/* Tabel Jadwal Materi */}
+      {/* Tabel Materi Kuliah */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03] mt-8">
         <div className="max-w-full overflow-x-auto hide-scroll">
           <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
@@ -881,50 +862,50 @@ export default function DetailNonBlokNonCSR() {
                   nonCsrPage,
                   nonCsrPageSize
                 ).map((row, idx) => (
-                    <tr key={row.id} className={row.jenis_baris === 'agenda' ? 'bg-yellow-50 dark:bg-yellow-900/20' : (idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : '')}>
-                      <td className="px-4 py-4 text-center">
-                        <button
-                          type="button"
-                          aria-checked={selectedItems.includes(row.id!)}
-                          role="checkbox"
-                          onClick={() => handleSelectItem(row.id!)}
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
-                        >
-                          {selectedItems.includes(row.id!) && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                              <polyline points="20 7 11 17 4 10" />
-                            </svg>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(nonCsrPage - 1) * nonCsrPageSize + idx + 1}</td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
-                      {row.jenis_baris === 'agenda' ? (
-                        <>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">-</td>
-                          <td className="px-6 py-4 text-center uppercase bg-yellow-100 dark:bg-yellow-900/40 text-gray-900 dark:text-white whitespace-nowrap">
-                            {row.agenda}
-                          </td>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                            {row.kelompok_besar_antara_id ? `Kelompok Besar Antara ${row.kelompok_besar_antara_id}` : '-'}
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                            {row.dosen_names || row.dosen?.name || ''}
-                          </td>
-                          <td className={`px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90`}>{row.materi}</td>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                            {row.kelompok_besar_antara_id ? `Kelompok Besar Antara ${row.kelompok_besar_antara_id}` : '-'}
-                          </td>
-                        </>
-                      )}
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {row.jenis_baris === 'agenda' && !row.use_ruangan ? '-' : (row.ruangan?.nama || '')}
-                      </td>
+                  <tr key={row.id} className={row.jenis_baris === 'agenda' ? 'bg-yellow-50 dark:bg-yellow-900/20' : (idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : '')}>
+                    <td className="px-4 py-4 text-center">
+                      <button
+                        type="button"
+                        aria-checked={selectedItems.includes(row.id!)}
+                        role="checkbox"
+                        onClick={() => handleSelectItem(row.id!)}
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                      >
+                        {selectedItems.includes(row.id!) && (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                            <polyline points="20 7 11 17 4 10" />
+                          </svg>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(nonCsrPage - 1) * nonCsrPageSize + idx + 1}</td>
+                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
+                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
+                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
+                    {row.jenis_baris === 'agenda' ? (
+                      <>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">-</td>
+                        <td className="px-6 py-4 text-center uppercase bg-yellow-100 dark:bg-yellow-900/40 text-gray-900 dark:text-white whitespace-nowrap">
+                          {row.agenda}
+                        </td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.kelompok_besar_antara_id ? `Kelompok Besar ${row.kelompok_besar_antara_id}` : '-'}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.dosen_names || row.dosen?.name || ''}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90`}>{row.materi}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.kelompok_besar_antara_id ? `Kelompok Besar ${row.kelompok_besar_antara_id}` : '-'}
+                        </td>
+                      </>
+                    )}
+                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                      {row.jenis_baris === 'agenda' && !row.use_ruangan ? '-' : (row.ruangan?.nama || '')}
+                    </td>
                     <td className="px-4 py-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                         {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
@@ -935,21 +916,21 @@ export default function DetailNonBlokNonCSR() {
                             title="Buka Absensi"
                           >
                             <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
-                            <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                            <span className="xl:inline whitespace-nowrap">Absensi</span>
                           </button>
                         )}
-                        <button onClick={() => handleEditJadwal(idx)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
-                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                          <span className="hidden sm:inline">Edit</span>
+                        <button onClick={() => handleEditJadwal(idx)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                          <span className="xl:inline whitespace-nowrap">Edit</span>
                         </button>
-                        <button onClick={() => { setSelectedDeleteIndex(idx); setShowDeleteModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                          <span className="hidden sm:inline">Hapus</span>
+                        <button onClick={() => { setSelectedDeleteIndex(idx); setShowDeleteModal(true); }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                          <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                          <span className="xl:inline whitespace-nowrap">Hapus</span>
                         </button>
                       </div>
                     </td>
                   </tr>
-                  ))
+                ))
               )}
             </tbody>
           </table>
@@ -967,36 +948,35 @@ export default function DetailNonBlokNonCSR() {
             {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedItems.length})`}
           </button>
         </div>
-        )}
+      )}
 
-        {/* Pagination for Non-CSR */}
-        {true && (
-          <div className="flex items-center justify-between mt-6">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Menampilkan {((nonCsrPage - 1) * nonCsrPageSize) + 1} - {Math.min(nonCsrPage * nonCsrPageSize, jadwalMateri.length)} dari {jadwalMateri.length} data
-              </span>
-              
-              <select
-                value={nonCsrPageSize}
-                onChange={(e) => {
-                  setNonCsrPageSize(Number(e.target.value));
-                  setNonCsrPage(1);
-                }}
-                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
-              >
-                {PAGE_SIZE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Pagination for Non-CSR */}
+      <div className="flex items-center justify-between mt-6">
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Menampilkan {((nonCsrPage - 1) * nonCsrPageSize) + 1} - {Math.min(nonCsrPage * nonCsrPageSize, jadwalMateri.length)} dari {jadwalMateri.length} data
+          </span>
 
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
-              <style
-                dangerouslySetInnerHTML={{
-                  __html: `
+          <select
+            value={nonCsrPageSize}
+            onChange={(e) => {
+              setNonCsrPageSize(Number(e.target.value));
+              setNonCsrPage(1);
+            }}
+            className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+          >
+            {PAGE_SIZE_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
                   .pagination-scroll::-webkit-scrollbar {
                     height: 6px;
                   }
@@ -1021,91 +1001,87 @@ export default function DetailNonBlokNonCSR() {
                     background: #64748b;
                   }
                 `,
-                }}
-              />
+            }}
+          />
 
+          <button
+            onClick={() => setNonCsrPage((p) => Math.max(1, p - 1))}
+            disabled={nonCsrPage === 1}
+            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+          >
+            Previous
+          </button>
+
+          {/* Always show first page if it's not the current page */}
+          {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
+            <button
+              onClick={() => setNonCsrPage(1)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${nonCsrPage === 1
+                ? "bg-brand-500 text-white"
+                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}
+            >
+              1
+            </button>
+          )}
+
+          {/* Show pages around current page */}
+          {Array.from({ length: getTotalPages(jadwalMateri.length, nonCsrPageSize) }, (_, i) => {
+            const pageNum = i + 1;
+            // Show pages around current page (2 pages before and after)
+            const shouldShow =
+              pageNum > 1 &&
+              pageNum < getTotalPages(jadwalMateri.length, nonCsrPageSize) &&
+              pageNum >= nonCsrPage - 2 &&
+              pageNum <= nonCsrPage + 2;
+
+            if (!shouldShow) return null;
+
+            return (
               <button
-                onClick={() => setNonCsrPage((p) => Math.max(1, p - 1))}
-                disabled={nonCsrPage === 1}
-                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-              >
-                Previous
-              </button>
-
-              {/* Always show first page if it's not the current page */}
-              {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
-                <button
-                  onClick={() => setNonCsrPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    nonCsrPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                key={pageNum}
+                onClick={() => setNonCsrPage(pageNum)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${nonCsrPage === pageNum
+                  ? "bg-brand-500 text-white"
+                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
-                >
-                  1
-                </button>
-              )}
-
-              {/* Show pages around current page */}
-              {Array.from({ length: getTotalPages(jadwalMateri.length, nonCsrPageSize) }, (_, i) => {
-                const pageNum = i + 1;
-                // Show pages around current page (2 pages before and after)
-                const shouldShow =
-                  pageNum > 1 &&
-                  pageNum < getTotalPages(jadwalMateri.length, nonCsrPageSize) &&
-                  pageNum >= nonCsrPage - 2 &&
-                  pageNum <= nonCsrPage + 2;
-
-                if (!shouldShow) return null;
-
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setNonCsrPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      nonCsrPage === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-
-              {/* Show ellipsis if current page is far from end */}
-              {nonCsrPage < getTotalPages(jadwalMateri.length, nonCsrPageSize) - 3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">
-                  ...
-                </span>
-              )}
-
-              {/* Always show last page if it's not the first page */}
-              {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
-                <button
-                  onClick={() => setNonCsrPage(getTotalPages(jadwalMateri.length, nonCsrPageSize))}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {getTotalPages(jadwalMateri.length, nonCsrPageSize)}
-                </button>
-              )}
-
-              <button
-                onClick={() => setNonCsrPage((p) => Math.min(getTotalPages(jadwalMateri.length, nonCsrPageSize), p + 1))}
-                disabled={nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)}
-                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
               >
-                Next
+                {pageNum}
               </button>
-            </div>
-          </div>
-        )}
+            );
+          })}
 
-      {/* MODAL INPUT JADWAL MATERI */}
+          {/* Show ellipsis if current page is far from end */}
+          {nonCsrPage < getTotalPages(jadwalMateri.length, nonCsrPageSize) - 3 && (
+            <span className="px-2 text-gray-500 dark:text-gray-400">
+              ...
+            </span>
+          )}
+
+          {/* Always show last page if it's not the first page */}
+          {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
+            <button
+              onClick={() => setNonCsrPage(getTotalPages(jadwalMateri.length, nonCsrPageSize))}
+              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)
+                ? "bg-brand-500 text-white"
+                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}
+            >
+              {getTotalPages(jadwalMateri.length, nonCsrPageSize)}
+            </button>
+          )}
+
+          <button
+            onClick={() => setNonCsrPage((p) => Math.min(getTotalPages(jadwalMateri.length, nonCsrPageSize), p + 1))}
+            disabled={nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)}
+            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+
+      {/* MODAL INPUT MATERI KULIAH */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-9999999 flex items-center justify-center">
@@ -1122,7 +1098,7 @@ export default function DetailNonBlokNonCSR() {
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
               className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 max-h-[90vh] overflow-y-auto hide-scroll"
-              
+
             >
 
               <button
@@ -1137,8 +1113,8 @@ export default function DetailNonBlokNonCSR() {
               {/* Jenis Baris */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jenis Baris</label>
-                <select name="jenisBaris" value={form.jenisBaris} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="materi">Jadwal Materi</option>
+                <select name="jenisBaris" value={form.jenisBaris} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="materi">Materi Kuliah</option>
                   <option value="agenda">Agenda Khusus</option>
                 </select>
               </div>
@@ -1176,7 +1152,7 @@ export default function DetailNonBlokNonCSR() {
                           boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
                           borderRadius: '0.5rem',
                           minHeight: '2.5rem',
-                          fontSize: '0.875rem',
+                          fontSize: '1rem',
                           color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
                           paddingLeft: '0.75rem',
                           paddingRight: '0.75rem',
@@ -1185,7 +1161,7 @@ export default function DetailNonBlokNonCSR() {
                         menu: base => ({
                           ...base,
                           zIndex: 9999,
-                          fontSize: '0.875rem',
+                          fontSize: '1rem',
                           backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
                           color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
                         }),
@@ -1194,12 +1170,12 @@ export default function DetailNonBlokNonCSR() {
                           backgroundColor: state.isSelected
                             ? '#3b82f6'
                             : state.isFocused
-                            ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                            : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                              ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                              : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                           color: state.isSelected
                             ? '#fff'
                             : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                          fontSize: '0.875rem',
+                          fontSize: '1rem',
                         }),
                         singleValue: base => ({
                           ...base,
@@ -1227,8 +1203,8 @@ export default function DetailNonBlokNonCSR() {
                   </div>
                   <div className="w-32">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">x 50 menit</label>
-                    <select name="jumlahKali" value={form.jumlahKali} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                      {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
+                    <select name="jumlahKali" value={form.jumlahKali} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500">
+                      {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
                     </select>
                   </div>
                 </div>
@@ -1255,7 +1231,7 @@ export default function DetailNonBlokNonCSR() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Kelompok Besar
                       </label>
-                      {kelompokBesarAgendaOptions.length === 0 ? (
+                      {kelompokBesarOptions.length === 0 ? (
                         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                           <div className="flex items-center gap-2">
                             <svg
@@ -1270,23 +1246,21 @@ export default function DetailNonBlokNonCSR() {
                               />
                             </svg>
                             <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                              Belum ada kelompok besar yang ditambahkan untuk
-                              mata kuliah ini
+                              Belum ada kelompok besar yang ditambahkan
                             </span>
                           </div>
                           <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                            Silakan tambahkan kelompok besar terlebih dahulu
-                            di halaman Kelompok Detail
+                            Silakan buat kelompok besar terlebih dahulu dengan menekan tombol "Kelola Kelompok"
                           </p>
                         </div>
                       ) : (
                         <Select
-                          options={kelompokBesarAgendaOptions.map((k) => ({
+                          options={kelompokBesarOptions.map((k) => ({
                             value: Number(k.id),
                             label: k.label,
                           }))}
                           value={
-                            kelompokBesarAgendaOptions
+                            kelompokBesarOptions
                               .map((k) => ({
                                 value: Number(k.id),
                                 label: k.label,
@@ -1318,10 +1292,10 @@ export default function DetailNonBlokNonCSR() {
                               borderColor: state.isFocused
                                 ? "#3b82f6"
                                 : document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                ? "#334155"
-                                : "#d1d5db",
+                                  "dark"
+                                )
+                                  ? "#334155"
+                                  : "#d1d5db",
                               color: document.documentElement.classList.contains(
                                 "dark"
                               )
@@ -1358,23 +1332,23 @@ export default function DetailNonBlokNonCSR() {
                               backgroundColor: state.isSelected
                                 ? "#3b82f6"
                                 : state.isFocused
-                                ? document.documentElement.classList.contains(
+                                  ? document.documentElement.classList.contains(
                                     "dark"
                                   )
-                                  ? "#334155"
-                                  : "#e0e7ff"
-                                : document.documentElement.classList.contains(
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
                                     "dark"
                                   )
-                                ? "#1e293b"
-                                : "#fff",
+                                    ? "#1e293b"
+                                    : "#fff",
                               color: state.isSelected
                                 ? "#fff"
                                 : document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                ? "#fff"
-                                : "#1f2937",
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
                               fontSize: "1rem",
                             }),
                             singleValue: (base) => ({
@@ -1436,10 +1410,9 @@ export default function DetailNonBlokNonCSR() {
                               appearance-none
                               rounded-md
                               border-2
-                              ${
-                                form.useRuangan
-                                  ? "border-brand-500 bg-brand-500"
-                                  : "border-brand-500 bg-transparent"
+                              ${form.useRuangan
+                                ? "border-brand-500 bg-brand-500"
+                                : "border-brand-500 bg-transparent"
                               }
                               transition-colors
                               duration-150
@@ -1524,10 +1497,10 @@ export default function DetailNonBlokNonCSR() {
                                 borderColor: state.isFocused
                                   ? "#3b82f6"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#334155"
-                                  : "#d1d5db",
+                                    "dark"
+                                  )
+                                    ? "#334155"
+                                    : "#d1d5db",
                                 color: document.documentElement.classList.contains(
                                   "dark"
                                 )
@@ -1564,23 +1537,23 @@ export default function DetailNonBlokNonCSR() {
                                 backgroundColor: state.isSelected
                                   ? "#3b82f6"
                                   : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                    ? document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
+                                      ? "#1e293b"
+                                      : "#fff",
                                 color: state.isSelected
                                   ? "#fff"
                                   : document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                  ? "#fff"
-                                  : "#1f2937",
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
                                 fontSize: "1rem",
                               }),
                               singleValue: (base) => ({
@@ -1628,119 +1601,119 @@ export default function DetailNonBlokNonCSR() {
                   </>
                 )}
                 {form.jenisBaris === 'materi' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Pengampu ({dosenList.length} dosen tersedia)
-                  </label>
-                  {dosenList.length === 0 ? (
-                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                      <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                          Belum ada dosen yang ditambahkan untuk mata kuliah ini
-                        </span>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Pengampu ({dosenList.length} dosen tersedia)
+                    </label>
+                    {dosenList.length === 0 ? (
+                      <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                            Belum ada dosen yang ditambahkan untuk mata kuliah ini
+                          </span>
+                        </div>
+                        <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                          Silakan tambahkan dosen terlebih dahulu di halaman Dosen Detail
+                        </p>
                       </div>
-                      <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                        Silakan tambahkan dosen terlebih dahulu di halaman Dosen Detail
-                      </p>
-                    </div>
-                  ) : (
-                    <Select
-                      isMulti
-                      options={dosenList.map(d => ({ value: d.id, label: `${d.name} (${d.nid})` }))}
-                      isSearchable={true}
-                      filterOption={(option, inputValue) => {
-                        const label = option.label.toLowerCase();
-                        const input = inputValue.toLowerCase();
-                        return label.includes(input);
-                      }}
-                      noOptionsMessage={() => "Tidak ada dosen yang ditemukan"}
-                      loadingMessage={() => "Mencari dosen..."}
-                      value={form.pengampu.map(id => dosenList.find(d => d.id === id)).filter(Boolean).map(d => ({ value: d!.id, label: `${d!.name} (${d!.nid})` }))}
-                      onChange={opts => {
-                        const values = opts ? opts.map(opt => opt.value) : [];
-                        setForm(f => ({ ...f, pengampu: values }));
-                        setErrorForm(''); // Reset error when selection changes
-                      }}
-                      placeholder="Cari dan pilih dosen (bisa lebih dari 1)"
-                      isClearable
-                      classNamePrefix="react-select"
-                      className="react-select-container"
-                      styles={{
-                        control: (base, state) => ({
-                          ...base,
-                          backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                          borderColor: state.isFocused
-                            ? '#3b82f6'
-                            : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                          color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                          boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                          borderRadius: '0.75rem',
-                          minHeight: '2.5rem',
-                          fontSize: '1rem',
-                          paddingLeft: '0.75rem',
-                          paddingRight: '0.75rem',
-                          '&:hover': { borderColor: '#3b82f6' },
-                        }),
-                        menu: base => ({
-                          ...base,
-                          zIndex: 9999,
-                          fontSize: '1rem',
-                          backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                          color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                        }),
-                        option: (base, state) => ({
-                          ...base,
-                          backgroundColor: state.isSelected
-                            ? '#3b82f6'
-                            : state.isFocused
-                            ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                            : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                          color: state.isSelected
-                            ? '#fff'
-                            : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                          fontSize: '1rem',
-                        }),
-                        multiValue: base => ({
-                          ...base,
-                          backgroundColor: '#3b82f6',
-                          color: '#fff',
-                        }),
-                        multiValueLabel: base => ({
-                          ...base,
-                          color: '#fff',
-                        }),
-                        multiValueRemove: base => ({
-                          ...base,
-                          color: '#fff',
-                          '&:hover': {
-                            backgroundColor: '#2563eb',
+                    ) : (
+                      <Select
+                        isMulti
+                        options={dosenList.map(d => ({ value: d.id, label: `${d.name} (${d.nid})` }))}
+                        isSearchable={true}
+                        filterOption={(option, inputValue) => {
+                          const label = option.label.toLowerCase();
+                          const input = inputValue.toLowerCase();
+                          return label.includes(input);
+                        }}
+                        noOptionsMessage={() => "Tidak ada dosen yang ditemukan"}
+                        loadingMessage={() => "Mencari dosen..."}
+                        value={form.pengampu.map(id => dosenList.find(d => d.id === id)).filter(Boolean).map(d => ({ value: d!.id, label: `${d!.name} (${d!.nid})` }))}
+                        onChange={opts => {
+                          const values = opts ? opts.map(opt => opt.value) : [];
+                          setForm(f => ({ ...f, pengampu: values }));
+                          setErrorForm(''); // Reset error when selection changes
+                        }}
+                        placeholder="Cari dan pilih dosen (bisa lebih dari 1)"
+                        isClearable
+                        classNamePrefix="react-select"
+                        className="react-select-container"
+                        styles={{
+                          control: (base, state) => ({
+                            ...base,
+                            backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
+                            borderColor: state.isFocused
+                              ? '#3b82f6'
+                              : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
+                            color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                            boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
+                            borderRadius: '0.75rem',
+                            minHeight: '2.5rem',
+                            fontSize: '1rem',
+                            paddingLeft: '0.75rem',
+                            paddingRight: '0.75rem',
+                            '&:hover': { borderColor: '#3b82f6' },
+                          }),
+                          menu: base => ({
+                            ...base,
+                            zIndex: 9999,
+                            fontSize: '1rem',
+                            backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
+                            color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? '#3b82f6'
+                              : state.isFocused
+                                ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                            color: state.isSelected
+                              ? '#fff'
+                              : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
+                            fontSize: '1rem',
+                          }),
+                          multiValue: base => ({
+                            ...base,
+                            backgroundColor: '#3b82f6',
                             color: '#fff',
-                          },
-                        }),
-                        placeholder: base => ({
-                          ...base,
-                          color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                        }),
-                        input: base => ({
-                          ...base,
-                          color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                        }),
-                        dropdownIndicator: base => ({
-                          ...base,
-                          color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                          '&:hover': { color: '#3b82f6' },
-                        }),
-                        indicatorSeparator: base => ({
-                          ...base,
-                          backgroundColor: 'transparent',
-                        }),
-                      }}
-                    />
-                  )}
-                </div>
+                          }),
+                          multiValueLabel: base => ({
+                            ...base,
+                            color: '#fff',
+                          }),
+                          multiValueRemove: base => ({
+                            ...base,
+                            color: '#fff',
+                            '&:hover': {
+                              backgroundColor: '#2563eb',
+                              color: '#fff',
+                            },
+                          }),
+                          placeholder: base => ({
+                            ...base,
+                            color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                          }),
+                          input: base => ({
+                            ...base,
+                            color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                          }),
+                          dropdownIndicator: base => ({
+                            ...base,
+                            color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                            '&:hover': { color: '#3b82f6' },
+                          }),
+                          indicatorSeparator: base => ({
+                            ...base,
+                            backgroundColor: 'transparent',
+                          }),
+                        }}
+                      />
+                    )}
+                  </div>
                 )}
                 {form.jenisBaris === 'materi' && (
                   <div>
@@ -1750,15 +1723,15 @@ export default function DetailNonBlokNonCSR() {
                 )}
                 {form.jenisBaris === 'materi' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar Antara</label>
-                    {kelompokBesarAntaraOptions.length === 0 ? (
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
+                    {kelompokBesarOptions.length === 0 ? (
                       <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                         <div className="flex items-center gap-2">
                           <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                           </svg>
                           <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                            Belum ada kelompok besar antara yang ditambahkan
+                            Belum ada kelompok besar yang ditambahkan
                           </span>
                         </div>
                         <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
@@ -1767,10 +1740,10 @@ export default function DetailNonBlokNonCSR() {
                       </div>
                     ) : (
                       <Select
-                        options={kelompokBesarAntaraOptions.map(k => ({ value: k.id, label: k.label }))}
-                        value={kelompokBesarAntaraOptions.map(k => ({ value: k.id, label: k.label })).find(opt => opt.value === form.kelompokBesarAntara) || null}
+                        options={kelompokBesarOptions.map(k => ({ value: k.id, label: k.label }))}
+                        value={kelompokBesarOptions.map(k => ({ value: k.id, label: k.label })).find(opt => opt.value === form.kelompokBesarAntara) || null}
                         onChange={opt => setForm(f => ({ ...f, kelompokBesarAntara: opt ? opt.value : null }))}
-                        placeholder="Pilih Kelompok Besar Antara"
+                        placeholder="Pilih Kelompok Besar"
                         isClearable
                         isSearchable={false}
                         classNamePrefix="react-select"
@@ -1786,7 +1759,7 @@ export default function DetailNonBlokNonCSR() {
                             boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
                             borderRadius: '0.5rem',
                             minHeight: '2.5rem',
-                            fontSize: '0.875rem',
+                            fontSize: '1rem',
                             paddingLeft: '0.75rem',
                             paddingRight: '0.75rem',
                             '&:hover': { borderColor: '#3b82f6' },
@@ -1794,7 +1767,7 @@ export default function DetailNonBlokNonCSR() {
                           menu: base => ({
                             ...base,
                             zIndex: 9999,
-                            fontSize: '0.875rem',
+                            fontSize: '1rem',
                             backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
                           }),
@@ -1803,12 +1776,12 @@ export default function DetailNonBlokNonCSR() {
                             backgroundColor: state.isSelected
                               ? '#3b82f6'
                               : state.isFocused
-                              ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                              : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                             color: state.isSelected
                               ? '#fff'
                               : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                            fontSize: '0.875rem',
+                            fontSize: '1rem',
                           }),
                           singleValue: base => ({
                             ...base,
@@ -1877,7 +1850,7 @@ export default function DetailNonBlokNonCSR() {
                             boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
                             borderRadius: '0.5rem',
                             minHeight: '2.5rem',
-                            fontSize: '0.875rem',
+                            fontSize: '1rem',
                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
                             paddingLeft: '0.75rem',
                             paddingRight: '0.75rem',
@@ -1886,7 +1859,7 @@ export default function DetailNonBlokNonCSR() {
                           menu: base => ({
                             ...base,
                             zIndex: 9999,
-                            fontSize: '0.875rem',
+                            fontSize: '1rem',
                             backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
                           }),
@@ -1895,12 +1868,12 @@ export default function DetailNonBlokNonCSR() {
                             backgroundColor: state.isSelected
                               ? '#3b82f6'
                               : state.isFocused
-                              ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                              : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                             color: state.isSelected
                               ? '#fff'
                               : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                            fontSize: '0.875rem',
+                            fontSize: '1rem',
                           }),
                           singleValue: base => ({
                             ...base,
@@ -1987,7 +1960,7 @@ export default function DetailNonBlokNonCSR() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
-                              className="relative w-full max-w-7xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 max-h-[90vh] overflow-hidden"
+              className="relative w-full max-w-7xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 max-h-[90vh] overflow-hidden"
             >
               {/* Enhanced Header */}
               <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-gray-700">
@@ -1998,7 +1971,7 @@ export default function DetailNonBlokNonCSR() {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">Kelola Kelompok Antara</h2>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">Kelola Kelompok</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       Buat dan kelola kelompok besar dan kecil untuk semester antara
                     </p>
@@ -2019,21 +1992,19 @@ export default function DetailNonBlokNonCSR() {
                 <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1.5 shadow-sm border border-gray-200 dark:border-gray-700">
                   <button
                     onClick={() => setActiveTab('besar')}
-                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                      activeTab === 'besar'
-                        ? 'bg-white dark:bg-gray-700 text-brand-600 dark:text-brand-400 shadow-md'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${activeTab === 'besar'
+                      ? 'bg-white dark:bg-gray-700 text-brand-600 dark:text-brand-400 shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                      }`}
                   >
                     Kelompok Besar
                   </button>
                   <button
                     onClick={() => setActiveTab('kecil')}
-                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                      activeTab === 'kecil'
-                        ? 'bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-md'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${activeTab === 'kecil'
+                      ? 'bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                      }`}
                   >
                     Kelompok Kecil
                   </button>
@@ -2045,496 +2016,138 @@ export default function DetailNonBlokNonCSR() {
                 {activeTab === 'besar' ? (
                   <>
                     {/* Left Panel - Create New Group */}
-                <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-6">
-                      <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Baru</h3>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      {/* Nama Kelompok */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Nama Kelompok
-                        </label>
-                        <input
-                          type="text"
-                          value={kelompokBesarAntaraForm.nama_kelompok}
-                          onChange={(e) => setKelompokBesarAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 shadow-sm"
-                          placeholder="Contoh: Kelompok Besar 1"
-                        />
-                      </div>
-                      
-                      {/* Selected Count */}
-                      {selectedMahasiswa.length > 0 && (
-                        <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-xl p-4 shadow-sm">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                            <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
-                              {selectedMahasiswa.length} mahasiswa dipilih
-                            </p>
+                    <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="flex items-center space-x-2 mb-6">
+                          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
                           </div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Baru</h3>
                         </div>
-                      )}
-                      
-                      {/* Mahasiswa List */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                          Pilih Mahasiswa ({allMahasiswaOptions.length} tersedia, {getTotalGroupedStudents()} sudah dikelompokkan)
-                        </label>
-                        
-                        {/* Search and Filter */}
-                        <div className="flex gap-3 mb-3">
-                          {/* Search Input */}
-                          <div className="relative flex-1">
+
+                        <div className="space-y-4">
+                          {/* Nama Kelompok */}
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                              Nama Kelompok
+                            </label>
                             <input
                               type="text"
-                              value={searchMahasiswa}
-                              onChange={(e) => setSearchMahasiswa(e.target.value)}
-                              placeholder="Cari nama atau email mahasiswa..."
-                              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
+                              value={kelompokBesarAntaraForm.nama_kelompok}
+                              onChange={(e) => setKelompokBesarAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
+                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 shadow-sm"
+                              placeholder="Contoh: Kelompok Besar 1"
                             />
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                              </svg>
-                            </div>
                           </div>
-                          
-                          {/* IPK Filter */}
-                          <div className="w-40">
-                            <select
-                              value={filterIPK}
-                              onChange={(e) => setFilterIPK(e.target.value)}
-                              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
-                            >
-                              <option value="semua">Semua IPK</option>
-                              <option value="3.5+">IPK 3.5+ (Hijau)</option>
-                              <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
-                              <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
-                              <option value="<2.5">IPK &lt;2.5 (Merah)</option>
-                            </select>
-                          </div>
-                        </div>
-                        
-                        <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
-                          {/* Search Results Info */}
-                          {(searchMahasiswa || filterIPK !== 'semua') && (
-                            <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Menampilkan {getFilteredMahasiswa().length} dari {allMahasiswaOptions.length} mahasiswa
-                                {searchMahasiswa && ` untuk pencarian "${searchMahasiswa}"`}
-                                {filterIPK !== 'semua' && ` dengan filter IPK ${filterIPK}`}
-                              </p>
-                            </div>
-                          )}
-                          {isLoadingMahasiswa ? (
-                            // Skeleton loading untuk mahasiswa
-                            <div className="p-4 space-y-3">
-                              {[...Array(6)].map((_, index) => (
-                                <div key={index} className="flex items-center space-x-3 animate-pulse">
-                                  <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                  <div className="flex-1">
-                                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
-                                    <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
-                                  </div>
-                                  <div className="w-16 h-6 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <>
-                            {getFilteredMahasiswa().map((mahasiswa) => {
-                            const isSelected = selectedMahasiswa.some(m => m.id === mahasiswa.id);
-                            const isInOtherGroup = kelompokBesarAntaraOptions.some(group => 
-                              group.mahasiswa?.some(m => m.id === mahasiswa.id)
-                            );
-                            
-                            return (
-                              <div
-                                key={mahasiswa.id}
-                                className={`p-4 border-b border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${
-                                  isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''
-                                } ${isInOtherGroup && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                onClick={() => {
-                                  if (isInOtherGroup && !isSelected) return;
-                                  
-                                  if (isSelected) {
-                                    setSelectedMahasiswa(prev => prev.filter(m => m.id !== mahasiswa.id));
-                                    setKelompokBesarAntaraForm(prev => ({
-                                      ...prev,
-                                      mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
-                                    }));
-                                  } else {
-                                    setSelectedMahasiswa(prev => [...prev, mahasiswa]);
-                                    setKelompokBesarAntaraForm(prev => ({
-                                      ...prev,
-                                      mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
-                                    }));
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-3">
-                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                      isSelected 
-                                        ? 'bg-brand-500 border-brand-500' 
-                                        : 'border-gray-300 dark:border-gray-600'
-                                    }`}>
-                                      {isSelected && (
-                                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="flex items-center space-x-2">
-                                        <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
-                                        <span
-                                          className={`text-xs px-2 py-0.5 rounded-full ${
-                                            (mahasiswa.ipk || 0) >= 3.5
-                                              ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                              : (mahasiswa.ipk || 0) >= 3.0
-                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                              : (mahasiswa.ipk || 0) >= 2.5
-                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                          }`}
-                                        >
-                                          IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
-                                    </div>
-                                  </div>
-                                  {isInOtherGroup && !isSelected && (
-                                    <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                            </>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Create Button */}
-                      <button
-                        onClick={createKelompokBesarAntara}
-                        disabled={!kelompokBesarAntaraForm.nama_kelompok || kelompokBesarAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompok}
-                        className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                      >
-                        <div className="flex items-center justify-center space-x-2">
-                          {isCreatingKelompok ? (
-                            <>
-                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              <span>Membuat Kelompok...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                              <span>Buat Kelompok ({selectedMahasiswa.length} mahasiswa)</span>
-                            </>
-                          )}
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Panel - Existing Groups */}
-                <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
-                  <div className="flex items-center space-x-2 mb-6">
-                    <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Kelompok yang Sudah Ada ({kelompokBesarAntaraOptions.length})
-                    </h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {isLoadingKelompok ? (
-                      // Skeleton loading untuk kelompok yang sudah ada
-                      <div className="space-y-3">
-                        {[...Array(2)].map((_, index) => (
-                          <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
-                              </div>
-                              <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {[...Array(6)].map((_, studentIndex) => (
-                                <div key={studentIndex} className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                  <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
-                                  <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <>
-                        {kelompokBesarAntaraOptions.map((kelompok: any) => (
-                          <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          {/* Selected Count */}
+                          {selectedMahasiswa.length > 0 && (
+                            <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-xl p-4 shadow-sm">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                 </div>
-                                <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.label}</h4>
-                              </div>
-                              <button
-                                onClick={() => deleteKelompokBesarAntara(kelompok.id)}
-                                className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                title="Hapus kelompok"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {kelompok.mahasiswa.map((mahasiswa: any) => (
-                                <div key={mahasiswa.id} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                                  <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                  <span>{mahasiswa.name}</span>
-                                  <span
-                                    className={`text-xs px-2 py-0.5 rounded-full ${
-                                      (mahasiswa.ipk || 0) >= 3.5
-                                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                        : (mahasiswa.ipk || 0) >= 3.0
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                        : (mahasiswa.ipk || 0) >= 2.5
-                                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                        : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                    }`}
-                                  >
-                                    IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                    
-                    {!isLoadingKelompok && kelompokBesarAntaraOptions.length === 0 && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-400 font-medium">
-                          Belum ada kelompok besar yang dibuat
-                        </p>
-                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                          Buat kelompok pertama di panel sebelah kiri
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Left Panel - Create New Kelompok Kecil */}
-                <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-6">
-                      <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Kecil Baru</h3>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      {/* Nama Kelompok */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Nama Kelompok Kecil
-                        </label>
-                        <input
-                          type="text"
-                          value={kelompokKecilAntaraForm.nama_kelompok}
-                          onChange={(e) => setKelompokKecilAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm"
-                          placeholder="Contoh: Kelompok Kecil 1"
-                        />
-                      </div>
-
-                      {/* Pilih Mahasiswa dari Kelompok Besar */}
-                      {/* Selected Count */}
-                      {kelompokKecilAntaraForm.mahasiswa_ids.length > 0 && (
-                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 shadow-sm mb-4">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                              {kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa dipilih
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                          Pilih Mahasiswa dari Kelompok Besar Antara
-                        </label>
-                        
-                        {/* Search and Filter */}
-                        <div className="flex space-x-3 mb-3">
-                          {/* Search Input */}
-                          <div className="relative flex-1">
-                            <input
-                              type="text"
-                              value={searchMahasiswaKelompokKecil}
-                              onChange={(e) => setSearchMahasiswaKelompokKecil(e.target.value)}
-                              placeholder="Cari nama atau email mahasiswa..."
-                              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                            />
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                              </svg>
-                            </div>
-                          </div>
-                          
-                          {/* IPK Filter */}
-                          <div className="w-48">
-                            <select
-                              value={filterIPKKelompokKecil}
-                              onChange={(e) => setFilterIPKKelompokKecil(e.target.value)}
-                              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                            >
-                              <option value="semua">Semua IPK</option>
-                              <option value=">=3.5">IPK ≥3.5 (Hijau)</option>
-                              <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
-                              <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
-                              <option value="<2.5">IPK &lt;2.5 (Merah)</option>
-                            </select>
-                          </div>
-                        </div>
-                        {isLoadingKelompok ? (
-                          <div className="space-y-2">
-                            {[...Array(3)].map((_, index) => (
-                              <div key={index} className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse"></div>
-                            ))}
-                          </div>
-                        ) : kelompokBesarAntaraOptions.length === 0 ? (
-                          <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                            <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada kelompok besar yang dibuat</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Buat kelompok besar terlebih dahulu</p>
-
-                          </div>
-                        ) : (
-                          <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
-                            {/* Search Results Info */}
-                            {(searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && (
-                              <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                  {searchMahasiswaKelompokKecil && `Mencari: "${searchMahasiswaKelompokKecil}"`}
-                                  {searchMahasiswaKelompokKecil && filterIPKKelompokKecil !== 'semua' && ' | '}
-                                  {filterIPKKelompokKecil !== 'semua' && `Filter IPK: ${filterIPKKelompokKecil}`}
+                                <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
+                                  {selectedMahasiswa.length} mahasiswa dipilih
                                 </p>
                               </div>
-                            )}
-                            {kelompokBesarAntaraOptions.map((kelompok: any) => {
-                              // Filter mahasiswa berdasarkan search dan IPK
-                              const filteredMahasiswa = kelompok.mahasiswa?.filter((mahasiswa: any) => {
-                                // Filter berdasarkan search
-                                const matchesSearch = !searchMahasiswaKelompokKecil || 
-                                  mahasiswa.name.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase()) ||
-                                  mahasiswa.email.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase());
-                                
-                                // Filter berdasarkan IPK
-                                const matchesIPK = filterIPKKelompokKecil === 'semua' || 
-                                  (filterIPKKelompokKecil === '>=3.5' && (mahasiswa.ipk || 0) >= 3.5) ||
-                                  (filterIPKKelompokKecil === '3.0-3.49' && (mahasiswa.ipk || 0) >= 3.0 && (mahasiswa.ipk || 0) < 3.5) ||
-                                  (filterIPKKelompokKecil === '2.5-2.99' && (mahasiswa.ipk || 0) >= 2.5 && (mahasiswa.ipk || 0) < 3.0) ||
-                                  (filterIPKKelompokKecil === '<2.5' && (mahasiswa.ipk || 0) < 2.5);
-                                
-                                return matchesSearch && matchesIPK;
-                              }) || [];
-                              
-                              // Skip kelompok jika tidak ada mahasiswa yang cocok dengan filter
-                              if ((searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && filteredMahasiswa.length === 0) {
-                                return null;
-                              }
-                              
-                              return (
-                              <div key={kelompok.id} className="p-4 border-b border-gray-200 dark:border-gray-600">
-                                                                                                    <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center space-x-3">
-                                      <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                                        <svg className="w-3 h-3 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                        </svg>
+                            </div>
+                          )}
+
+                          {/* Mahasiswa List */}
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                              Pilih Mahasiswa ({allMahasiswaOptions.length} tersedia, {getTotalGroupedStudents()} sudah dikelompokkan)
+                            </label>
+
+                            {/* Search and Filter */}
+                            <div className="flex gap-3 mb-3">
+                              {/* Search Input */}
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  value={searchMahasiswa}
+                                  onChange={(e) => setSearchMahasiswa(e.target.value)}
+                                  placeholder="Cari nama atau email mahasiswa..."
+                                  className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
+                                />
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              {/* IPK Filter */}
+                              <div className="w-40">
+                                <select
+                                  value={filterIPK}
+                                  onChange={(e) => setFilterIPK(e.target.value)}
+                                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
+                                >
+                                  <option value="semua">Semua IPK</option>
+                                  <option value="3.5+">IPK 3.5+ (Hijau)</option>
+                                  <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
+                                  <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
+                                  <option value="<2.5">IPK &lt;2.5 (Merah)</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
+                              {/* Search Results Info */}
+                              {(searchMahasiswa || filterIPK !== 'semua') && (
+                                <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Menampilkan {getFilteredMahasiswa().length} dari {allMahasiswaOptions.length} mahasiswa
+                                    {searchMahasiswa && ` untuk pencarian "${searchMahasiswa}"`}
+                                    {filterIPK !== 'semua' && ` dengan filter IPK ${filterIPK}`}
+                                  </p>
+                                </div>
+                              )}
+                              {isLoadingMahasiswa ? (
+                                // Skeleton loading untuk mahasiswa
+                                <div className="p-4 space-y-3">
+                                  {[...Array(6)].map((_, index) => (
+                                    <div key={index} className="flex items-center space-x-3 animate-pulse">
+                                      <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                      <div className="flex-1">
+                                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+                                        <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
                                       </div>
-                                      <div>
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">{kelompok.mahasiswa?.length || 0} mahasiswa</span>
-                                        <span className="text-xs text-blue-600 dark:text-blue-400 block">{kelompok.label.split(' (')[0]}</span>
-                                      </div>
+                                      <div className="w-16 h-6 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
                                     </div>
-                                  </div>
-                                <div className="space-y-1">
-                                  {filteredMahasiswa.map((mahasiswa: any) => {
-                                    const isSelected = kelompokKecilAntaraForm.mahasiswa_ids.includes(mahasiswa.id);
-                                    const isInOtherKelompokKecil = kelompokKecilAntaraList.some(kelompok => 
-                                      kelompok.mahasiswa_ids.includes(mahasiswa.id)
+                                  ))}
+                                </div>
+                              ) : (
+                                <>
+                                  {getFilteredMahasiswa().map((mahasiswa) => {
+                                    const isSelected = selectedMahasiswa.some(m => m.id === mahasiswa.id);
+                                    const isInOtherGroup = kelompokBesarOptions.some(group =>
+                                      group.mahasiswa?.some(m => m.id === mahasiswa.id)
                                     );
-                                    
+
                                     return (
                                       <div
                                         key={mahasiswa.id}
-                                        className={`p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${
-                                          isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''
-                                        } ${isInOtherKelompokKecil && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        className={`p-4 border-b border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''
+                                          } ${isInOtherGroup && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         onClick={() => {
-                                          if (isInOtherKelompokKecil && !isSelected) return;
-                                          
+                                          if (isInOtherGroup && !isSelected) return;
+
                                           if (isSelected) {
-                                            setKelompokKecilAntaraForm(prev => ({
+                                            setSelectedMahasiswa(prev => prev.filter(m => m.id !== mahasiswa.id));
+                                            setKelompokBesarAntaraForm(prev => ({
                                               ...prev,
                                               mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
                                             }));
                                           } else {
-                                            setKelompokKecilAntaraForm(prev => ({
+                                            setSelectedMahasiswa(prev => [...prev, mahasiswa]);
+                                            setKelompokBesarAntaraForm(prev => ({
                                               ...prev,
                                               mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
                                             }));
@@ -2543,11 +2156,10 @@ export default function DetailNonBlokNonCSR() {
                                       >
                                         <div className="flex items-center justify-between">
                                           <div className="flex items-center space-x-3">
-                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                              isSelected 
-                                                ? 'bg-green-500 border-green-500' 
-                                                : 'border-gray-300 dark:border-gray-600'
-                                            }`}>
+                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected
+                                              ? 'bg-brand-500 border-brand-500'
+                                              : 'border-gray-300 dark:border-gray-600'
+                                              }`}>
                                               {isSelected && (
                                                 <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -2558,15 +2170,14 @@ export default function DetailNonBlokNonCSR() {
                                               <div className="flex items-center space-x-2">
                                                 <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
                                                 <span
-                                                  className={`text-xs px-2 py-0.5 rounded-full ${
-                                                    (mahasiswa.ipk || 0) >= 3.5
-                                                      ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                                      : (mahasiswa.ipk || 0) >= 3.0
+                                                  className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                                    ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                                    : (mahasiswa.ipk || 0) >= 3.0
                                                       ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
                                                       : (mahasiswa.ipk || 0) >= 2.5
-                                                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                                      : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                                  }`}
+                                                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                                        : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                                    }`}
                                                 >
                                                   IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
                                                 </span>
@@ -2574,155 +2185,507 @@ export default function DetailNonBlokNonCSR() {
                                               <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
                                             </div>
                                           </div>
-                                          {isInOtherKelompokKecil && !isSelected && (
+                                          {isInOtherGroup && !isSelected && (
                                             <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
                                           )}
                                         </div>
                                       </div>
                                     );
                                   })}
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Create Button */}
+                          <button
+                            onClick={createKelompokBesarAntara}
+                            disabled={!kelompokBesarAntaraForm.nama_kelompok || kelompokBesarAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompok}
+                            className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                          >
+                            <div className="flex items-center justify-center space-x-2">
+                              {isCreatingKelompok ? (
+                                <>
+                                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span>Membuat Kelompok...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  <span>Buat Kelompok ({selectedMahasiswa.length} mahasiswa)</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Panel - Existing Groups */}
+                    <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
+                      <div className="flex items-center space-x-2 mb-6">
+                        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Kelompok yang Sudah Ada ({kelompokBesarOptions.length})
+                        </h3>
+                      </div>
+
+                      <div className="space-y-3">
+                        {isLoadingKelompok ? (
+                          // Skeleton loading untuk kelompok yang sudah ada
+                          <div className="space-y-3">
+                            {[...Array(2)].map((_, index) => (
+                              <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
+                                    <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
+                                  </div>
+                                  <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {[...Array(6)].map((_, studentIndex) => (
+                                    <div key={studentIndex} className="flex items-center space-x-2">
+                                      <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                      <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
+                                      <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                              );
-                            })}
+                            ))}
+                          </div>
+                        ) : (
+                          <>
+                            {kelompokBesarOptions.map((kelompok: any) => (
+                              <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                                      <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                      </svg>
+                                    </div>
+                                    <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.label}</h4>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteKelompokBesarAntara(kelompok.id)}
+                                    className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                                    title="Hapus kelompok"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {kelompok.mahasiswa.map((mahasiswa: any) => (
+                                    <div key={mahasiswa.id} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                                      <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                                      <span>{mahasiswa.name}</span>
+                                      <span
+                                        className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                          : (mahasiswa.ipk || 0) >= 3.0
+                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                            : (mahasiswa.ipk || 0) >= 2.5
+                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                          }`}
+                                      >
+                                        IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+
+                        {!isLoadingKelompok && kelompokBesarOptions.length === 0 && (
+                          <div className="text-center py-12">
+                            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                            </div>
+                            <p className="text-gray-500 dark:text-gray-400 font-medium">
+                              Belum ada kelompok besar yang dibuat
+                            </p>
+                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                              Buat kelompok pertama di panel sebelah kiri
+                            </p>
                           </div>
                         )}
                       </div>
-                      
-                      {/* Create Button */}
-                      <button
-                        onClick={createKelompokKecilAntara}
-                        disabled={!kelompokKecilAntaraForm.nama_kelompok || kelompokKecilAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompokKecilAntara}
-                        className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                      >
-                        <div className="flex items-center justify-center space-x-2">
-                          {isCreatingKelompokKecilAntara ? (
-                            <>
-                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              <span>Membuat Kelompok...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                              <span>Buat Kelompok Kecil ({kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa)</span>
-                            </>
-                          )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Left Panel - Create New Kelompok Kecil */}
+                    <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="flex items-center space-x-2 mb-6">
+                          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Kecil Baru</h3>
                         </div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Right Panel - Existing Kelompok Kecil */}
-                <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-6">
-                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Kelompok Kecil yang Sudah Dibuat</h3>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      {isLoadingKelompokKecilAntara ? (
-                        // Skeleton loading untuk kelompok kecil yang sudah ada
-                        <div className="space-y-3">
-                          {[...Array(2)].map((_, index) => (
-                            <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
-                              <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center space-x-3">
-                                  <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                  <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
+                        <div className="space-y-4">
+                          {/* Nama Kelompok */}
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                              Nama Kelompok Kecil
+                            </label>
+                            <input
+                              type="text"
+                              value={kelompokKecilAntaraForm.nama_kelompok}
+                              onChange={(e) => setKelompokKecilAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
+                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm"
+                              placeholder="Contoh: Kelompok Kecil 1"
+                            />
+                          </div>
+
+                          {/* Pilih Mahasiswa dari Kelompok Besar */}
+                          {/* Selected Count */}
+                          {kelompokKecilAntaraForm.mahasiswa_ids.length > 0 && (
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 shadow-sm mb-4">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
                                 </div>
-                                <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {[...Array(6)].map((_, studentIndex) => (
-                                  <div key={studentIndex} className="flex items-center space-x-2">
-                                    <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
-                                    <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                  </div>
-                                ))}
+                                <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                                  {kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa dipilih
+                                </p>
                               </div>
                             </div>
-                          ))}
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                              Pilih Mahasiswa dari Kelompok Besar Antara
+                            </label>
+
+                            {/* Search and Filter */}
+                            <div className="flex space-x-3 mb-3">
+                              {/* Search Input */}
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  value={searchMahasiswa}
+                                  onChange={(e) => setSearchMahasiswa(e.target.value)}
+                                  placeholder="Cari nama atau email mahasiswa..."
+                                  className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                                />
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              {/* IPK Filter */}
+                              <div className="w-48">
+                                <select
+                                  value={filterIPK}
+                                  onChange={(e) => setFilterIPK(e.target.value)}
+                                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                                >
+                                  <option value="semua">Semua IPK</option>
+                                  <option value=">=3.5">IPK ≥3.5 (Hijau)</option>
+                                  <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
+                                  <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
+                                  <option value="<2.5">IPK &lt;2.5 (Merah)</option>
+                                </select>
+                              </div>
+                            </div>
+                            {isLoadingKelompok ? (
+                              <div className="space-y-2">
+                                {[...Array(3)].map((_, index) => (
+                                  <div key={index} className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse"></div>
+                                ))}
+                              </div>
+                            ) : kelompokBesarOptions.length === 0 ? (
+                              <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada kelompok besar yang dibuat</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Buat kelompok besar terlebih dahulu</p>
+
+                              </div>
+                            ) : (
+                              <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
+                                {/* Search Results Info */}
+                                {(searchMahasiswa || filterIPK !== 'semua') && (
+                                  <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                      {searchMahasiswa && `Mencari: "${searchMahasiswa}"`}
+                                      {searchMahasiswa && filterIPK !== 'semua' && ' | '}
+                                      {filterIPK !== 'semua' && `Filter IPK: ${filterIPK}`}
+                                    </p>
+                                  </div>
+                                )}
+                                {kelompokBesarOptions.map((kelompok: any) => {
+                                  // Filter mahasiswa berdasarkan search dan IPK
+                                  const filteredMahasiswa = kelompok.mahasiswa?.filter((mahasiswa: any) => {
+                                    // Filter berdasarkan search
+                                    const matchesSearch = !searchMahasiswa ||
+                                      mahasiswa.name.toLowerCase().includes(searchMahasiswa.toLowerCase()) ||
+                                      mahasiswa.email.toLowerCase().includes(searchMahasiswa.toLowerCase());
+
+                                    // Filter berdasarkan IPK
+                                    const matchesIPK = filterIPK === 'semua' ||
+                                      (filterIPK === '>=3.5' && (mahasiswa.ipk || 0) >= 3.5) ||
+                                      (filterIPK === '3.0-3.49' && (mahasiswa.ipk || 0) >= 3.0 && (mahasiswa.ipk || 0) < 3.5) ||
+                                      (filterIPK === '2.5-2.99' && (mahasiswa.ipk || 0) >= 2.5 && (mahasiswa.ipk || 0) < 3.0) ||
+                                      (filterIPK === '<2.5' && (mahasiswa.ipk || 0) < 2.5);
+
+                                    return matchesSearch && matchesIPK;
+                                  }) || [];
+
+                                  // Skip kelompok jika tidak ada mahasiswa yang cocok dengan filter
+                                  if ((searchMahasiswa || filterIPK !== 'semua') && filteredMahasiswa.length === 0) {
+                                    return null;
+                                  }
+
+                                  return (
+                                    <div key={kelompok.id} className="p-4 border-b border-gray-200 dark:border-gray-600">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center space-x-3">
+                                          <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                                            <svg className="w-3 h-3 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            </svg>
+                                          </div>
+                                          <div>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">{kelompok.mahasiswa?.length || 0} mahasiswa</span>
+                                            <span className="text-xs text-blue-600 dark:text-blue-400 block">{kelompok.label.split(' (')[0]}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        {filteredMahasiswa.map((mahasiswa: any) => {
+                                          const isSelected = kelompokKecilAntaraForm.mahasiswa_ids.includes(mahasiswa.id);
+                                          const isInOtherKelompokKecil = kelompokKecilAntaraList.some(kelompok =>
+                                            kelompok.mahasiswa_ids.includes(mahasiswa.id)
+                                          );
+
+                                          return (
+                                            <div
+                                              key={mahasiswa.id}
+                                              className={`p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''
+                                                } ${isInOtherKelompokKecil && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                              onClick={() => {
+                                                if (isInOtherKelompokKecil && !isSelected) return;
+
+                                                if (isSelected) {
+                                                  setKelompokKecilAntaraForm(prev => ({
+                                                    ...prev,
+                                                    mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
+                                                  }));
+                                                } else {
+                                                  setKelompokKecilAntaraForm(prev => ({
+                                                    ...prev,
+                                                    mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
+                                                  }));
+                                                }
+                                              }}
+                                            >
+                                              <div className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-3">
+                                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected
+                                                    ? 'bg-green-500 border-green-500'
+                                                    : 'border-gray-300 dark:border-gray-600'
+                                                    }`}>
+                                                    {isSelected && (
+                                                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                      </svg>
+                                                    )}
+                                                  </div>
+                                                  <div>
+                                                    <div className="flex items-center space-x-2">
+                                                      <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
+                                                      <span
+                                                        className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                                          : (mahasiswa.ipk || 0) >= 3.0
+                                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                                            : (mahasiswa.ipk || 0) >= 2.5
+                                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                                          }`}
+                                                      >
+                                                        IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
+                                                      </span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
+                                                  </div>
+                                                </div>
+                                                {isInOtherKelompokKecil && !isSelected && (
+                                                  <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Create Button */}
+                          <button
+                            onClick={createKelompokKecilAntara}
+                            disabled={!kelompokKecilAntaraForm.nama_kelompok || kelompokKecilAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompokKecilAntara}
+                            className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                          >
+                            <div className="flex items-center justify-center space-x-2">
+                              {isCreatingKelompokKecilAntara ? (
+                                <>
+                                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span>Membuat Kelompok...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  <span>Buat Kelompok Kecil ({kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa)</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
                         </div>
-                      ) : kelompokKecilAntaraList.length === 0 ? (
-                        <div className="text-center py-12">
-                          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      </div>
+                    </div>
+
+                    {/* Right Panel - Existing Kelompok Kecil */}
+                    <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="flex items-center space-x-2 mb-6">
+                          <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
                           </div>
-                          <p className="text-gray-500 dark:text-gray-400 font-medium">
-                            Belum ada kelompok kecil yang dibuat
-                          </p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                            Buat kelompok pertama di panel sebelah kiri
-                          </p>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Kelompok Kecil yang Sudah Dibuat</h3>
                         </div>
-                      ) : (
-                        kelompokKecilAntaraList.map((kelompok) => (
-                          <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                                  <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                  </svg>
-                                </div>
-                                <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.nama_kelompok}</h4>
-                              </div>
-                              <button
-                                onClick={() => deleteKelompokKecilAntara(kelompok.id)}
-                                className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                title="Hapus kelompok"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {kelompok.mahasiswa_ids.map((mahasiswaId) => {
-                                const mahasiswa = allMahasiswaOptions.find(m => m.id === mahasiswaId);
-                                return mahasiswa ? (
-                                  <div key={mahasiswaId} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                    <span>{mahasiswa.name}</span>
-                                    <span
-                                      className={`text-xs px-2 py-0.5 rounded-full ${
-                                        (mahasiswa.ipk || 0) >= 3.5
-                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                          : (mahasiswa.ipk || 0) >= 3.0
-                                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                          : (mahasiswa.ipk || 0) >= 2.5
-                                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                          : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                      }`}
-                                    >
-                                      IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                    </span>
+
+                        <div className="space-y-3">
+                          {isLoadingKelompok ? (
+                            // Skeleton loading untuk kelompok kecil yang sudah ada
+                            <div className="space-y-3">
+                              {[...Array(2)].map((_, index) => (
+                                <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center space-x-3">
+                                      <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
+                                      <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
+                                    </div>
+                                    <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
                                   </div>
-                                ) : null;
-                              })}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {[...Array(6)].map((_, studentIndex) => (
+                                      <div key={studentIndex} className="flex items-center space-x-2">
+                                        <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
+                                        <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          </div>
-                        ))
-                      )}
+                          ) : kelompokKecilAntaraList.length === 0 ? (
+                            <div className="text-center py-12">
+                              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                              </div>
+                              <p className="text-gray-500 dark:text-gray-400 font-medium">
+                                Belum ada kelompok kecil yang dibuat
+                              </p>
+                              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                                Buat kelompok pertama di panel sebelah kiri
+                              </p>
+                            </div>
+                          ) : (
+                            kelompokKecilAntaraList.map((kelompok) => (
+                              <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                                      <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                      </svg>
+                                    </div>
+                                    <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.nama_kelompok}</h4>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteKelompokKecilAntara(kelompok.id)}
+                                    className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                                    title="Hapus kelompok"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {kelompok.mahasiswa_ids.map((mahasiswaId) => {
+                                    const mahasiswa = allMahasiswaOptions.find(m => m.id === mahasiswaId);
+                                    return mahasiswa ? (
+                                      <div key={mahasiswaId} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                                        <span>{mahasiswa.name}</span>
+                                        <span
+                                          className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                            : (mahasiswa.ipk || 0) >= 3.0
+                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                              : (mahasiswa.ipk || 0) >= 2.5
+                                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                                : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                            }`}
+                                        >
+                                          IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
+                                        </span>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </>
-            )}
+                  </>
+                )}
               </div>
             </motion.div>
           </div>

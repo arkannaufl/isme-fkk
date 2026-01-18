@@ -5144,34 +5144,31 @@ export default function DosenAbsensiPraktikumPage() {
       {/* Confirmation Modal */}
       <AnimatePresence>
         {confirmOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={cancelUncheck}
-            />
+            ></div>
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
             >
-              <div
-                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white pb-6 border-b border-gray-200 dark:border-gray-700 mb-6">
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
                   Konfirmasi Ubah Kehadiran
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
                   {pendingChange?.desired
                     ? "Anda akan menandai mahasiswa menjadi Hadir."
                     : "Anda akan menandai mahasiswa menjadi Tidak Hadir."}{" "}
                   Lanjutkan?
                 </p>
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 pt-2">
                   <button
                     onClick={cancelUncheck}
                     className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
@@ -5180,10 +5177,11 @@ export default function DosenAbsensiPraktikumPage() {
                   </button>
                   <button
                     onClick={confirmChange}
-                    className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition ${pendingChange?.desired
-                      ? "bg-green-600 hover:bg-green-700"
-                      : "bg-red-500 hover:bg-red-600"
-                      }`}
+                    className={`px-4 py-2 rounded-lg text-white text-sm font-medium shadow-theme-xs transition flex items-center justify-center ${
+                      pendingChange?.desired
+                        ? "bg-green-600 hover:bg-green-700"
+                        : "bg-red-500 hover:bg-red-600"
+                    }`}
                   >
                     {pendingChange?.desired
                       ? "Ya, Tandai Hadir"
@@ -5192,7 +5190,7 @@ export default function DosenAbsensiPraktikumPage() {
                 </div>
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 

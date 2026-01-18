@@ -270,11 +270,24 @@ class DetailBlokController extends Controller
 
     private function getJadwalAgendaKhusus($kode)
     {
-        return JadwalAgendaKhusus::where('mata_kuliah_kode', $kode)
+        $query = JadwalAgendaKhusus::where('mata_kuliah_kode', $kode)
             ->with(['ruangan'])
             ->orderBy('tanggal', 'asc')
-            ->orderBy('jam_mulai', 'asc')
-            ->get()
+            ->orderBy('jam_mulai', 'asc');
+        
+        // Apply tahun ajaran filter if provided
+        if (request()->has('tahun_ajaran_id')) {
+            $query->whereHas('mataKuliah', function ($q) {
+                $q->where('tahun_ajaran_id', request('tahun_ajaran_id'));
+            });
+        }
+        
+        // Apply semester filter if provided
+        if (request()->has('semester_id')) {
+            $query->where('semester_id', request('semester_id'));
+        }
+        
+        return $query->get()
             ->map(function ($jadwal) {
                 if ($jadwal->jam_mulai) {
                     $jadwal->jam_mulai = $this->formatJamForFrontend($jadwal->jam_mulai);
@@ -427,11 +440,24 @@ class DetailBlokController extends Controller
 
     private function getJadwalPersamaanPersepsi($kode)
     {
-        $jadwalPersamaanPersepsi = JadwalPersamaanPersepsi::where('mata_kuliah_kode', $kode)
+        $query = JadwalPersamaanPersepsi::where('mata_kuliah_kode', $kode)
             ->with(['ruangan', 'mataKuliah'])
             ->orderBy('tanggal', 'asc')
-            ->orderBy('jam_mulai', 'asc')
-            ->get();
+            ->orderBy('jam_mulai', 'asc');
+        
+        // Apply tahun ajaran filter if provided
+        if (request()->has('tahun_ajaran_id')) {
+            $query->whereHas('mataKuliah', function ($q) {
+                $q->where('tahun_ajaran_id', request('tahun_ajaran_id'));
+            });
+        }
+        
+        // Apply semester filter if provided
+        if (request()->has('semester_id')) {
+            $query->where('semester_id', request('semester_id'));
+        }
+        
+        $jadwalPersamaanPersepsi = $query->get();
         
         // Optimized: Batch load all dosen IDs to avoid N+1 queries
         $allDosenIds = [];
@@ -495,11 +521,24 @@ class DetailBlokController extends Controller
 
     private function getJadwalSeminarPleno($kode)
     {
-        $jadwalSeminarPleno = JadwalSeminarPleno::where('mata_kuliah_kode', $kode)
+        $query = JadwalSeminarPleno::where('mata_kuliah_kode', $kode)
             ->with(['ruangan', 'mataKuliah', 'kelompokBesar', 'kelompokBesarAntara'])
             ->orderBy('tanggal', 'asc')
-            ->orderBy('jam_mulai', 'asc')
-            ->get();
+            ->orderBy('jam_mulai', 'asc');
+        
+        // Apply tahun ajaran filter if provided
+        if (request()->has('tahun_ajaran_id')) {
+            $query->whereHas('mataKuliah', function ($q) {
+                $q->where('tahun_ajaran_id', request('tahun_ajaran_id'));
+            });
+        }
+        
+        // Apply semester filter if provided
+        if (request()->has('semester_id')) {
+            $query->where('semester_id', request('semester_id'));
+        }
+        
+        $jadwalSeminarPleno = $query->get();
         
         // Optimized: Batch load all dosen IDs to avoid N+1 queries
         $allDosenIds = [];

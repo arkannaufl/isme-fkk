@@ -798,7 +798,7 @@ class MataKuliahController extends Controller
             ->filter();
 
         // Jadwal Praktikum
-        $praktikum = \App\Models\JadwalPraktikum::whereHas('users', function($query) use ($dosenId) {
+        $praktikum = \App\Models\JadwalPraktikum::whereHas('dosen', function($query) use ($dosenId) {
                 $query->where('users.id', $dosenId);
             })
             ->with('mataKuliah')

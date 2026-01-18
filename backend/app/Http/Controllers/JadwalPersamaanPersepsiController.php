@@ -20,7 +20,7 @@ class JadwalPersamaanPersepsiController extends Controller
     public function index($kode)
     {
         $jadwal = JadwalPersamaanPersepsi::WithoutSemesterFilter()
-            ->with(['mataKuliah', 'dosen', 'ruangan'])
+            ->with(['mataKuliah', 'ruangan'])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')

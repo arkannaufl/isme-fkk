@@ -30,6 +30,12 @@ class JadwalAgendaKhusus extends Model
 
     // Relasi
     public function mataKuliah() { return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode'); }
+    
+    public function semester()
+    {
+        return $this->belongsTo(Semester::class, 'semester_id');
+    }
+    
     public function ruangan() { return $this->belongsTo(Ruangan::class, 'ruangan_id'); }
     
     /**

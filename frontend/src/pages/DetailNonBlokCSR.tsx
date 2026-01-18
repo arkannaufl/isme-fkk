@@ -4,7 +4,7 @@ import api, { handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import Select from 'react-select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getRuanganOptions } from '../utils/ruanganHelper';
 import * as XLSX from 'xlsx';
@@ -556,26 +556,36 @@ export default function DetailNonBlokCSR() {
         ...(kelompokKecilWithCount && kelompokKecilWithCount.length > 0 ?
           kelompokKecilWithCount
             .map(kelompok => [`• Kelompok ${kelompok.nama_kelompok} (${kelompok.jumlah_anggota} mahasiswa)`]) :
-          [['• Belum ada data kelompok kecil']]),
+          [['• Belum ada data kelompok kecil']]
+        ),
         [''],
         ['🎯 KEAHLIAN YANG TERSEDIA:'],
-        ...kategoriList.flatMap(kategori =>
-          (kategori.keahlian_required || []).slice(0, 3).map(keahlian => [`• ${keahlian} (${kategori.nomor_csr})`])
+        ...(kategoriList.length > 0 ?
+          kategoriList.flatMap(kategori =>
+            (kategori.keahlian_required || []).slice(0, 3).map(keahlian => [`• ${keahlian} (${kategori.nomor_csr})`])
+          ) :
+          [['• Belum ada data keahlian']]
         ),
         [''],
         ['👨‍🏫 DOSEN YANG TERSEDIA:'],
-        ...dosenList.map(dosen => [`• ${dosen.name} (${dosen.nid}) - ${dosen.keahlian}`]),
+        ...(dosenList.length > 0 ?
+          dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''} - ${dosen.keahlian}`]) :
+          [['• Belum ada data dosen']]
+        ),
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
-        ...ruanganList.map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]),
+        ...(ruanganList.length > 0 ?
+          ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
+          [['• Belum ada data ruangan']]
+        ),
         [''],
         ['⚠️ VALIDASI SISTEM:'],
         [''],
         ['📅 VALIDASI TANGGAL:'],
         ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
         ['• Wajib dalam rentang mata kuliah:'],
-        [`  - Mulai: ${data?.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : '-'}`],
-        [`  - Akhir: ${data?.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : '-'}`],
+        [`  - Mulai: ${data?.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '-'}`],
+        [`  - Akhir: ${data?.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '-'}`],
         [''],
         ['⏰ VALIDASI JAM:'],
         ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
@@ -583,19 +593,15 @@ export default function DetailNonBlokCSR() {
         ['• Jam selesai akan dihitung otomatis berdasarkan jenis CSR:'],
         ['  - CSR Reguler: Jam mulai + (3 x 50 menit)'],
         ['  - CSR Responsi: Jam mulai + (2 x 50 menit)'],
-        ['  Contoh: 07:20 + (3 x 50 menit) = 09:50 (reguler)'],
-        ['  Contoh: 07:20 + (2 x 50 menit) = 09:00 (responsi)'],
         [''],
         ['📝 VALIDASI JENIS CSR:'],
         ['• Jenis CSR: "reguler" atau "responsi"'],
         [`• CSR Reguler = ${CSR_REGULER_SESSIONS} sesi (${CSR_REGULER_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
         [`• CSR Responsi = ${CSR_RESPONSI_SESSIONS} sesi (${CSR_RESPONSI_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
-        ['• Jam selesai dihitung otomatis berdasarkan jenis CSR'],
         [''],
         ['👥 VALIDASI KELOMPOK KECIL:'],
         ['• Kelompok kecil wajib diisi'],
         ['• Nama kelompok kecil harus ada di database'],
-        ['• Harus sesuai dengan semester mata kuliah'],
         [''],
         ['🎯 VALIDASI KEAHLIAN:'],
         ['• Keahlian wajib diisi'],
@@ -603,7 +609,7 @@ export default function DetailNonBlokCSR() {
         ['• Dosen harus memiliki keahlian yang sesuai'],
         [''],
         ['👨‍🏫 VALIDASI DOSEN:'],
-        ['• Dosen wajib diisi'],
+        ['• Dosen wajib diisi (1 dosen)'],
         ['• Nama dosen harus ada di database'],
         ['• Dosen harus memiliki keahlian yang sesuai dengan keahlian yang dipilih'],
         [''],
@@ -617,7 +623,8 @@ export default function DetailNonBlokCSR() {
         ['• Periksa preview sebelum import'],
         ['• Edit langsung di tabel preview jika ada error'],
         ['• Sistem akan highlight error dengan warna merah'],
-        ['• Tooltip akan menampilkan pesan error detail']
+        ['• Tooltip akan menampilkan pesan error detail'],
+        ['• Pastikan jadwal Dosen dan Ruangan tidak bentrok dengan jadwal lain']
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -2585,24 +2592,22 @@ export default function DetailNonBlokCSR() {
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.kategori?.nama || '-'}</td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => handleOpenAbsensi(row)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition" title="Absensi">
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="hidden sm:inline">Absensi</span>
+                          <button onClick={() => handleOpenAbsensi(row)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0" title="Buka Absensi">
+                            <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Absensi</span>
                           </button>
                           <button onClick={() => {
                             // Cari index berdasarkan ID untuk memastikan data yang benar
                             const actualCSRIndex = (csrPage - 1) * csrPageSize + i;
                             const correctIndex = jadwalCSR.findIndex(j => j.id === row.id);
                             handleEditJadwal(correctIndex >= 0 ? correctIndex : actualCSRIndex);
-                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
-                            <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                            <span className="hidden sm:inline">Edit</span>
+                          }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                            <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Edit</span>
                           </button>
-                          <button onClick={() => { setSelectedDeleteIndex(i); setShowDeleteModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                            <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                            <span className="hidden sm:inline">Hapus</span>
+                          <button onClick={() => { setSelectedDeleteIndex(i); setShowDeleteModal(true); }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                            <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Hapus</span>
                           </button>
                         </div>
                       </td>

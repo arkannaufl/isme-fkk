@@ -64,6 +64,11 @@ export default function TahunAjaran() {
     name: string;
   } | null>(null);
   const [updateStudentSemester, setUpdateStudentSemester] = useState(true); // Default Yes
+  
+  // Typing Confirmation Modal State
+  const [showTypingConfirmModal, setShowTypingConfirmModal] = useState(false);
+  const [confirmationText, setConfirmationText] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -105,13 +110,16 @@ export default function TahunAjaran() {
     const { name, value } = e.target;
 
     if (name === 'tahun') {
+      // Hanya izinkan angka dan slash
+      const numericValue = value.replace(/[^\d/]/g, "");
+
       // Auto-complete tahun ajaran format
-      if (value.length === 4 && /^\d{4}$/.test(value)) {
-        const currentYear = parseInt(value);
+      if (numericValue.length === 4 && /^\d{4}$/.test(numericValue)) {
+        const currentYear = parseInt(numericValue);
         const nextYear = currentYear + 1;
-        setForm((prev) => ({ ...prev, [name]: `${value}/${nextYear}` }));
+        setForm((prev) => ({ ...prev, [name]: `${numericValue}/${nextYear}` }));
       } else {
-        setForm((prev) => ({ ...prev, [name]: value }));
+        setForm((prev) => ({ ...prev, [name]: numericValue }));
       }
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
@@ -201,23 +209,54 @@ export default function TahunAjaran() {
   const processActivation = async () => {
     if (!pendingActivation) return;
 
-    setShowConfirmModal(false);
     const { type, id } = pendingActivation;
     const updateSemester = updateStudentSemester;
 
-    // Clear pending state
-    setPendingActivation(null);
+    // Close first modal
+    setShowConfirmModal(false);
 
-    // Call respective handler with update flag
-    if (type === 'tahun_ajaran') {
-      await handleActivate(id, updateSemester);
+    if (updateSemester) {
+      // Show typing confirmation modal for student semester update
+      setShowTypingConfirmModal(true);
     } else {
-      await handleSemesterActivate(id, updateSemester);
+      // Direct activation without student update
+      setPendingActivation(null);
+      if (type === 'tahun_ajaran') {
+        await handleActivate(id, false);
+      } else {
+        await handleSemesterActivate(id, false);
+      }
     }
   };
 
   const cancelActivation = () => {
     setShowConfirmModal(false);
+    setPendingActivation(null);
+  };
+
+  const processTypingConfirmation = async () => {
+    if (!pendingActivation || confirmationText.trim() !== 'KONFIRMASI') return;
+    
+    setIsProcessing(true);
+    const { type, id } = pendingActivation;
+    
+    try {
+      if (type === 'tahun_ajaran') {
+        await handleActivate(id, true);
+      } else {
+        await handleSemesterActivate(id, true);
+      }
+    } finally {
+      setIsProcessing(false);
+      setShowTypingConfirmModal(false);
+      setConfirmationText('');
+      setPendingActivation(null);
+    }
+  };
+
+  const cancelTypingConfirmation = () => {
+    setShowTypingConfirmModal(false);
+    setConfirmationText('');
     setPendingActivation(null);
   };
 
@@ -234,6 +273,19 @@ export default function TahunAjaran() {
         const response = await api.post(`/tahun-ajaran/${id}/activate`, {
           update_student_semester: updateSemester
         });
+        
+        // Kirim notifikasi ke semua akun
+        try {
+          await api.post('/notifications/broadcast', {
+            title: '🔄 Perubahan Tahun Ajaran Aktif',
+            message: `Tahun ajaran aktif telah diperbarui. Silakan refresh halaman untuk melihat data terbaru.`,
+            type: 'info',
+            send_to_all: true // Kirim ke semua akun
+          });
+        } catch (notifError) {
+          console.error('Gagal mengirim notifikasi:', notifError);
+        }
+        
         setSuccess("Status tahun ajaran berhasil diubah.");
 
         // Refresh full data to get updated semester statuses
@@ -264,6 +316,19 @@ export default function TahunAjaran() {
         const response = await api.post(`/semesters/${semesterId}/activate`, {
           update_student_semester: updateSemester
         });
+        
+        // Kirim notifikasi ke semua akun
+        try {
+          await api.post('/notifications/broadcast', {
+            title: '🔄 Perubahan Semester Aktif',
+            message: `Semester aktif telah diperbarui. Silakan refresh halaman untuk melihat data terbaru.`,
+            type: 'info',
+            send_to_all: true // Kirim ke semua akun
+          });
+        } catch (notifError) {
+          console.error('Gagal mengirim notifikasi:', notifError);
+        }
+        
         setSuccess("Status semester berhasil diubah.");
 
         // Refresh full data
@@ -581,8 +646,12 @@ export default function TahunAjaran() {
               type="text"
               placeholder="Cari tahun ajaran..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^\d/]/g, "");
+                setSearch(val);
+              }}
               className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              inputMode="numeric"
             />
           </div>
         </div>
@@ -733,10 +802,21 @@ export default function TahunAjaran() {
                         name="tahun"
                         value={form.tahun}
                         onChange={handleInputChange}
-                        placeholder="Ketik tahun (contoh: 2024) atau format lengkap (2024/2025)"
+                        placeholder="Format: YYYY/YYYY"
                         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         pattern="\d{4}/\d{4}"
                         inputMode="numeric"
+                        maxLength={9}
+                        onInput={(e) => {
+                          let value = e.currentTarget.value.replace(/[^\d/]/g, '');
+
+                          if (value.length === 4 && !value.includes('/')) {
+                            const year = parseInt(value);
+                            value = `${year}/${year + 1}`;
+                          }
+                          
+                          e.currentTarget.value = value;
+                        }}
                       />
                     </div>
                     {modalError && (
@@ -902,73 +982,213 @@ export default function TahunAjaran() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-2xl z-[100003] border border-gray-100 dark:border-gray-800"
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100003] max-h-[90vh] overflow-y-auto hide-scroll border border-gray-100 dark:border-gray-800"
             >
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Konfirmasi Aktivasi
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
-                Anda akan mengaktifkan <span className="font-semibold text-brand-600 dark:text-brand-400">{pendingActivation.name}</span>.
-                Apakah Anda ingin memperbarui semester mahasiswa secara otomatis?
-              </p>
+              <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    Konfirmasi Aktivasi
+                  </h2>
+                </div>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  Anda akan mengaktifkan <span className="font-semibold text-brand-600 dark:text-brand-400">{pendingActivation.name}</span>.
+                  Apakah Anda ingin memperbarui semester mahasiswa secara otomatis?
+                </p>
 
               <div className="mb-6 space-y-3">
-                <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${updateStudentSemester ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                  <div className="flex items-center h-5">
-                    <input
-                      type="radio"
-                      name="update_semester"
-                      checked={updateStudentSemester}
-                      onChange={() => setUpdateStudentSemester(true)}
-                      className="focus:ring-brand-500 h-4 w-4 text-brand-600 border-gray-300"
-                    />
+                <div
+                  className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${updateStudentSemester
+                      ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                      : ""
+                    }`}
+                  onClick={() => setUpdateStudentSemester(true)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${updateStudentSemester
+                          ? "bg-brand-500 border-brand-500"
+                          : "border-gray-300 dark:border-gray-600"
+                        }`}
+                    >
+                      {updateStudentSemester && (
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          Ya, Perbarui Semester Mahasiswa
+                        </span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400">
+                          Rekomendasi
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Semester mahasiswa akan <b>disesuaikan (Naik/Turun)</b> mengikut tahun ajaran ini. <br />
+                        - Jika maju tahun: Mahasiswa naik semester/lulus.<br />
+                        - Jika mundur tahun: Mahasiswa akan turun semester.
+                      </p>
+                    </div>
                   </div>
-                  <div className="ml-3 text-sm">
-                    <span className={`block font-medium ${updateStudentSemester ? 'text-brand-800 dark:text-brand-300' : 'text-gray-900 dark:text-gray-100'}`}>
-                      Ya, Perbarui Semester Mahasiswa
-                    </span>
-                    <span className={`block mt-1 ${updateStudentSemester ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                      Semester mahasiswa akan <b>disesuaikan (Naik/Turun)</b> mengikut tahun ajaran ini. <br />
-                      - Jika maju tahun: Mahasiswa naik semester/lulus.<br />
-                      - Jika mundur tahun: Mahasiswa akan turun semester.
-                    </span>
-                  </div>
-                </label>
+                </div>
 
-                <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${!updateStudentSemester ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                  <div className="flex items-center h-5">
-                    <input
-                      type="radio"
-                      name="update_semester"
-                      checked={!updateStudentSemester}
-                      onChange={() => setUpdateStudentSemester(false)}
-                      className="focus:ring-brand-500 h-4 w-4 text-brand-600 border-gray-300"
-                    />
+                <div
+                  className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${!updateStudentSemester
+                      ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                      : ""
+                    }`}
+                  onClick={() => setUpdateStudentSemester(false)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${!updateStudentSemester
+                          ? "bg-brand-500 border-brand-500"
+                          : "border-gray-300 dark:border-gray-600"
+                        }`}
+                    >
+                      {!updateStudentSemester && (
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          Tidak, Hanya Aktifkan Saja
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Semester mahasiswa tidak akan berubah. Pilih ini jika hanya ingin mengganti periode aktif tanpa mempengaruhi data mahasiswa.
+                      </p>
+                    </div>
                   </div>
-                  <div className="ml-3 text-sm">
-                    <span className={`block font-medium ${!updateStudentSemester ? 'text-brand-800 dark:text-brand-300' : 'text-gray-900 dark:text-gray-100'}`}>
-                      Tidak, Hanya Aktifkan Saja
-                    </span>
-                    <span className={`block mt-1 ${!updateStudentSemester ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                      Semester mahasiswa tidak akan berubah. Pilih ini jika hanya ingin mengganti periode aktif tanpa mempengaruhi data mahasiswa.
-                    </span>
-                  </div>
-                </label>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-2 pt-2 relative z-20">
                 <button
                   onClick={cancelActivation}
-                  className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
                 >
                   Batal
                 </button>
                 <button
                   onClick={processActivation}
-                  className="px-6 py-2 rounded-lg bg-brand-500 text-white font-medium shadow-theme-xs hover:bg-brand-600 transition"
+                  className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out"
                 >
                   Simpan & Aktifkan
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Typing Confirmation Modal */}
+      <AnimatePresence>
+        {showTypingConfirmModal && pendingActivation && (
+          <div className="fixed inset-0 z-[100004] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100004] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={cancelTypingConfirmation}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100005] max-h-[90vh] overflow-y-auto hide-scroll border border-gray-100 dark:border-gray-800"
+            >
+              {/* Close Button */}
+              <button
+                onClick={cancelTypingConfirmation}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div className="text-left">
+                <div className="mb-6">
+                  <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+                    <svg className="h-8 w-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 sm:pb-4">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white text-center flex-1">
+                      Konfirmasi Perubahan Semester
+                    </h2>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4 text-center">
+                    Anda akan <span className="font-semibold text-red-600 dark:text-red-400">memperbarui semester mahasiswa</span> untuk <span className="font-semibold text-brand-600 dark:text-brand-400">{pendingActivation.name}</span>.
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">
+                    Tindakan ini akan mempengaruhi data semester semua mahasiswa. Untuk melanjutkan, ketik <span className="font-mono font-bold bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">KONFIRMASI</span> di bawah:
+                  </p>
+                </div>
+
+                <div className="mb-6">
+                  <input
+                    type="text"
+                    value={confirmationText}
+                    onChange={(e) => setConfirmationText(e.target.value)}
+                    placeholder="Ketik 'KONFIRMASI'"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono text-center focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={cancelTypingConfirmation}
+                    disabled={isProcessing}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={processTypingConfirmation}
+                    disabled={confirmationText.trim() !== 'KONFIRMASI' || isProcessing}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-white text-xs sm:text-sm font-medium shadow-theme-xs transition-all duration-300 ease-in-out flex items-center justify-center min-w-[140px] ${
+                      confirmationText.trim() === 'KONFIRMASI' && !isProcessing
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-emerald-800 text-white opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Memproses...
+                      </>
+                    ) : (
+                      'Konfirmasi & Aktifkan'
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

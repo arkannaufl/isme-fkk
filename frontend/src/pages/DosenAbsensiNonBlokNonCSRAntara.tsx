@@ -2378,50 +2378,71 @@ export default function DosenAbsensiNonBlokNonCSRAntaraPage() {
       {/* Confirmation Modal */}
       <AnimatePresence>
         {confirmOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={cancelUncheck}
-            />
+            ></div>
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
             >
-              <div
-                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
+              {/* Close Button */}
+              <button
+                onClick={cancelUncheck}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                <div className="pb-6 border-b border-gray-200 dark:border-gray-700 mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Konfirmasi Ubah Kehadiran</h3>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Ubah Kehadiran
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
                   {pendingChange?.desired
                     ? 'Anda akan menandai mahasiswa menjadi Hadir.'
                     : 'Anda akan menandai mahasiswa menjadi Tidak Hadir.'}
                   {' '}Lanjutkan?
                 </p>
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 pt-2">
                   <button
                     onClick={cancelUncheck}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                   >
                     Batal
                   </button>
                   <button
                     onClick={confirmChange}
-                    className={`px-4 py-2 rounded-lg text-white transition-colors ${pendingChange?.desired ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600'}`}
+                    className={`px-4 py-2 rounded-lg text-white text-sm font-medium shadow-theme-xs transition flex items-center justify-center ${
+                      pendingChange?.desired
+                        ? 'bg-green-600 hover:bg-green-700'
+                        : 'bg-red-500 hover:bg-red-600'
+                    }`}
                   >
                     {pendingChange?.desired ? 'Ya, Tandai Hadir' : 'Ya, Tandai Tidak Hadir'}
                   </button>
                 </div>
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
     </div>

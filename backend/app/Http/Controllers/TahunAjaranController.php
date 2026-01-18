@@ -46,11 +46,6 @@ class TahunAjaranController extends Controller
                 'jenis' => 'Genap',
                 'aktif' => false,
             ]);
-
-            $tahunAjaran->semesters()->create([
-                'jenis' => 'Antara',
-                'aktif' => false,
-            ]);
             
             return $tahunAjaran;
         });

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Imports\RuanganImport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class RuanganController extends Controller
 {
@@ -26,6 +27,9 @@ class RuanganController extends Controller
         ]);
 
         $ruangan = Ruangan::create($validated);
+        
+        // Clear cache
+        Cache::forget('ruangan_list_all');
         
         return response()->json($ruangan, 201);
     }
@@ -53,6 +57,9 @@ class RuanganController extends Controller
 
         $ruangan->update($validated);
         
+        // Clear cache
+        Cache::forget('ruangan_list_all');
+        
         return response()->json($ruangan);
     }
 
@@ -61,6 +68,9 @@ class RuanganController extends Controller
         $ruangan = Ruangan::findOrFail($id);
         
         $ruangan->delete();
+        
+        // Clear cache
+        Cache::forget('ruangan_list_all');
         
         return response()->json(['message' => 'Ruangan deleted']);
     }
@@ -88,8 +98,11 @@ class RuanganController extends Controller
         activity()
             ->causedBy(Auth::user())
             ->log("Mengimpor {$importedCount} data ruangan dari file: {$request->file('file')->getClientOriginalName()}");
-
+        
+        // Clear cache only if data was imported
         if ($importedCount > 0) {
+            Cache::forget('ruangan_list_all');
+            
             return response()->json([
                 'imported_count' => $importedCount,
                 'errors' => $errors,

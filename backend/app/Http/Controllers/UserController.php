@@ -348,6 +348,13 @@ class UserController extends Controller
             Cache::forget($cacheKey2WithSemester);
         }
 
+        // NEW: Clear special caches for Dosen and Mahasiswa lists used in scheduling
+        if ($user->role === 'dosen') {
+            Cache::forget('dosen_list_all');
+        } elseif ($user->role === 'mahasiswa') {
+            Cache::forget('mahasiswa_list_all');
+        }
+
         return response()->json($user, 201);
         } catch (ValidationException $e) {
             \Log::error('UserController::store - Validation failed', [
@@ -455,6 +462,15 @@ class UserController extends Controller
             Cache::forget($cacheKey2WithSemester);
         }
 
+        // NEW: Clear special caches for Dosen and Mahasiswa lists used in scheduling
+        foreach ($rolesToClear as $role) {
+            if ($role === 'dosen') {
+                Cache::forget('dosen_list_all');
+            } elseif ($role === 'mahasiswa') {
+                Cache::forget('mahasiswa_list_all');
+            }
+        }
+
         // Handle dosen_peran jika ada
         if ($request->has('dosen_peran') && is_array($request->dosen_peran)) {
             // Hapus hanya dosen_peran dengan tipe_peran koordinator atau tim_blok
@@ -530,6 +546,13 @@ class UserController extends Controller
         $cacheKey2WithSemester = 'users_list_' . md5($normalizedQueryString2 . '_50_semester_' . $semesterId);
         Cache::forget($cacheKey2WithSemester);
 
+        // NEW: Clear special caches for Dosen and Mahasiswa lists used in scheduling
+        if ($role === 'dosen') {
+            Cache::forget('dosen_list_all');
+        } elseif ($role === 'mahasiswa') {
+            Cache::forget('mahasiswa_list_all');
+        }
+
         return response()->json(['message' => 'User deleted']);
     }
 
@@ -562,6 +585,30 @@ class UserController extends Controller
             ->log("Mengimpor {$importedCount} data dosen dari file: {$request->file('file')->getClientOriginalName()}");
 
         if ($importedCount > 0) {
+            // NEW: Clear special cache for Dosen list
+            Cache::forget('dosen_list_all');
+
+            // Clear users list cache for dosen role
+            $activeSemester = \App\Models\Semester::where('aktif', true)->first();
+            $semesterId = $activeSemester ? $activeSemester->id : 'none';
+            // Also need to clear paginated caches - simpliest way is to clear all relevant ones if possible
+            // But we'll follow pattern
+            $role = 'dosen';
+            $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
+            foreach ($perPageOptions as $perPage) {
+                $queryParams = ['role' => $role, 'per_page' => $perPage];
+                ksort($queryParams);
+                $normalizedQueryString = http_build_query($queryParams);
+                Cache::forget('users_list_' . md5($normalizedQueryString . '_' . $perPage));
+                Cache::forget('users_list_' . md5($normalizedQueryString . '_' . $perPage . '_semester_' . $semesterId));
+            }
+             $queryParams2 = ['role' => $role];
+             ksort($queryParams2);
+             $normalizedQueryString2 = http_build_query($queryParams2);
+             Cache::forget('users_list_' . md5($normalizedQueryString2 . '_50'));
+             Cache::forget('users_list_' . md5($normalizedQueryString2 . '_50_semester_' . $semesterId));
+
+
             // Ada data valid yang berhasil diimpor
             return response()->json([
                 'imported_count' => $importedCount,
@@ -626,6 +673,28 @@ class UserController extends Controller
                 ->log("Mengimpor {$importedCount} data mahasiswa dari file: {$request->file('file')->getClientOriginalName()}");
 
             if ($importedCount > 0) {
+                // NEW: Clear special cache for Mahasiswa list
+                Cache::forget('mahasiswa_list_all');
+                
+                // Clear users list cache for mahasiswa role
+                $activeSemester = \App\Models\Semester::where('aktif', true)->first();
+                $semesterId = $activeSemester ? $activeSemester->id : 'none';
+                $role = 'mahasiswa';
+                $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
+                foreach ($perPageOptions as $perPage) {
+                    $queryParams = ['role' => $role, 'per_page' => $perPage];
+                    ksort($queryParams);
+                    $normalizedQueryString = http_build_query($queryParams);
+                    Cache::forget('users_list_' . md5($normalizedQueryString . '_' . $perPage));
+                    Cache::forget('users_list_' . md5($normalizedQueryString . '_' . $perPage . '_semester_' . $semesterId));
+                }
+                 $queryParams2 = ['role' => $role];
+                 ksort($queryParams2);
+                 $normalizedQueryString2 = http_build_query($queryParams2);
+                 Cache::forget('users_list_' . md5($normalizedQueryString2 . '_50'));
+                 Cache::forget('users_list_' . md5($normalizedQueryString2 . '_50_semester_' . $semesterId));
+
+
                 // Ada data valid yang berhasil diimpor
                 if ($totalFailed > 0) {
                     $message = "Berhasil mengimpor {$importedCount} dari {$totalProcessed} data mahasiswa. Ada {$totalFailed} data yang gagal diimpor.";

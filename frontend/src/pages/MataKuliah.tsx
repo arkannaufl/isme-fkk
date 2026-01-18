@@ -10,6 +10,7 @@ import {
   faUpload,
   faLayerGroup,
   faSearch,
+  faCircleInfo,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import api, { handleApiError, getUser } from "../utils/api";
@@ -475,8 +476,8 @@ export default function MataKuliah() {
       const allCourses = res.data;
       setMasterCourses(allCourses);
 
-      // User requested default 0 selection (Clean Slate)
-      setSelectedManageCodes([]);
+      // Initialize selection with courses already in the current list
+      setSelectedManageCodes(data.map((mk) => mk.kode));
 
       setShowManageModal(true);
     } catch (e: any) {
@@ -2853,6 +2854,19 @@ export default function MataKuliah() {
         </div>
       )}
 
+      {/* Petunjuk Penggunaan (Empty List Info) */}
+      <div className="mb-6 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 flex items-start gap-3">
+        <div className="mt-0.5 text-indigo-500 dark:text-indigo-400">
+          <FontAwesomeIcon icon={faCircleInfo} className="w-4 h-4" />
+        </div>
+        <div>
+          <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Informasi Pengelolaan Data</h4>
+          <p className="text-xs text-indigo-600/80 dark:text-indigo-400/80 mt-1 leading-relaxed">
+            Halaman ini menampilkan mata kuliah yang telah didaftarkan untuk Tahun Ajaran aktif. Jika daftar di bawah masih kosong, Anda dapat menambahkan data melalui tombol <strong>'Ambil dari Master'</strong> untuk mengambil data dari basis data kurikulum pusat, atau gunakan <strong>'Import Excel'</strong> untuk mengunggah data baru melalui file dokumen.
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-4 mb-6">
         {/* Header dengan tombol aksi */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all duration-300 ease-in-out">
@@ -4065,40 +4079,10 @@ export default function MataKuliah() {
                       id="kode"
                       name="kode"
                       value={form.kode}
-                      readOnly={!editMode}
-                      onChange={
-                        editMode
-                          ? (e) => setForm({ ...form, kode: e.target.value })
-                          : undefined
-                      }
-                      className={`w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 font-normal text-sm sm:text-base ${editMode
-                        ? "bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
-                        }`}
-                      placeholder={
-                        editMode
-                          ? "Masukkan kode mata kuliah"
-                          : "Kode akan otomatis terisi berdasarkan semester, jenis, dan blok"
-                      }
+                      readOnly={true}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 font-normal text-sm sm:text-base bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
+                      placeholder="Kode akan otomatis terisi berdasarkan semester, jenis, dan blok"
                     />
-                    {editMode && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const generatedKode = generateKodeMataKuliah(
-                            form.semester,
-                            form.jenis,
-                            form.blok
-                          );
-                          if (generatedKode) {
-                            setForm({ ...form, kode: generatedKode });
-                          }
-                        }}
-                        className="mt-2 px-3 py-1.5 text-xs sm:text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors duration-200"
-                      >
-                        Generate Kode
-                      </button>
-                    )}
                     {!editMode && (
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Kode otomatis berdasarkan:{" "}
@@ -7398,31 +7382,45 @@ export default function MataKuliah() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden z-[100001]"
             >
-              {/* Modal Content Header (No border-b, unified look) */}
-              <div className="px-8 pt-8 pb-4 flex justify-between items-start relative">
-                <div className="flex gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                    <FontAwesomeIcon icon={faLayerGroup} className="text-2xl" />
+              {/* Close Button */}
+              <button
+                onClick={() => setShowManageModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div className="px-8 pt-8 pb-4">
+                <div className="flex items-center justify-between pb-4">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    Kelola Mata Kuliah Tahun Ajaran Aktif
+                  </h2>
+                </div>
+
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                    <FontAwesomeIcon icon={faLayerGroup} className="text-xl" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      Kelola Mata Kuliah Tahun Ajaran Aktif
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      Pilih dari <span className="font-semibold text-indigo-600 dark:text-indigo-400">Master Data</span> untuk periode ini.
+                    <h4 className="font-medium text-gray-900 dark:text-white">
+                      Ambil dari Master Data
+                    </h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                      Pilih mata kuliah dari <span className="font-semibold text-indigo-600 dark:text-indigo-400">Master Data</span> untuk periode ini.
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowManageModal(false)}
-                  className="w-11 h-11 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white transition-all"
-                >
-                  <span className="text-2xl">&times;</span>
-                </button>
               </div>
 
               {/* Search & Filter Bar (Integrated styling) */}
-              <div className="px-8 py-4 flex flex-col gap-4">
+              <div className="px-8 pt-0 pb-4 flex flex-col gap-4">
                 <div className="relative w-full">
                   <FontAwesomeIcon icon={faSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -7430,7 +7428,7 @@ export default function MataKuliah() {
                     placeholder="Cari Mata Kuliah atau Kode..."
                     value={manageSearch}
                     onChange={(e) => setManageSearch(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -7438,9 +7436,9 @@ export default function MataKuliah() {
                     <select
                       value={manageYearFilter}
                       onChange={(e) => setManageYearFilter(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                      className="w-full h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
-                      <option value="all">📅 SEMUA TAHUN</option>
+                      <option value="all">Semua Tahun</option>
                       {uniqueMasterYears.map(year => (
                         <option key={year} value={year.toString()}>{year}</option>
                       ))}
@@ -7450,11 +7448,11 @@ export default function MataKuliah() {
                     <select
                       value={manageSemesterFilter}
                       onChange={(e) => setManageSemesterFilter(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                      className="w-full h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
-                      <option value="all">🎓 SEMUA SEMESTER</option>
+                      <option value="all">Semua Semester</option>
                       {uniqueMasterSemesters.map(sem => (
-                        <option key={sem} value={sem}>{sem.toUpperCase()}</option>
+                        <option key={sem} value={sem}>{sem === "Antara" ? "Semester Antara" : `Semester ${sem}`}</option>
                       ))}
                     </select>
                   </div>
@@ -7462,11 +7460,11 @@ export default function MataKuliah() {
                     <select
                       value={manageBlokFilter}
                       onChange={(e) => setManageBlokFilter(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                      className="w-full h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
-                      <option value="all">📦 SEMUA BLOK</option>
+                      <option value="all">Semua Blok</option>
                       {uniqueMasterBlocks.map(blk => (
-                        <option key={blk} value={blk.toString()}>BLOK KE-{blk}</option>
+                        <option key={blk} value={blk.toString()}>Blok ke-{blk}</option>
                       ))}
                     </select>
                   </div>
@@ -7474,7 +7472,7 @@ export default function MataKuliah() {
               </div>
 
               {/* Courses Grid */}
-              <div className="flex-1 overflow-y-auto px-8 py-4 modern-scrollbar bg-gray-50/30 dark:bg-gray-900/10">
+              <div className="flex-1 overflow-y-auto px-8 py-4 hide-scroll bg-gray-50/30 dark:bg-gray-900/10">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {masterCourses
                     .filter(mk => {
@@ -7543,26 +7541,26 @@ export default function MataKuliah() {
                 </div>
               </div>
 
-              {/* Modal Footer (Improved spacing and style) */}
-              <div className="px-8 py-8 border-t border-gray-50 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col sm:flex-row justify-between items-center gap-4">
+              {/* Modal Footer (Improved consistency) */}
+              <div className="px-8 py-6 border-t border-gray-50 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="px-4 py-2 rounded-2xl bg-indigo-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20">
+                  <div className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-medium flex items-center gap-2 border border-indigo-100 dark:border-indigo-800/50">
                     <FontAwesomeIcon icon={faLayerGroup} />
-                    {selectedManageCodes.length} Terpilih
+                    <span>{selectedManageCodes.length} Terpilih</span>
                   </div>
                 </div>
 
-                <div className="flex gap-3 w-full sm:w-auto">
+                <div className="flex gap-2 w-full sm:w-auto">
                   <button
                     onClick={() => setShowManageModal(false)}
-                    className="flex-1 sm:flex-none px-8 py-3 text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-2xl transition-all"
+                    className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleSaveManageModal}
                     disabled={isSaving}
-                    className="flex-1 sm:flex-none px-10 py-3 text-sm font-bold text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 hover:translate-y-[-1px] active:translate-y-[0px]"
+                    className="flex-1 sm:flex-none px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-theme-xs flex items-center justify-center gap-2 min-w-[160px]"
                   >
                     {isSaving ? (
                       <>

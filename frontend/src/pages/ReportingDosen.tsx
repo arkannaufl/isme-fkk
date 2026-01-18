@@ -2196,27 +2196,36 @@ const ReportingDosen: React.FC = () => {
             {getDescription()}
           </p>
         </div>
-        {tahunAjaran && tahunAjaran.semesters?.find((s) => s.aktif) && (
-          <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800">
-            <svg
-              className="w-3 h-3 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            <span className="text-sm font-medium">
-              Semester Aktif: {tahunAjaran.semesters.find((s) => s.aktif)?.jenis} ({tahunAjaran.tahun})
-            </span>
-          </span>
-        )}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          {tahunAjaran && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <div>
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Tahun Ajaran {tahunAjaran.tahun}
+                  </div>
+                  {tahunAjaran.semesters?.find((s) => s.aktif) && (
+                    <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      {tahunAjaran.semesters.find((s) => s.aktif)?.jenis}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {activeTab === "pbl" && (
             <div className="relative">
               <button
@@ -2227,7 +2236,7 @@ const ReportingDosen: React.FC = () => {
                 Export Excel
                 <FontAwesomeIcon 
                   icon={showExcelDropdown ? faChevronUp : faChevronDown} 
-                  className="w-3 h-3 ml-1"
+                  className="w-4 h-4 ml-1" 
                 />
               </button>
               {showExcelDropdown && (

@@ -203,6 +203,7 @@ class ForumController extends Controller
                 'content' => $optimizedContent, // Optimized rich text HTML content
                 'category_id' => $request->category_id,
                 'user_id' => Auth::guard('sanctum')->id(),
+                'semester_id' => $this->getActiveSemesterId(), // Add active semester
                 'status' => 'active',
                 'access_type' => $request->access_type,
                 'allowed_users' => $request->access_type === 'private' ? $request->selected_users : null,
@@ -1795,6 +1796,28 @@ class ForumController extends Controller
                 'message' => 'Gagal mengambil data viewer forum',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Get active semester ID
+     */
+    private function getActiveSemesterId()
+    {
+        try {
+            // Get active tahun ajaran with its semesters
+            $activeTahunAjaran = \App\Models\TahunAjaran::where('is_active', true)
+                ->with('semesters')
+                ->first();
+
+            if ($activeTahunAjaran && $activeTahunAjaran->semesters && $activeTahunAjaran->semesters->isNotEmpty()) {
+                return $activeTahunAjaran->semesters->first()->id;
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Error getting active semester ID: ' . $e->getMessage());
+            return null;
         }
     }
 

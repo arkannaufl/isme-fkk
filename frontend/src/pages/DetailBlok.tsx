@@ -290,6 +290,7 @@ export default function DetailBlok() {
 
   const [error, setError] = useState<string | null>(null);
 
+  
   // State untuk pesan sukses per section
   const [kuliahBesarSuccess, setKuliahBesarSuccess] = useState<string | null>(
     null
@@ -316,6 +317,7 @@ export default function DetailBlok() {
       { value: kuliahBesarSuccess, setter: setKuliahBesarSuccess },
       { value: praktikumSuccess, setter: setPraktikumSuccess },
       { value: agendaKhususSuccess, setter: setAgendaKhususSuccess },
+      { value: pblSuccess, setter: setPblSuccess },
       { value: jurnalReadingSuccess, setter: setJurnalReadingSuccess },
       { value: persamaanPersepsiSuccess, setter: setPersamaanPersepsiSuccess },
       { value: seminarPlenoSuccess, setter: setSeminarPlenoSuccess },
@@ -330,8 +332,10 @@ export default function DetailBlok() {
     kuliahBesarSuccess,
     praktikumSuccess,
     agendaKhususSuccess,
+    pblSuccess,
     jurnalReadingSuccess,
     persamaanPersepsiSuccess,
+    seminarPlenoSuccess,
   ]);
 
   // State untuk modal input jadwal materi
@@ -1140,7 +1144,6 @@ export default function DetailBlok() {
   const jurnalReadingFileInputRef = useRef<HTMLInputElement>(null);
   const persamaanPersepsiFileInputRef = useRef<HTMLInputElement>(null);
   const seminarPlenoFileInputRef = useRef<HTMLInputElement>(null);
-  const seminarPlenoValidationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch materi (keahlian) dari mata kuliah yang sedang dipilih
 
@@ -2241,25 +2244,19 @@ export default function DetailBlok() {
           : []
       );
 
-      // Fetch jadwal Persamaan Persepsi
-      try {
-        const persepsiRes = await api.get(`/persamaan-persepsi/jadwal/${kode}`);
-        setJadwalPersamaanPersepsi(
-          Array.isArray(persepsiRes.data) ? persepsiRes.data : []
-        );
-      } catch (err) {
-        setJadwalPersamaanPersepsi([]);
-      }
+      // Set jadwal Persamaan Persepsi dari batch-data
+      setJadwalPersamaanPersepsi(
+        Array.isArray(batchData.jadwal_persamaan_persepsi)
+          ? batchData.jadwal_persamaan_persepsi
+          : []
+      );
 
-      // Fetch jadwal Seminar Pleno
-      try {
-        const seminarPlenoRes = await api.get(`/seminar-pleno/jadwal/${kode}`);
-        setJadwalSeminarPleno(
-          Array.isArray(seminarPlenoRes.data) ? seminarPlenoRes.data : []
-        );
-      } catch (err) {
-        setJadwalSeminarPleno([]);
-      }
+      // Set jadwal Seminar Pleno dari batch-data
+      setJadwalSeminarPleno(
+        Array.isArray(batchData.jadwal_seminar_pleno)
+          ? batchData.jadwal_seminar_pleno
+          : []
+      );
 
       // Set reference data
 
@@ -5000,8 +4997,8 @@ export default function DetailBlok() {
           Materi: row.materi || "",
           Topik: row.topik || "",
           "Kelompok Kecil": Array.isArray(row.kelompok_kecil)
-            ? row.kelompok_kecil.map((k) => `Kelompok ${k.nama_kelompok}`).join(", ")
-            : row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` : "",
+            ? row.kelompok_kecil.map((k: any) => `${k.nama_kelompok}`).join(", ")
+            : (row.kelompok_kecil as any)?.nama_kelompok ? `${(row.kelompok_kecil as any).nama_kelompok}` : "",
           Dosen: dosenNames,
           Ruangan: ruangan?.nama || "",
           Sesi: row.jumlah_sesi,
@@ -5169,8 +5166,8 @@ export default function DetailBlok() {
 
         // Mapping kelompok kecil ke kolom "Kelompok"
         const kelompokKecilName = Array.isArray(row.kelompok_kecil)
-          ? row.kelompok_kecil.map((k) => `Kelompok ${k.nama_kelompok}`).join(", ")
-          : row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` :
+          ? row.kelompok_kecil.map((k: any) => `${k.nama_kelompok}`).join(", ")
+          : (row.kelompok_kecil as any)?.nama_kelompok ? `${(row.kelompok_kecil as any).nama_kelompok}` :
             (row as any).kelompok_kecil_name ||
             row.siakad_kelompok || "";
 
@@ -5590,53 +5587,121 @@ export default function DetailBlok() {
 
       XLSX.utils.book_append_sheet(wb, jurnalReadingWs, "Data Jurnal Reading");
 
-      // Sheet Info Mata Kuliah
-      const infoData = [
-        ["INFORMASI MATA KULIAH"],
+      // Sheet Tips dan Info
+      const startDate = data?.tanggal_mulai
+        ? new Date(data.tanggal_mulai)
+        : new Date();
+      const endDate = data?.tanggal_akhir
+        ? new Date(data.tanggal_akhir)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      const infoData: string[][] = [
+        ["TIPS DAN INFORMASI IMPORT JADWAL JURNAL READING"],
         [""],
-        ["Kode Mata Kuliah", data?.kode || ""],
-        ["Nama Mata Kuliah", data?.nama || ""],
-        ["Semester", data?.semester || ""],
-        ["Periode", data?.periode || ""],
-        ["Kurikulum", data?.kurikulum || ""],
-        ["Jenis", data?.jenis || ""],
-        ["Blok", data?.blok || ""],
-        [
-          "Tanggal Mulai",
-          data?.tanggal_mulai
-            ? new Date(data.tanggal_mulai).toISOString().split("T")[0]
-            : "",
-        ],
-        [
-          "Tanggal Akhir",
-          data?.tanggal_akhir
-            ? new Date(data.tanggal_akhir).toISOString().split("T")[0]
-            : "",
-        ],
-        ["Durasi Minggu", data?.durasi_minggu || ""],
+        ["📋 CARA UPLOAD FILE:"],
+        ["1. Download template ini dan isi dengan data jadwal jurnal reading"],
+        ["2. Pastikan semua kolom wajib diisi dengan benar"],
+        ["3. Kolom 'Kelompok Kecil' mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
+        ["4. Upload file yang sudah diisi ke sistem"],
+        ["5. Periksa preview data dan perbaiki error jika ada"],
+        ['6. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["TOTAL JADWAL JURNAL READING", jadwalJurnalReading.length],
+        ["✏️ CARA EDIT DATA:"],
+        ["1. Klik pada kolom yang ingin diedit di tabel preview"],
+        ["2. Ketik atau paste data yang benar"],
+        ["3. Sistem akan otomatis validasi dan update error"],
+        ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["CATATAN:"],
-        [
-          "• File ini berisi data jadwal jurnal reading yang dapat di-import kembali ke aplikasi",
-        ],
-        ["• Format tanggal: YYYY-MM-DD"],
-        ["• Format jam: HH.MM atau HH:MM"],
+        ["📊 KETERSEDIAAN DATA:"],
+        [""],
+        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+        ["• Termasuk dosen standby yang tersedia untuk semua materi"],
+        ...allDosenList.map((dosen) => {
+          const keahlian = Array.isArray(dosen.keahlian)
+            ? dosen.keahlian
+            : (dosen.keahlian || "").split(",").map((k: string) => k.trim());
+          return [`• ${dosen.name} - Keahlian: ${keahlian.join(", ")}`];
+        }),
+        [""],
+        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
+        [""],
+        ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
+        ...(() => {
+          const kelompokMap = new Map<string, number>();
+          kelompokKecilList.forEach((item) => {
+            const namaKelompok = item.nama_kelompok || `Kelompok ${item.id || "Unknown"}`;
+            if (kelompokMap.has(namaKelompok)) {
+              kelompokMap.set(namaKelompok, kelompokMap.get(namaKelompok)! + 1);
+            } else {
+              kelompokMap.set(namaKelompok, 1);
+            }
+          });
+          return kelompokMap.size > 0
+            ? Array.from(kelompokMap.entries())
+              .sort(([a], [b]) => {
+                const numA = parseInt(a);
+                const numB = parseInt(b);
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                return a.localeCompare(b);
+              })
+              .map(([namaKelompok, jumlahAnggota]) => [
+                `• ${namaKelompok} (${jumlahAnggota} mahasiswa)`,
+              ])
+            : [["• Belum ada kelompok kecil yang dibuat untuk semester ini"]];
+        })(),
+        [""],
+        ["⚠️ VALIDASI SISTEM:"],
+        [""],
+        ["📅 VALIDASI TANGGAL:"],
+        ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
+        ["• Wajib dalam rentang mata kuliah:"],
+        [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+        [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+        [""],
+        ["⏰ VALIDASI JAM:"],
+        ["• Format: HH.MM atau HH:MM (contoh: 07.20 atau 07:20)"],
+        ["• Jam mulai harus sesuai dengan opsi yang tersedia"],
+        ["• Jam selesai dihitung otomatis berdasarkan durasi sesi"],
+        [""],
+        ["👥 VALIDASI KELOMPOK KECIL:"],
+        ["• Kelompok kecil wajib diisi"],
+        ["• Nama kelompok kecil harus ada di database"],
+        ["• Mendukung penulisan lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
+        ["• Penulisan fleksibel: \"Kelompok1\", \"Kelompok 1\", atau \"1\""],
+        [""],
+        ["👨‍🏫 VALIDASI DOSEN:"],
+        ["• Dosen wajib diisi"],
+        ["• Nama dosen harus ada di database"],
+        [""],
+        ["🏢 VALIDASI RUANGAN:"],
+        ["• Ruangan wajib diisi"],
+        ["• Nama ruangan harus ada di database"],
+        [""],
+        ["🔢 VALIDASI SESI:"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
-        [
-          "• Pastikan data dosen, ruangan, dan kelompok kecil valid sebelum import",
-        ],
+        ["• Digunakan untuk menghitung jam selesai"],
+        [""],
+        ["📝 VALIDASI TOPIK:"],
+        ["• Topik wajib diisi"],
+        [""],
+        ["💡 TIPS PENTING:"],
+        ["• Gunakan data yang ada di list ketersediaan di atas"],
+        ["• Periksa preview sebelum import"],
+        ["• Edit langsung di tabel preview jika ada error"],
+        ["• Sistem akan highlight error dengan warna merah"],
+        ["• Tooltip akan menampilkan pesan error detail"],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
-      infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
-      XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
+      infoWs["!cols"] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       const fileName = `Export_Jurnal_Reading_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]
         }.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
+      console.error("Error exporting Jurnal Reading:", error);
       alert("Gagal mengekspor data jadwal jurnal reading");
     }
   };
@@ -5777,7 +5842,7 @@ export default function DetailBlok() {
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
-        ['5. Klik "Import" untuk menyimpan jadwal'],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
         ["✏️ CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
@@ -5791,7 +5856,6 @@ export default function DetailBlok() {
         ...modulPBLOptions
           .filter(
             (modul, index, self) =>
-              // Hapus duplikasi berdasarkan ID atau nama
               index ===
               self.findIndex(
                 (m) =>
@@ -5807,9 +5871,7 @@ export default function DetailBlok() {
         [""],
         ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
         ...(() => {
-          // Kelompok data berdasarkan nama_kelompok dan hitung jumlah mahasiswa
           const kelompokMap = new Map();
-
           kelompokKecilOptions.forEach((item) => {
             const namaKelompok =
               item.nama_kelompok || `Kelompok ${item.id || "Unknown"}`;
@@ -5819,8 +5881,6 @@ export default function DetailBlok() {
               kelompokMap.set(namaKelompok, 1);
             }
           });
-
-          // Convert map to array
           return Array.from(kelompokMap.entries()).map(
             ([namaKelompok, jumlahAnggota]) => [
               `• ${namaKelompok} (${jumlahAnggota} mahasiswa)`,
@@ -5836,7 +5896,6 @@ export default function DetailBlok() {
         ...dosenOptions
           .filter(
             (dosen, index, self) =>
-              // Hapus duplikasi berdasarkan ID atau nama
               index ===
               self.findIndex(
                 (d) =>
@@ -5853,7 +5912,6 @@ export default function DetailBlok() {
         ...ruanganOptions
           .filter(
             (ruangan, index, self) =>
-              // Hapus duplikasi berdasarkan ID atau nama
               index ===
               self.findIndex(
                 (r) =>
@@ -5873,35 +5931,38 @@ export default function DetailBlok() {
         ["📅 VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
-        [`  - Mulai: ${tanggalMulai.toLocaleDateString("id-ID")}`],
-        [`  - Akhir: ${tanggalAkhir.toLocaleDateString("id-ID")}`],
+        [`  - Mulai: ${tanggalMulai.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+        [`  - Akhir: ${tanggalAkhir.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
         ["⏰ VALIDASI JAM:"],
-        ["• Format: HH:MM (contoh: 08:00)"],
+        ["• Format: HH:MM atau HH.MM (contoh: 08:00 atau 08.00)"],
         ["• Jam mulai harus sesuai opsi yang tersedia:"],
         [
           "  07:20, 08:10, 09:00, 09:50, 10:40, 11:30, 12:35, 13:25, 14:15, 15:05, 15:35, 16:25, 17:15",
         ],
-        ["• Jam selesai akan divalidasi berdasarkan perhitungan:"],
-        ["  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)"],
-        ["  Contoh: 08:00 + (2 x 50 menit) = 09:40"],
+        ["• Jam selesai akan dihitung otomatis berdasarkan Tipe PBL:"],
+        ["  - PBL 1: 2 sesi (100 menit)"],
+        ["  - PBL 2: 3 sesi (150 menit)"],
+        ["  Contoh: 08:00 + PBL 1 = 09:40"],
         [""],
         ["📚 VALIDASI MODUL PBL:"],
         ["• Nama modul harus ada di database"],
         ["• Gunakan nama modul yang tersedia di list di atas"],
         [""],
+        ["👥 VALIDASI KELOMPOK KECIL:"],
+        ["• Kelompok kecil wajib diisi"],
         ["• Nama kelompok kecil harus ada di database"],
         ["• Harus sesuai dengan semester mata kuliah"],
         ["• Mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
-        ["• Penulisan fleksibel: \"Kelompok1\", \"Kelompok 1\", atau \"1\" akan terbaca sama sebagai kelompok yang sama"],
-        ["• Sistem akan memvalidasi banyak kelompok sekaligus secara otomatis"],
+        ["• Penulisan fleksibel: \"Kelompok1\", \"Kelompok 1\", atau \"1\""],
         [""],
         ["👨‍🏫 VALIDASI DOSEN:"],
+        ["• Dosen wajib diisi"],
         ["• Nama dosen harus ada di database"],
         ["• Dosen harus sudah di-assign untuk PBL mata kuliah ini"],
-        ["• Termasuk dosen standby yang ditugaskan"],
         [""],
         ["🏢 VALIDASI RUANGAN:"],
+        ["• Ruangan wajib diisi"],
         ["• Nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         [""],
@@ -5911,7 +5972,7 @@ export default function DetailBlok() {
         ["• PBL 2 = 3 sesi (150 menit)"],
         [""],
         ["📝 VALIDASI TOPIK:"],
-        ["• Topik boleh dikosongkan"],
+        ["• Topik opsional (boleh dikosongkan)"],
         ["• Jika diisi, pastikan relevan dengan modul PBL"],
         [""],
         ["💡 TIPS PENTING:"],
@@ -5921,6 +5982,7 @@ export default function DetailBlok() {
         ["• Edit langsung di tabel preview jika ada error"],
         ["• Sistem akan highlight error dengan warna merah"],
         ["• Tooltip akan menampilkan pesan error detail"],
+        ["• Pastikan jadwal Dosen dan Ruangan tidak bentrok dengan jadwal lain"]
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -6029,7 +6091,7 @@ export default function DetailBlok() {
         Materi: row.materi,
         Topik: row.topik,
         "Kelompok Kecil": kelompokKecilList.find((k) => k.id === row.kelompok_kecil_id)
-          ? `Kelompok ${kelompokKecilList.find((k) => k.id === row.kelompok_kecil_id)?.nama_kelompok}`
+          ? `${kelompokKecilList.find((k) => k.id === row.kelompok_kecil_id)?.nama_kelompok}`
           : "",
         Dosen: dosenList.find((d) => d.id === row.dosen_id)?.name || "Dosen 1",
         Ruangan:
@@ -6071,19 +6133,25 @@ export default function DetailBlok() {
 
       // Sheet Tips dan Info
       const infoData: string[][] = [
-        ["TIPS DAN INFO"],
+        ["TIPS DAN INFORMASI IMPORT JADWAL PRAKTIKUM"],
         [""],
-        ["CARA UPLOAD/EDIT TEMPLATE:"],
+        ["📋 CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal praktikum"],
-        ["2. Pastikan format data sesuai dengan ketentuan"],
-        ["3. Kolom 'Kelompok Kecil' mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
-        ["4. Upload file yang sudah diisi"],
-        ["5. Periksa preview data"],
-        ['6. Klik "Import Data" untuk menyimpan'],
+        ["2. Pastikan semua kolom wajib diisi dengan benar"],
+        ["3. Kolom 'Kelompok Kecil' mendukung lebih dari 1 kelompok (Contoh: 1, 2)"],
+        ["4. Upload file yang sudah diisi ke sistem"],
+        ["5. Periksa preview data dan perbaiki error jika ada"],
+        ['6. Klik "Import Data" untuk menyimpan jadwal'],
+        [""],
+        ["✏️ CARA EDIT DATA:"],
+        ["1. Klik pada kolom yang ingin diedit di tabel preview"],
+        ["2. Ketik atau paste data yang benar"],
+        ["3. Sistem akan otomatis validasi dan update error"],
+        ["4. Pastikan tidak ada error sebelum import"],
         [""],
         ["📊 KETERSEDIAAN DATA:"],
         [""],
-        ["👨‍🏫 DOSEN YANG TERSEDIA (dengan keahlian):"],
+        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
         ["• Termasuk dosen standby yang tersedia untuk semua materi"],
         ...allDosenForTemplate.map((dosen) => {
           const keahlian = Array.isArray(dosen.keahlian)
@@ -6097,9 +6165,7 @@ export default function DetailBlok() {
         [""],
         ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
         ...(() => {
-          // Kelompok data berdasarkan nama_kelompok dan hitung jumlah mahasiswa
           const kelompokMap = new Map<string, number>();
-
           kelompokKecilList.forEach((item) => {
             const namaKelompok = item.nama_kelompok || `Kelompok ${item.id || "Unknown"}`;
             if (kelompokMap.has(namaKelompok)) {
@@ -6108,17 +6174,12 @@ export default function DetailBlok() {
               kelompokMap.set(namaKelompok, 1);
             }
           });
-
-          // Convert map to array and sort by nama_kelompok
           return kelompokMap.size > 0
             ? Array.from(kelompokMap.entries())
               .sort(([a], [b]) => {
-                // Sort numerically if both are numbers, otherwise alphabetically
                 const numA = parseInt(a);
                 const numB = parseInt(b);
-                if (!isNaN(numA) && !isNaN(numB)) {
-                  return numA - numB;
-                }
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
                 return a.localeCompare(b);
               })
               .map(([namaKelompok, jumlahAnggota]) => [
@@ -6134,46 +6195,48 @@ export default function DetailBlok() {
         [""],
         ["📅 VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
-        ["• Tanggal harus dalam rentang mata kuliah"],
-        [
-          `• Rentang: ${startDate.toLocaleDateString(
-            "id-ID"
-          )} - ${endDate.toLocaleDateString("id-ID")}`,
-        ],
+        ["• Wajib dalam rentang mata kuliah:"],
+        [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+        [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
         ["⏰ VALIDASI JAM:"],
         ["• Format: HH.MM atau HH:MM (contoh: 07.20 atau 07:20)"],
         ["• Jam mulai harus sesuai dengan opsi yang tersedia"],
-        ["• Jam selesai dihitung otomatis berdasarkan sesi"],
-        ["• 1 sesi = 50 menit"],
+        [
+          "  07:20, 08:10, 09:00, 09:50, 10:40, 11:30, 12:35, 13:25, 14:15, 15:05, 15:35, 16:25, 17:15",
+        ],
+        ["• Jam selesai dihitung otomatis berdasarkan jumlah sesi"],
         [""],
-        ["📝 VALIDASI DATA:"],
-        ["• Materi wajib diisi dan harus sesuai dengan keahlian mata kuliah"],
-        ["• Topik wajib diisi"],
-        ["• Kelompok kecil harus dari daftar yang tersedia"],
-        ["  - Mendukung penulisan lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
-        ["  - Penulisan fleksibel: \"Kelompok1\" (tanpa spasi), \"Kelompok 1\", atau hanya angka \"1\" akan terbaca sama"],
-        ["  - Sistem akan otomatis memvalidasi meskipun Anda memasukkan banyak kelompok sekaligus"],
+        ["📚 VALIDASI MATERI:"],
+        ["• Materi wajib diisi"],
+        ["• Harus sesuai dengan keahlian_required mata kuliah"],
+        [""],
+        ["👥 VALIDASI KELOMPOK KECIL:"],
+        ["• Kelompok kecil wajib diisi"],
+        ["• Nama kelompok kecil harus ada di database"],
+        ["• Mendukung penulisan lebih dari 1 kelompok (Contoh: 1, 2)"],
+        ["• Penulisan fleksibel: \"Kelompok1\", \"Kelompok 1\", atau \"1\""],
+        [""],
+        ["👨‍🏫 VALIDASI DOSEN:"],
         ["• Dosen wajib diisi (minimal 1 dosen, bisa multiple)"],
         ["• Untuk multiple dosen, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
-        ["• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma"],
         ["• Dosen harus sesuai dengan materi yang dipilih (kecuali dosen standby)"],
-        ["• Ruangan harus valid dan tersedia"],
+        [""],
+        ["🏢 VALIDASI RUANGAN:"],
+        ["• Ruangan wajib diisi"],
+        ["• Nama ruangan harus ada di database"],
+        [""],
+        ["🔢 VALIDASI SESI:"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
+        ["• Digunakan untuk menghitung jam selesai"],
         [""],
-        ["🔄 PERHITUNGAN JAM SELESAI:"],
-        ["• 1 sesi: +50 menit dari jam mulai"],
-        ["• 2 sesi: +100 menit dari jam mulai"],
-        ["• 3 sesi: +150 menit dari jam mulai"],
-        ["• 4 sesi: +200 menit dari jam mulai"],
-        ["• 5 sesi: +250 menit dari jam mulai"],
-        ["• 6 sesi: +300 menit dari jam mulai"],
-        [""],
-        ["💡 TIPS:"],
-        ["• Gunakan data yang sudah tersedia di sistem"],
+        ["💡 TIPS PENTING:"],
+        ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Pastikan tidak ada bentrok jadwal"],
-        ["• Periksa kapasitas ruangan"],
-        ["• Validasi data sebelum import"],
+        ["• Periksa preview sebelum import"],
+        ["• Edit langsung di tabel preview jika ada error"],
+        ["• Sistem akan highlight error dengan warna merah"],
+        ["• Tooltip akan menampilkan pesan error detail"],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -6392,7 +6455,7 @@ export default function DetailBlok() {
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
-        ['5. Klik "Import" untuk menyimpan jadwal'],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
         ["✏️ CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
@@ -6411,40 +6474,25 @@ export default function DetailBlok() {
 
           return [`• ${dosen.name} - Keahlian: ${keahlian.join(", ")}`];
         }),
-
         [""],
-
         ["🏢 RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-
         ["👥 KELOMPOK BESAR YANG TERSEDIA:"],
         ...kelompokBesarOptions.map((kelompok) => [
           `• ${kelompok.id} - ${kelompok.label}`,
         ]),
         [""],
-
         ["📚 MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):"],
         ...(data?.keahlian_required || []).map((keahlian) => [`• ${keahlian}`]),
         [""],
-
         ["⚠️ VALIDASI SISTEM:"],
         [""],
         ["📅 VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
-        [
-          `  - Mulai: ${tanggalMulai
-            ? new Date(tanggalMulai).toLocaleDateString("id-ID")
-            : "Tidak tersedia"
-          }`,
-        ],
-        [
-          `  - Akhir: ${tanggalAkhir
-            ? new Date(tanggalAkhir).toLocaleDateString("id-ID")
-            : "Tidak tersedia"
-          }`,
-        ],
+        [`  - Mulai: ${tanggalMulai ? new Date(tanggalMulai).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Tidak tersedia"}`],
+        [`  - Akhir: ${tanggalAkhir ? new Date(tanggalAkhir).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Tidak tersedia"}`],
         [""],
         ["⏰ VALIDASI JAM:"],
         ["• Format: HH:MM (contoh: 08:00)"],
@@ -6477,10 +6525,9 @@ export default function DetailBlok() {
         ["• Harus sesuai dengan keahlian_required mata kuliah"],
         ["• Topik boleh dikosongkan"],
         [""],
-        ["🔢 VALIDASI JUMLAH SESI:"],
-        ["• Jumlah sesi: 1-6"],
+        ["🔢 VALIDASI SESI:"],
+        ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
-        ["• 1 sesi = 50 menit"],
         [""],
         ["💡 TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
@@ -6489,6 +6536,7 @@ export default function DetailBlok() {
         ["• Edit langsung di tabel preview jika ada error"],
         ["• Sistem akan highlight error dengan warna merah"],
         ["• Tooltip akan menampilkan pesan error detail"],
+        ["• Pastikan jadwal Dosen dan Ruangan tidak bentrok dengan jadwal lain"]
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -6639,8 +6687,8 @@ export default function DetailBlok() {
         ["📅 VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
-        [`  - Mulai: ${startDate.toLocaleDateString("id-ID")}`],
-        [`  - Akhir: ${endDate.toLocaleDateString("id-ID")}`],
+        [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+        [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
         ["⏰ VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
@@ -6648,9 +6696,7 @@ export default function DetailBlok() {
         [
           "  07:20, 08:10, 09:00, 09:50, 10:40, 11:30, 12:35, 13:25, 14:15, 15:05, 15:35, 16:25, 17:15",
         ],
-        ["• Jam selesai akan divalidasi berdasarkan perhitungan:"],
-        ["  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)"],
-        ["  Contoh: 07:20 + (2 x 50 menit) = 09:00"],
+        ["• Jam selesai akan dihitung otomatis berdasarkan jumlah sesi"],
         [""],
         ["📝 VALIDASI AGENDA:"],
         ["• Agenda wajib diisi"],
@@ -6670,10 +6716,9 @@ export default function DetailBlok() {
           "• Hanya boleh menggunakan kelompok besar di semester yang sama dengan mata kuliah",
         ],
         [""],
-        ["🔢 VALIDASI JUMLAH SESI:"],
-        ["• Jumlah sesi: 1-6"],
+        ["🔢 VALIDASI SESI:"],
+        ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
-        ["• 1 sesi = 50 menit"],
         [""],
         ["💡 TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
@@ -10330,9 +10375,7 @@ export default function DetailBlok() {
         ["TIPS DAN INFORMASI IMPORT JADWAL PERSAMAAN PERSEPSI"],
         [""],
         ["📋 CARA UPLOAD FILE:"],
-        [
-          "1. Download template ini dan isi dengan data jadwal persamaan persepsi",
-        ],
+        ["1. Download template ini dan isi dengan data jadwal persamaan persepsi"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
@@ -10350,22 +10393,7 @@ export default function DetailBlok() {
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
         ["👨‍🏫 DOSEN YANG TERSEDIA:"],
-        [
-          "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
-        ],
-        [
-          "• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (wajib, maksimal 1 orang)",
-        ],
-        [
-          "• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)",
-        ],
-        [
-          "• Untuk multi-select, pisahkan nama dosen dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
-        ],
-        ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
-        [
-          "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
-        ],
+        ["• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini"],
         ...assignedDosenPBL
           .filter(
             (dosen, index, self) =>
@@ -10386,8 +10414,8 @@ export default function DetailBlok() {
         ["📅 VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
-        [`  - Mulai: ${startDate.toLocaleDateString("id-ID")}`],
-        [`  - Akhir: ${endDate.toLocaleDateString("id-ID")}`],
+        [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+        [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
         ["⏰ VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
@@ -10395,9 +10423,7 @@ export default function DetailBlok() {
         [
           "  07:20, 08:10, 09:00, 09:50, 10:40, 11:30, 12:35, 13:25, 14:15, 15:05, 15:35, 16:25, 17:15",
         ],
-        ["• Jam selesai akan divalidasi berdasarkan perhitungan:"],
-        ["  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)"],
-        ["  Contoh: 07:20 + (2 x 50 menit) = 09:00"],
+        ["• Jam selesai akan dihitung otomatis berdasarkan jumlah sesi"],
         [""],
         ["📝 VALIDASI TOPIK:"],
         ["• Topik opsional (boleh dikosongkan)"],
@@ -10405,43 +10431,25 @@ export default function DetailBlok() {
         [""],
         ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
         ["• Koordinator Dosen wajib diisi (maksimal 1 orang)"],
-        ["• Maksimal hanya boleh 1 orang koordinator (contoh: Dr. John Doe)"],
-        [
-          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
-        ],
         ["• Nama koordinator harus sesuai dengan yang ada di database"],
-        [
-          "• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen",
-        ],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
         [""],
         ["👨‍🏫 VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
-        [
-          "• Untuk multi-select, pisahkan dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
-        ],
-        [
-          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
-        ],
+        ["• Untuk multi-select, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
         ["• Nama dosen harus sesuai dengan yang ada di database"],
-        [
-          "• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu",
-        ],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
         [""],
         ["🏢 VALIDASI RUANGAN:"],
-        [
-          "• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan",
-        ],
+        ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
         ["• Jika diisi, nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
-        [
-          "• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online",
-        ],
+        ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
         [""],
-        ["🔢 VALIDASI JUMLAH SESI:"],
-        ["• Jumlah sesi: 1-6 (1 x 50 menit sampai 6 x 50 menit)"],
-        ["• Digunakan untuk menghitung jam selesai otomatis"],
-        ["• 1 sesi = 50 menit"],
+        ["🔢 VALIDASI SESI:"],
+        ["• Sesi: 1-6 (1 sesi = 50 menit)"],
+        ["• Digunakan untuk menghitung jam selesai"],
         [""],
         ["💡 TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
@@ -10450,9 +10458,7 @@ export default function DetailBlok() {
         ["• Sistem akan highlight error dengan warna merah"],
         ["• Tooltip akan menampilkan pesan error detail"],
         ["• Untuk multi-select dosen, pastikan semua nama dosen valid"],
-        [
-          "• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu",
-        ],
+        ["• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu"],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -11060,8 +11066,9 @@ export default function DetailBlok() {
       const wb = XLSX.utils.book_new();
 
       const exportData = jadwalPersamaanPersepsi.map((row) => {
-        const koordinatorNames = row.koordinator_names || "";
-        const pengampuNames = row.pengampu_names || "";
+        // Convert comma-separated names to backslash-separated for Excel export
+        const koordinatorNames = (row.koordinator_names || "").replace(/, /g, "\\");
+        const pengampuNames = (row.pengampu_names || "").replace(/, /g, "\\");
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
         const useRuangan =
           row.use_ruangan !== undefined
@@ -11220,20 +11227,26 @@ export default function DetailBlok() {
       const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
       const contohKoordinator = contohDosen1; // Contoh koordinator (hanya 1)
       const contohPengampu = contohDosen2
-        ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}`
+        ? `${contohDosen2}\\${contohDosen3 || "Dr. Alice"}`
         : contohDosen2;
 
       // Ambil contoh kelompok besar (gunakan format sederhana untuk kemudahan)
       const contohKelompokBesar = kelompokBesarOptions[0]
         ? (() => {
-          const match = kelompokBesarOptions[0].label.match(
-            /(?:semester\s*)?(\d+)/i
-          );
-          return match
-            ? `Semester ${match[1]}`
-            : kelompokBesarOptions[0].label;
+          let label = kelompokBesarOptions[0].label;
+          
+          // Extract only the number if label contains "Semester X" format
+          if (label.includes("Semester")) {
+            const semesterMatch = label.match(/Semester\s*(\d+)/i);
+            if (semesterMatch && semesterMatch[1]) {
+              label = semesterMatch[1];
+            }
+          }
+          
+          const match = label.match(/(\d+)/);
+          return match ? match[1] : label;
         })()
-        : "Semester 1";
+        : "1";
 
       // Data template - 1 dengan ruangan, 1 tanpa ruangan (online)
       const rawTemplateData = [
@@ -11326,22 +11339,7 @@ export default function DetailBlok() {
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
         ["👨‍🏫 DOSEN YANG TERSEDIA:"],
-        [
-          "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
-        ],
-        [
-          "• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (wajib, maksimal 1 orang)",
-        ],
-        [
-          "• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)",
-        ],
-        [
-          "• Untuk multi-select, pisahkan nama dosen dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
-        ],
-        ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
-        [
-          "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
-        ],
+        ["• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini"],
         ...assignedDosenPBL
           .filter(
             (dosen, index, self) =>
@@ -11362,8 +11360,8 @@ export default function DetailBlok() {
         ["📅 VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
-        [`  - Mulai: ${startDate.toLocaleDateString("id-ID")}`],
-        [`  - Akhir: ${endDate.toLocaleDateString("id-ID")}`],
+        [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+        [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
         ["⏰ VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
@@ -11371,9 +11369,7 @@ export default function DetailBlok() {
         [
           "  07:20, 08:10, 09:00, 09:50, 10:40, 11:30, 12:35, 13:25, 14:15, 15:05, 15:35, 16:25, 17:15",
         ],
-        ["• Jam selesai akan divalidasi berdasarkan perhitungan:"],
-        ["  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)"],
-        ["  Contoh: 07:20 + (2 x 50 menit) = 09:00"],
+        ["• Jam selesai akan dihitung otomatis berdasarkan jumlah sesi"],
         [""],
         ["📝 VALIDASI TOPIK:"],
         ["• Topik opsional (boleh dikosongkan)"],
@@ -11381,43 +11377,30 @@ export default function DetailBlok() {
         [""],
         ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
         ["• Koordinator Dosen wajib diisi (maksimal 1 orang)"],
-        ["• Maksimal hanya boleh 1 orang koordinator (contoh: Dr. John Doe)"],
-        [
-          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
-        ],
         ["• Nama koordinator harus sesuai dengan yang ada di database"],
-        [
-          "• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen",
-        ],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
         [""],
         ["👨‍🏫 VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
-        [
-          "• Untuk multi-select, pisahkan dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
-        ],
-        [
-          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
-        ],
+        ["• Untuk multi-select, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
         ["• Nama dosen harus sesuai dengan yang ada di database"],
-        [
-          "• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu",
-        ],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
         [""],
         ["🏢 VALIDASI RUANGAN:"],
-        [
-          "• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan",
-        ],
+        ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
         ["• Jika diisi, nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
-        [
-          "• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online",
-        ],
+        ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
         [""],
-        ["🔢 VALIDASI JUMLAH SESI:"],
-        ["• Jumlah sesi: 1-6 (1 x 50 menit sampai 6 x 50 menit)"],
-        ["• Digunakan untuk menghitung jam selesai otomatis"],
-        ["• 1 sesi = 50 menit"],
+        ["👥 VALIDASI KELOMPOK BESAR:"],
+        ["• ID kelompok besar harus berupa angka (1, 3, 5, 7, dst)"],
+        ["• ID harus ada di database"],
+        ["• Hanya boleh menggunakan kelompok besar di semester yang sama dengan mata kuliah"],
+        [""],
+        ["🔢 VALIDASI SESI:"],
+        ["• Sesi: 1-6 (1 sesi = 50 menit)"],
+        ["• Digunakan untuk menghitung jam selesai"],
         [""],
         ["💡 TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
@@ -11426,9 +11409,7 @@ export default function DetailBlok() {
         ["• Sistem akan highlight error dengan warna merah"],
         ["• Tooltip akan menampilkan pesan error detail"],
         ["• Untuk multi-select dosen, pastikan semua nama dosen valid"],
-        [
-          "• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu",
-        ],
+        ["• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu"],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -11486,13 +11467,22 @@ export default function DetailBlok() {
       }
 
       // Validasi jumlah sesi
-      const jumlahSesi = parseInt(row.jumlah_sesi?.toString() || "0");
-      if (jumlahSesi < MIN_SESSIONS || jumlahSesi > MAX_SESSIONS) {
+      let jumlahSesi = 0;
+      if (!row.jumlah_sesi || row.jumlah_sesi.toString().trim() === "") {
         cellErrors.push({
           row: rowNumber,
           field: "jumlah_sesi",
-          message: `Jumlah sesi harus antara ${MIN_SESSIONS} dan ${MAX_SESSIONS}`,
+          message: "Jumlah sesi wajib diisi",
         });
+      } else {
+        jumlahSesi = parseInt(row.jumlah_sesi.toString());
+        if (isNaN(jumlahSesi) || jumlahSesi < MIN_SESSIONS || jumlahSesi > MAX_SESSIONS) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "jumlah_sesi",
+            message: `Jumlah sesi harus antara ${MIN_SESSIONS} dan ${MAX_SESSIONS}`,
+          });
+        }
       }
 
       // Validasi jam selesai (hitung otomatis)
@@ -11727,8 +11717,9 @@ export default function DetailBlok() {
       const wb = XLSX.utils.book_new();
 
       const exportData = jadwalSeminarPleno.map((row) => {
-        const koordinatorNames = row.koordinator_names || "";
-        const pengampuNames = row.pengampu_names || "";
+        // Convert comma-separated names to backslash-separated for Excel export
+        const koordinatorNames = (row.koordinator_names || "").replace(/, /g, "\\");
+        const pengampuNames = (row.pengampu_names || "").replace(/, /g, "\\");
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
         const useRuangan =
           row.use_ruangan !== undefined
@@ -11737,7 +11728,7 @@ export default function DetailBlok() {
               ? true
               : false;
         const ruanganNama =
-          useRuangan && ruangan?.nama ? ruangan.nama : "Online";
+          useRuangan && ruangan?.nama ? ruangan.nama : "";
 
         // Ambil nama kelompok besar
         let kelompokBesarName = "";
@@ -11754,12 +11745,20 @@ export default function DetailBlok() {
             );
             if (kelompokBesar) {
               kelompokBesarName = kelompokBesar.label || "";
+              
+              // Extract only the number if label contains "Semester X" format
+              if (kelompokBesarName.includes("Semester")) {
+                const semesterMatch = kelompokBesarName.match(/Semester\s*(\d+)/i);
+                if (semesterMatch && semesterMatch[1]) {
+                  kelompokBesarName = semesterMatch[1];
+                }
+              }
             }
           }
 
           // Fallback: jika tidak ditemukan di options, buat dari semester
           if (!kelompokBesarName && semester) {
-            kelompokBesarName = `Semester ${semester}`;
+            kelompokBesarName = String(semester);
           }
         }
         // Cek apakah ada kelompok_besar_id langsung
@@ -11771,6 +11770,14 @@ export default function DetailBlok() {
             );
             if (kelompokBesar) {
               kelompokBesarName = kelompokBesar.label || "";
+              
+              // Extract only the number if label contains "Semester X" format
+              if (kelompokBesarName.includes("Semester")) {
+                const semesterMatch = kelompokBesarName.match(/Semester\s*(\d+)/i);
+                if (semesterMatch && semesterMatch[1]) {
+                  kelompokBesarName = semesterMatch[1];
+                }
+              }
             }
           }
 
@@ -11779,7 +11786,7 @@ export default function DetailBlok() {
             // Jika kelompok_besar_id adalah angka kecil (kemungkinan semester), gunakan sebagai semester
             const kelompokBesarIdNum = Number(row.kelompok_besar_id);
             if (kelompokBesarIdNum > 0 && kelompokBesarIdNum <= 8) {
-              kelompokBesarName = `Semester ${kelompokBesarIdNum}`;
+              kelompokBesarName = String(kelompokBesarIdNum);
             }
           }
         }
@@ -12054,145 +12061,11 @@ export default function DetailBlok() {
       setSeminarPlenoImportData(convertedData);
 
       // Validasi data frontend
-      const { cellErrors } = validateSeminarPlenoExcelData(convertedData);
-      setSeminarPlenoCellErrors(cellErrors);
+      const { cellErrors: frontendCellErrors } = validateSeminarPlenoExcelData(convertedData);
+      setSeminarPlenoCellErrors(frontendCellErrors);
 
       // Buka modal
       setShowSeminarPlenoImportModal(true);
-
-      // Validasi backend secara real-time (cek bentrok jadwal)
-      if (kode && convertedData.length > 0) {
-        try {
-          // Transform data untuk API
-          const apiData = convertedData.map((row: any) => {
-            let useRuangan: boolean;
-            if (row.use_ruangan !== undefined && row.use_ruangan !== null) {
-              useRuangan = Boolean(row.use_ruangan);
-            } else if (row.ruangan_id) {
-              useRuangan = true;
-            } else if (row.nama_ruangan && row.nama_ruangan.trim() !== "") {
-              useRuangan = true;
-            } else {
-              useRuangan = false;
-            }
-
-            return {
-              tanggal: row.tanggal,
-              jam_mulai: row.jam_mulai,
-              jam_selesai: row.jam_selesai,
-              jumlah_sesi: row.jumlah_sesi,
-              topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
-              koordinator_ids: row.koordinator_ids || [],
-              dosen_ids: row.dosen_ids || [],
-              kelompok_besar_id: row.kelompok_besar_id || null,
-              ruangan_id: useRuangan ? row.ruangan_id || null : null,
-              use_ruangan: useRuangan,
-            };
-          });
-
-          // Panggil endpoint validasi preview
-          const validationResponse = await api.post(
-            `/seminar-pleno/jadwal/${kode}/validate-preview`,
-            { data: apiData }
-          );
-
-          if (validationResponse.data && !validationResponse.data.valid) {
-            const backendErrors = validationResponse.data.errors || [];
-
-            // Convert backend errors ke format cellErrors
-            const newCellErrors: {
-              row: number;
-              field: string;
-              message: string;
-            }[] = [];
-            backendErrors.forEach((error: string) => {
-              const barisMatch = error.match(/Baris\s+(\d+)/i);
-              if (barisMatch) {
-                const rowNum = parseInt(barisMatch[1]);
-                let field = "general";
-                if (error.toLowerCase().includes("tanggal")) field = "tanggal";
-                else if (error.toLowerCase().includes("jam"))
-                  field = "jam_mulai";
-                else if (
-                  error.toLowerCase().includes("pengampu") ||
-                  error.toLowerCase().includes("dosen")
-                )
-                  field = "pengampu";
-                else if (error.toLowerCase().includes("koordinator"))
-                  field = "koordinator";
-                else if (error.toLowerCase().includes("ruangan"))
-                  field = "nama_ruangan";
-                else if (error.toLowerCase().includes("kelompok"))
-                  field = "kelompok_besar";
-
-                newCellErrors.push({
-                  row: rowNum,
-                  field: field,
-                  message: error.replace(/Baris\s+\d+:\s*/i, ""),
-                });
-              }
-            });
-
-            // Gabungkan dengan cellErrors yang sudah ada
-            setSeminarPlenoCellErrors((prev: any[]) => {
-              // Hapus error yang sudah ada untuk row yang sama
-              const filtered = prev.filter(
-                (err) =>
-                  !newCellErrors.some(
-                    (newErr) =>
-                      newErr.row === err.row && newErr.field === err.field
-                  )
-              );
-              return [...filtered, ...newCellErrors];
-            });
-
-            // Set error umum
-            setSeminarPlenoImportErrors([
-              "Gagal mengimport data. Perbaiki error terlebih dahulu.",
-              ...backendErrors,
-            ]);
-          } else {
-            // Jika valid, clear error backend
-            setSeminarPlenoImportErrors([]);
-          }
-        } catch (err: any) {
-          // Jika error validasi, tampilkan error (filter error generic)
-          const errorResponse = err?.response?.data;
-          const errorDetails = errorResponse?.errors || [];
-          if (errorDetails.length > 0) {
-            // Filter error generic yang tidak perlu ditampilkan
-            const filteredErrors = errorDetails.filter((error: string) => {
-              // Skip error generic Laravel validation
-              if (
-                error.includes("data.") &&
-                error.includes("field is required")
-              )
-                return false;
-              if (error.includes("Terjadi kesalahan saat memvalidasi data"))
-                return false;
-              return true;
-            });
-
-            const errorMessage = errorResponse?.message;
-            const filteredMessage =
-              errorMessage &&
-                !errorMessage.includes("Terjadi kesalahan saat memvalidasi data")
-                ? errorMessage
-                : null;
-
-            // Hanya tampilkan error yang sudah di-filter
-            if (filteredErrors.length > 0 || filteredMessage) {
-              setSeminarPlenoImportErrors(
-                filteredMessage
-                  ? [filteredMessage, ...filteredErrors]
-                  : filteredErrors
-              );
-            } else {
-              setSeminarPlenoImportErrors([]);
-            }
-          }
-        }
-      }
     } catch (error) {
       setSeminarPlenoImportErrors([
         "Gagal membaca file Excel. Pastikan format file sudah benar.",
@@ -12325,147 +12198,19 @@ export default function DetailBlok() {
     setSeminarPlenoImportData(updatedData);
 
     // Re-validasi data frontend secara real-time
-    const { cellErrors } = validateSeminarPlenoExcelData(updatedData);
-    setSeminarPlenoCellErrors(cellErrors);
+    const { cellErrors: frontendCellErrors } = validateSeminarPlenoExcelData(updatedData);
+    setSeminarPlenoCellErrors(frontendCellErrors);
 
-    // Validasi backend secara real-time (cek bentrok jadwal) dengan debounce
-    if (kode && updatedData.length > 0) {
-      // Clear timeout sebelumnya jika ada
-      if (seminarPlenoValidationTimeoutRef.current) {
-        clearTimeout(seminarPlenoValidationTimeoutRef.current);
-      }
-
-      // Debounce: tunggu 500ms setelah edit terakhir sebelum validasi backend
-      seminarPlenoValidationTimeoutRef.current = setTimeout(async () => {
-        try {
-          // Transform data untuk API
-          const apiData = updatedData.map((row: any) => {
-            let useRuangan: boolean;
-            if (row.use_ruangan !== undefined && row.use_ruangan !== null) {
-              useRuangan = Boolean(row.use_ruangan);
-            } else if (row.ruangan_id) {
-              useRuangan = true;
-            } else if (row.nama_ruangan && row.nama_ruangan.trim() !== "") {
-              useRuangan = true;
-            } else {
-              useRuangan = false;
-            }
-
-            return {
-              tanggal: row.tanggal,
-              jam_mulai: row.jam_mulai,
-              jam_selesai: row.jam_selesai,
-              jumlah_sesi: row.jumlah_sesi,
-              topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
-              koordinator_ids: row.koordinator_ids || [],
-              dosen_ids: row.dosen_ids || [],
-              kelompok_besar_id: row.kelompok_besar_id || null,
-              ruangan_id: useRuangan ? row.ruangan_id || null : null,
-              use_ruangan: useRuangan,
-            };
-          });
-
-          // Panggil endpoint validasi preview
-          const validationResponse = await api.post(
-            `/seminar-pleno/jadwal/${kode}/validate-preview`,
-            { data: apiData }
-          );
-
-          if (validationResponse.data && !validationResponse.data.valid) {
-            const backendErrors = validationResponse.data.errors || [];
-
-            // Convert backend errors ke format cellErrors
-            const newCellErrors: {
-              row: number;
-              field: string;
-              message: string;
-            }[] = [];
-            backendErrors.forEach((error: string) => {
-              const barisMatch = error.match(/Baris\s+(\d+)/i);
-              if (barisMatch) {
-                const rowNum = parseInt(barisMatch[1]);
-                let field = "general";
-                if (error.toLowerCase().includes("tanggal")) field = "tanggal";
-                else if (error.toLowerCase().includes("jam"))
-                  field = "jam_mulai";
-                else if (
-                  error.toLowerCase().includes("pengampu") ||
-                  error.toLowerCase().includes("dosen")
-                )
-                  field = "pengampu";
-                else if (error.toLowerCase().includes("koordinator"))
-                  field = "koordinator";
-                else if (error.toLowerCase().includes("ruangan"))
-                  field = "nama_ruangan";
-                else if (error.toLowerCase().includes("kelompok"))
-                  field = "kelompok_besar";
-
-                newCellErrors.push({
-                  row: rowNum,
-                  field: field,
-                  message: error.replace(/Baris\s+\d+:\s*/i, ""),
-                });
-              }
-            });
-
-            // Update cellErrors: hapus error lama untuk row yang sama, tambahkan yang baru
-            setSeminarPlenoCellErrors((prev: any[]) => {
-              // Hapus error yang sudah ada untuk row yang sama dengan error baru
-              const filtered = prev.filter(
-                (err) =>
-                  !newCellErrors.some(
-                    (newErr) =>
-                      newErr.row === err.row && newErr.field === err.field
-                  )
-              );
-              return [...filtered, ...newCellErrors];
-            });
-
-            // Set error umum
-            if (backendErrors.length > 0) {
-              setSeminarPlenoImportErrors([
-                "Gagal mengimport data. Perbaiki error terlebih dahulu.",
-                ...backendErrors,
-              ]);
-            }
-          } else {
-            // Jika valid, clear semua error backend
-            setSeminarPlenoImportErrors([]);
-            // Hapus cellErrors yang terkait dengan backend (error yang mengandung "bentrok" atau "Jadwal bentrok")
-            setSeminarPlenoCellErrors((prev: any[]) => {
-              // Hapus error yang terkait dengan backend (error bentrok jadwal)
-              return prev.filter((err) => {
-                const message = err.message.toLowerCase();
-                // Hapus error yang mengandung kata-kata kunci error backend
-                return (
-                  !message.includes("bentrok") &&
-                  !message.includes("jadwal bentrok") &&
-                  !message.includes("jurnal reading") &&
-                  !message.includes("kuliah besar") &&
-                  !message.includes("agenda khusus") &&
-                  !message.includes("seminar pleno lain")
-                );
-              });
-            });
-          }
-        } catch (err: any) {
-          // Jika error validasi, tampilkan error
-          const errorResponse = err?.response?.data;
-          const errorDetails = errorResponse?.errors || [];
-          if (errorDetails.length > 0) {
-            setSeminarPlenoImportErrors([
-              errorResponse?.message || "Gagal memvalidasi data",
-              ...errorDetails,
-            ]);
-          }
-        }
-      }, 500);
+    // Hapus semua error backend ketika user melakukan edit data
+    // Ini memaksa user untuk melakukan import ulang (reset validasi backend)
+    if (seminarPlenoImportErrors.length > 0) {
+      setSeminarPlenoImportErrors([]);
     }
   };
 
   // Submit import Excel untuk Seminar Pleno
   const handleSeminarPlenoSubmitImport = async () => {
-    if (!kode || seminarPlenoImportData.length === 0) return;
+    if (!kode || seminarPlenoImportData.length === 0 || isSeminarPlenoImporting) return;
 
     // Clear error backend terlebih dahulu (akan di-update setelah API call)
     setSeminarPlenoImportErrors([]);
@@ -12474,13 +12219,13 @@ export default function DetailBlok() {
 
     try {
       // Final validation
-      const { cellErrors } = validateSeminarPlenoExcelData(
+      const { cellErrors: frontendCellErrors } = validateSeminarPlenoExcelData(
         seminarPlenoImportData
       );
-      if (cellErrors.length > 0) {
-        setSeminarPlenoCellErrors(cellErrors);
+      if (frontendCellErrors.length > 0) {
+        setSeminarPlenoCellErrors(frontendCellErrors);
         setSeminarPlenoImportErrors([
-          `⚠️ Terdapat ${cellErrors.length} error pada data. Perbaiki error terlebih dahulu sebelum import.`,
+          `⚠️ Terdapat ${frontendCellErrors.length} error pada data. Perbaiki error terlebih dahulu sebelum import.`,
           "Error ditandai dengan warna merah di tabel preview. Klik pada cell yang error untuk melihat detail.",
         ]);
         setIsSeminarPlenoImporting(false);
@@ -12536,77 +12281,22 @@ export default function DetailBlok() {
         // Refresh data
         await fetchBatchData();
       } else {
-        // Tampilkan error dari backend dengan detail (filter error generic)
-        const backendErrors = response.data.errors || [];
-        const backendMessage =
-          response.data.message || "Gagal mengimport data seminar pleno";
-
-        // Filter error generic yang tidak perlu ditampilkan
-        const filteredBackendErrors = backendErrors.filter((error: string) => {
-          // Skip error generic Laravel validation
-          if (error.includes("data.") && error.includes("field is required"))
-            return false;
-          if (error.includes("Terjadi kesalahan saat memvalidasi data"))
-            return false;
-          return true;
-        });
-
-        // Gabungkan semua error (hanya yang sudah di-filter)
-        const allErrors =
-          backendMessage &&
-            !backendMessage.includes("Terjadi kesalahan saat memvalidasi data")
-            ? [backendMessage, ...filteredBackendErrors]
-            : filteredBackendErrors;
-        setSeminarPlenoImportErrors(allErrors);
-
-        // Jika ada error per baris, convert ke cellErrors untuk ditampilkan di tabel
-        if (Array.isArray(backendErrors) && backendErrors.length > 0) {
-          const newCellErrors: {
-            row: number;
-            field: string;
-            message: string;
-          }[] = [];
-          backendErrors.forEach((error: string) => {
-            // Parse error format: "Baris X: ..." atau "Baris X: Field: ..."
-            const barisMatch = error.match(/Baris\s+(\d+)/i);
-            if (barisMatch) {
-              const rowNum = parseInt(barisMatch[1]);
-              // Coba extract field name dari error message
-              let field = "general";
-              if (error.toLowerCase().includes("tanggal")) field = "tanggal";
-              else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
-              else if (
-                error.toLowerCase().includes("pengampu") ||
-                error.toLowerCase().includes("dosen")
-              )
-                field = "pengampu";
-              else if (error.toLowerCase().includes("koordinator"))
-                field = "koordinator";
-              else if (error.toLowerCase().includes("ruangan"))
-                field = "ruangan";
-              else if (error.toLowerCase().includes("kelompok"))
-                field = "kelompok_besar";
-
-              newCellErrors.push({
-                row: rowNum,
-                field: field,
-                message: error.replace(/Baris\s+\d+:\s*/i, ""),
-              });
-            }
-          });
-
-          if (newCellErrors.length > 0) {
-            setSeminarPlenoCellErrors(newCellErrors);
-          }
-        }
+        // Backend mengembalikan success: false, throw error agar ditangkap oleh catch block
+        const error: any = new Error(response.data.message || "Gagal mengimport data seminar pleno");
+        error.response = { data: response.data }; // Attach response data untuk diproses di catch
+        throw error;
       }
     } catch (err: any) {
+      // Clear cell errors lama terlebih dahulu untuk menghindari duplikasi
+      setSeminarPlenoCellErrors([]);
+      
       // Tampilkan error dengan detail
-      const errorResponse = err?.response?.data;
-      const errorMessage =
-        errorResponse?.message ||
-        "Gagal mengimport data seminar pleno. Silakan coba lagi.";
-      const errorDetails = errorResponse?.errors || [];
+      // Cek apakah error dari axios response atau dari throw di else block
+      const errorResponse = err?.response?.data || (err?.message ? null : null);
+
+      // Jika error berasal dari throw di else block, ambil dari err sendiri
+      const errorMessage = err?.response?.data?.message || err?.message || "Gagal mengimport data seminar pleno. Silakan coba lagi.";
+      const errorDetails = err?.response?.data?.errors || [];
 
       // Filter error generic yang tidak perlu ditampilkan
       const filteredErrorDetails = errorDetails.filter((error: string) => {
@@ -12615,14 +12305,16 @@ export default function DetailBlok() {
           return false;
         if (error.includes("Terjadi kesalahan saat memvalidasi data"))
           return false;
+        if (error.includes("Gagal mengimport data. Perbaiki error terlebih dahulu"))
+          return false;
         return true;
       });
 
-      const filteredErrorMessage = errorMessage.includes(
-        "Terjadi kesalahan saat memvalidasi data"
-      )
-        ? null
-        : errorMessage;
+      const filteredErrorMessage =
+        errorMessage.includes("Terjadi kesalahan saat memvalidasi data") ||
+          errorMessage.includes("Gagal mengimport data. Perbaiki error terlebih dahulu")
+          ? null
+          : errorMessage;
 
       // Gabungkan semua error (hanya yang sudah di-filter)
       const allErrors = filteredErrorMessage
@@ -12636,7 +12328,7 @@ export default function DetailBlok() {
             : []
       );
 
-      // Jika ada error per baris, convert ke cellErrors
+      // Jika ada error per baris, convert ke cellErrors HANYA untuk highlighting
       if (Array.isArray(errorDetails) && errorDetails.length > 0) {
         const newCellErrors: { row: number; field: string; message: string }[] =
           [];
@@ -12645,18 +12337,23 @@ export default function DetailBlok() {
           if (barisMatch) {
             const rowNum = parseInt(barisMatch[1]);
             let field = "general";
-            if (error.toLowerCase().includes("tanggal")) field = "tanggal";
-            else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
-            else if (
-              error.toLowerCase().includes("pengampu") ||
-              error.toLowerCase().includes("dosen")
-            )
-              field = "pengampu";
-            else if (error.toLowerCase().includes("koordinator"))
-              field = "koordinator";
-            else if (error.toLowerCase().includes("ruangan")) field = "ruangan";
-            else if (error.toLowerCase().includes("kelompok"))
-              field = "kelompok_besar";
+            const lowerError = error.toLowerCase();
+
+            // Jangan highlight kolom jika error adalah bentrok atau kapasitas ruangan (row-level validation)
+            if (!lowerError.includes("bentrok") && !lowerError.includes("kapasitas")) {
+              if (lowerError.includes("tanggal")) field = "tanggal";
+              else if (lowerError.includes("jam")) field = "jam_mulai";
+              else if (lowerError.includes("ruangan")) field = "nama_ruangan";
+              else if (lowerError.includes("kelompok"))
+                field = "kelompok_besar";
+              else if (lowerError.includes("koordinator"))
+                field = "koordinator";
+              else if (
+                lowerError.includes("pengampu") ||
+                lowerError.includes("dosen")
+              )
+                field = "pengampu";
+            }
 
             newCellErrors.push({
               row: rowNum,
@@ -12666,9 +12363,11 @@ export default function DetailBlok() {
           }
         });
 
-        if (newCellErrors.length > 0) {
-          setSeminarPlenoCellErrors(newCellErrors);
-        }
+        // Set cell errors HANYA untuk highlighting, tapi clear dulu yang lama
+        setSeminarPlenoCellErrors(newCellErrors);
+      } else {
+        // Clear cell errors jika tidak ada error dari backend
+        setSeminarPlenoCellErrors([]);
       }
     } finally {
       setIsSeminarPlenoImporting(false);
@@ -14777,7 +14476,7 @@ export default function DetailBlok() {
                                   icon={faCheckCircle}
                                   className="w-3.5 h-3.5 shrink-0"
                                 />
-                                <span className="hidden xl:inline whitespace-nowrap">
+                                <span className="inline whitespace-nowrap">
                                   Absensi
                                 </span>
                               </button>
@@ -14800,7 +14499,7 @@ export default function DetailBlok() {
                                 icon={faPenToSquare}
                                 className="w-3.5 h-3.5 shrink-0"
                               />
-                              <span className="hidden xl:inline whitespace-nowrap">
+                              <span className="inline whitespace-nowrap">
                                 Edit
                               </span>
                             </button>
@@ -14820,7 +14519,7 @@ export default function DetailBlok() {
                                 icon={faTrash}
                                 className="w-3.5 h-3.5 shrink-0"
                               />
-                              <span className="hidden xl:inline whitespace-nowrap">
+                              <span className="inline whitespace-nowrap">
                                 Hapus
                               </span>
                             </button>
@@ -15184,7 +14883,7 @@ export default function DetailBlok() {
                     Pengampu
                   </th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                    Kelompok Besar
+                    Kelompok
                   </th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     Ruangan
@@ -15280,7 +14979,7 @@ export default function DetailBlok() {
                         {row.kelompok_besar_antara?.nama_kelompok ||
                           row.kelompok_besar?.nama_kelompok ||
                           (row.kelompok_besar?.semester
-                            ? `Semester ${row.kelompok_besar.semester}`
+                            ? `Kelompok Besar Semester ${row.kelompok_besar.semester}`
                             : "-")}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -15290,7 +14989,7 @@ export default function DetailBlok() {
                           );
                           return row.use_ruangan && ruangan?.nama
                             ? ruangan.nama
-                            : "Online";
+                            : "-";
                         })()}
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
@@ -15357,7 +15056,7 @@ export default function DetailBlok() {
                                   icon={faCheckCircle}
                                   className="w-3.5 h-3.5 shrink-0"
                                 />
-                                <span className="hidden xl:inline whitespace-nowrap">
+                                <span className="inline whitespace-nowrap">
                                   Absensi
                                 </span>
                               </button>
@@ -16039,7 +15738,7 @@ export default function DetailBlok() {
                                   icon={faCheckCircle}
                                   className="w-3.5 h-3.5 shrink-0"
                                 />
-                                <span className="hidden xl:inline whitespace-nowrap">
+                                <span className="inline whitespace-nowrap">
                                   Absensi
                                 </span>
                               </button>
@@ -16065,7 +15764,7 @@ export default function DetailBlok() {
                               icon={faPenToSquare}
                               className="w-3.5 h-3.5 shrink-0"
                             />
-                            <span className="hidden xl:inline whitespace-nowrap">
+                            <span className="inline whitespace-nowrap">
                               Edit
                             </span>
                           </button>
@@ -16079,7 +15778,7 @@ export default function DetailBlok() {
                               icon={faTrash}
                               className="w-3.5 h-3.5 shrink-0"
                             />
-                            <span className="hidden xl:inline whitespace-nowrap">
+                            <span className="inline whitespace-nowrap">
                               Hapus
                             </span>
                           </button>
@@ -17113,7 +16812,7 @@ export default function DetailBlok() {
                             name="jumlahKali"
                             value={form.jumlahKali}
                             onChange={handleFormChange}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                           >
                             {[1, 2, 3, 4, 5, 6].map((n) => (
                               <option key={n} value={n}>
@@ -17597,7 +17296,7 @@ export default function DetailBlok() {
                           name="topik"
                           value={form.topik}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
 
@@ -18026,7 +17725,7 @@ export default function DetailBlok() {
                           name="hariTanggal"
                           value={form.hariTanggal || ""}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
 
                         {errorForm && (
@@ -18436,7 +18135,7 @@ export default function DetailBlok() {
                             name="jumlahKali"
                             value={form.jumlahKali}
                             onChange={handleFormChange}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                           >
                             {[1, 2, 3, 4, 5, 6].map((n) => (
                               <option key={n} value={n}>
@@ -18914,59 +18613,7 @@ export default function DetailBlok() {
                             }
                             classNamePrefix="react-select"
                             className="react-select-container"
-                            formatOptionLabel={(option: any) => {
-                              if (
-                                form.jenisBaris === "praktikum" &&
-                                option.data
-                              ) {
-                                const dosen = option.data;
 
-                                const isStandby = Array.isArray(dosen.keahlian)
-                                  ? dosen.keahlian.some((k: string) =>
-                                    k.toLowerCase().includes("standby")
-                                  )
-                                  : (dosen.keahlian || "")
-                                    .toLowerCase()
-                                    .includes("standby");
-
-                                return (
-                                  <div className="flex items-center gap-2 p-2">
-                                    <div
-                                      className={`w-6 h-6 rounded-full flex items-center justify-center ${isStandby
-                                        ? "bg-yellow-400"
-                                        : "bg-green-500"
-                                        }`}
-                                    >
-                                      <span className="text-white text-xs font-bold">
-                                        {dosen.name.charAt(0)}
-                                      </span>
-                                    </div>
-
-                                    <span
-                                      className={`text-xs font-medium ${isStandby
-                                        ? "text-yellow-800 dark:text-yellow-200"
-                                        : "text-green-700 dark:text-green-200"
-                                        }`}
-                                    >
-                                      {dosen.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
-
-                              return option.label;
-                            }}
-                            formatGroupLabel={(data: any) => {
-                              if (form.jenisBaris === "praktikum") {
-                                return (
-                                  <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 py-1">
-                                    {data.label}
-                                  </div>
-                                );
-                              }
-
-                              return data.label;
-                            }}
                             styles={{
                               control: (base, state) => ({
                                 ...base,
@@ -19062,67 +18709,21 @@ export default function DetailBlok() {
                                 padding: "0.5rem",
                               }),
 
-                              multiValue: (base, state) => ({
+                              multiValue: (base) => ({
                                 ...base,
-
-                                backgroundColor:
-                                  state.data?.data?.keahlian?.some(
-                                    (k: string) =>
-                                      k.toLowerCase().includes("standby")
-                                  )
-                                    ? "#fef3c7" // yellow-100
-                                    : "#dcfce7", // green-100
-
-                                border: state.data?.data?.keahlian?.some(
-                                  (k: string) =>
-                                    k.toLowerCase().includes("standby")
-                                )
-                                  ? "1px solid #fde68a" // yellow-200
-                                  : "1px solid #bbf7d0", // green-200
-
-                                borderRadius: "9999px", // rounded-full
-
-                                padding: "0.25rem 0.75rem", // px-3 py-1
-
-                                margin: "0.125rem",
-
-                                display: "flex",
-
-                                alignItems: "center",
-
-                                gap: "0.5rem", // gap-2
+                                backgroundColor: "#3b82f6",
+                                color: "#fff",
                               }),
-
-                              multiValueLabel: (base, state) => ({
+                              multiValueLabel: (base) => ({
                                 ...base,
-
-                                color: state.data?.data?.keahlian?.some(
-                                  (k: string) =>
-                                    k.toLowerCase().includes("standby")
-                                )
-                                  ? "#92400e" // yellow-800
-                                  : "#166534", // green-700
-
-                                fontWeight: "500", // font-medium
-
-                                fontSize: "0.75rem", // text-xs
-
-                                display: "flex",
-
-                                alignItems: "center",
-
-                                gap: "0.5rem", // gap-2
+                                color: "#fff",
                               }),
-
                               multiValueRemove: (base) => ({
                                 ...base,
-
-                                color: "#ef4444", // red-500
-
+                                color: "#fff",
                                 ":hover": {
-                                  backgroundColor: "#fee2e2", // red-100
-
-                                  color: "#dc2626", // red-600
+                                  backgroundColor: "#2563eb",
+                                  color: "#fff",
                                 },
                               }),
 
@@ -19178,75 +18779,7 @@ export default function DetailBlok() {
                                 backgroundColor: "transparent",
                               }),
                             }}
-                            components={{
-                              MultiValue: ({ data, removeProps }: any) => {
-                                if (
-                                  form.jenisBaris === "praktikum" &&
-                                  data.data
-                                ) {
-                                  const dosen = data.data;
 
-                                  const isStandby = Array.isArray(
-                                    dosen.keahlian
-                                  )
-                                    ? dosen.keahlian.some((k: string) =>
-                                      k.toLowerCase().includes("standby")
-                                    )
-                                    : (dosen.keahlian || "")
-                                      .toLowerCase()
-                                      .includes("standby");
-
-                                  return (
-                                    <div
-                                      className={`flex items-center gap-2 px-3 py-1 rounded-full ${isStandby
-                                        ? "bg-yellow-100 dark:bg-yellow-900/40"
-                                        : "bg-green-100 dark:bg-green-900/40"
-                                        }`}
-                                    >
-                                      <div
-                                        className={`w-6 h-6 rounded-full flex items-center justify-center ${isStandby
-                                          ? "bg-yellow-400"
-                                          : "bg-green-500"
-                                          }`}
-                                      >
-                                        <span className="text-white text-xs font-bold">
-                                          {dosen.name.charAt(0)}
-                                        </span>
-                                      </div>
-
-                                      <span
-                                        className={`text-xs font-medium ${isStandby
-                                          ? "text-yellow-800 dark:text-yellow-200"
-                                          : "text-green-700 dark:text-green-200"
-                                          }`}
-                                      >
-                                        {dosen.name}
-                                      </span>
-
-                                      <button
-                                        className="ml-2 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full transition text-xs"
-                                        title="Hapus dosen"
-                                        {...removeProps}
-                                      >
-                                        <svg
-                                          className="w-3 h-3"
-                                          fill="currentColor"
-                                          viewBox="0 0 20 20"
-                                        >
-                                          <path
-                                            fillRule="evenodd"
-                                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                            clipRule="evenodd"
-                                          />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  );
-                                }
-
-                                return null;
-                              },
-                            }}
                           />
                         )}
                       </div>
@@ -19288,7 +18821,7 @@ export default function DetailBlok() {
                           name="topik"
                           value={form.topik}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
 
@@ -19504,7 +19037,7 @@ export default function DetailBlok() {
                           name="hariTanggal"
                           value={form.hariTanggal || ""}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
 
                         {errorForm && (
@@ -19707,7 +19240,7 @@ export default function DetailBlok() {
                             name="jumlahKali"
                             value={form.jumlahKali}
                             onChange={handleFormChange}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                           >
                             {[1, 2, 3, 4, 5, 6].map((n) => (
                               <option key={n} value={n}>
@@ -19742,7 +19275,7 @@ export default function DetailBlok() {
                           name="agenda"
                           value={form.agenda}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
 
@@ -20261,7 +19794,7 @@ export default function DetailBlok() {
                               ),
                             }));
                           }}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         >
                           <option value="">Pilih Tipe PBL</option>
 
@@ -21359,7 +20892,7 @@ export default function DetailBlok() {
                           name="hariTanggal"
                           value={form.hariTanggal || ""}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                         {errorForm && (
                           <div className="text-sm text-red-500 mt-2">
@@ -21525,7 +21058,7 @@ export default function DetailBlok() {
                             name="jumlahKali"
                             value={form.jumlahKali}
                             onChange={handleFormChange}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                           >
                             {[1, 2, 3, 4, 5, 6].map((n) => (
                               <option key={n} value={n}>
@@ -21559,14 +21092,13 @@ export default function DetailBlok() {
                           value={form.topik || ""}
                           onChange={handleFormChange}
                           placeholder="Masukkan topik (opsional)"
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Koordinator Dosen{" "}
-                          <span className="text-red-500">*</span>
+                          Koordinator Dosen
                         </label>
                         {loadingAssignedPBL ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
@@ -21690,24 +21222,7 @@ export default function DetailBlok() {
                             isClearable
                             classNamePrefix="react-select"
                             className="react-select-container"
-                            formatOptionLabel={(option: any) => {
-                              const dosen = option.data;
-                              if (dosen) {
-                                return (
-                                  <div className="flex items-center gap-2 p-2">
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
-                                      <span className="text-white text-xs font-bold">
-                                        {dosen.name.charAt(0)}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
-                                      {dosen.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
-                              return option.label;
-                            }}
+
                             styles={{
                               control: (base, state) => ({
                                 ...base,
@@ -21934,25 +21449,25 @@ export default function DetailBlok() {
                             }
                             classNamePrefix="react-select"
                             className="react-select-container"
-                            formatOptionLabel={(option: any) => {
-                              const dosen = option.data;
-                              if (dosen) {
-                                return (
-                                  <div className="flex items-center gap-2 p-2">
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
-                                      <span className="text-white text-xs font-bold">
-                                        {dosen.name.charAt(0)}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
-                                      {dosen.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
-                              return option.label;
-                            }}
+
                             styles={{
+                              multiValue: (base) => ({
+                                ...base,
+                                backgroundColor: "#3b82f6",
+                                color: "#fff",
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color: "#fff",
+                              }),
+                              multiValueRemove: (base) => ({
+                                ...base,
+                                color: "#fff",
+                                ":hover": {
+                                  backgroundColor: "#2563eb",
+                                  color: "#fff",
+                                },
+                              }),
                               control: (base, state) => ({
                                 ...base,
                                 backgroundColor:
@@ -22030,34 +21545,7 @@ export default function DetailBlok() {
                                 fontSize: "1rem",
                                 padding: "0.5rem",
                               }),
-                              multiValue: (base) => ({
-                                ...base,
-                                backgroundColor: "#dcfce7", // green-100
-                                border: "1px solid #bbf7d0", // green-200
-                                borderRadius: "9999px", // rounded-full
-                                padding: "0.25rem 0.75rem", // px-3 py-1
-                                margin: "0.125rem",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem", // gap-2
-                              }),
-                              multiValueLabel: (base) => ({
-                                ...base,
-                                color: "#166534", // green-700
-                                fontWeight: "500", // font-medium
-                                fontSize: "0.75rem", // text-xs
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem", // gap-2
-                              }),
-                              multiValueRemove: (base) => ({
-                                ...base,
-                                color: "#ef4444", // red-500
-                                ":hover": {
-                                  backgroundColor: "#fee2e2", // red-100
-                                  color: "#dc2626", // red-600
-                                },
-                              }),
+
                               placeholder: (base) => ({
                                 ...base,
                                 color:
@@ -22091,45 +21579,7 @@ export default function DetailBlok() {
                                 backgroundColor: "transparent",
                               }),
                             }}
-                            components={{
-                              MultiValue: ({ data, removeProps }: any) => {
-                                const dosen = data.data;
-                                if (dosen) {
-                                  return (
-                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/40">
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
-                                        <span className="text-white text-xs font-bold">
-                                          {dosen.name.charAt(0)}
-                                        </span>
-                                      </div>
-                                      <span className="text-xs font-medium text-green-700 dark:text-green-200">
-                                        {dosen.name}
-                                      </span>
-                                      <button
-                                        className="ml-2 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full transition text-xs"
-                                        title="Hapus dosen"
-                                        {...removeProps}
-                                      >
-                                        <svg
-                                          className="w-3 h-3"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                          />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              },
-                            }}
+
                           />
                         )}
                       </div>
@@ -22361,7 +21811,7 @@ export default function DetailBlok() {
                           name="hariTanggal"
                           value={form.hariTanggal || ""}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
 
                         {errorForm && (
@@ -23712,7 +23162,7 @@ export default function DetailBlok() {
                           name="hariTanggal"
                           value={form.hariTanggal || ""}
                           onChange={handleFormChange}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                         {errorForm && (
                           <div className="text-sm text-red-500 mt-2">
@@ -23878,7 +23328,7 @@ export default function DetailBlok() {
                             name="jumlahKali"
                             value={form.jumlahKali}
                             onChange={handleFormChange}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                           >
                             {[1, 2, 3, 4, 5, 6].map((n) => (
                               <option key={n} value={n}>
@@ -23912,14 +23362,13 @@ export default function DetailBlok() {
                           value={form.topik || ""}
                           onChange={handleFormChange}
                           placeholder="Masukkan topik (opsional)"
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Koordinator Dosen{" "}
-                          <span className="text-red-500">*</span>
+                          Koordinator Dosen
                         </label>
                         {loadingAssignedPBL ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
@@ -24044,24 +23493,7 @@ export default function DetailBlok() {
                             isClearable
                             classNamePrefix="react-select"
                             className="react-select-container"
-                            formatOptionLabel={(option: any) => {
-                              const dosen = option.data;
-                              if (dosen) {
-                                return (
-                                  <div className="flex items-center gap-2 p-2">
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
-                                      <span className="text-white text-xs font-bold">
-                                        {dosen.name.charAt(0)}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
-                                      {dosen.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
-                              return option.label;
-                            }}
+
                             styles={{
                               control: (base, state) => ({
                                 ...base,
@@ -24288,25 +23720,25 @@ export default function DetailBlok() {
                             }
                             classNamePrefix="react-select"
                             className="react-select-container"
-                            formatOptionLabel={(option: any) => {
-                              const dosen = option.data;
-                              if (dosen) {
-                                return (
-                                  <div className="flex items-center gap-2 p-2">
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
-                                      <span className="text-white text-xs font-bold">
-                                        {dosen.name.charAt(0)}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
-                                      {dosen.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
-                              return option.label;
-                            }}
+
                             styles={{
+                              multiValue: (base) => ({
+                                ...base,
+                                backgroundColor: "#3b82f6",
+                                color: "#fff",
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color: "#fff",
+                              }),
+                              multiValueRemove: (base) => ({
+                                ...base,
+                                color: "#fff",
+                                ":hover": {
+                                  backgroundColor: "#2563eb",
+                                  color: "#fff",
+                                },
+                              }),
                               control: (base, state) => ({
                                 ...base,
                                 backgroundColor:
@@ -24384,34 +23816,7 @@ export default function DetailBlok() {
                                 fontSize: "1rem",
                                 padding: "0.5rem",
                               }),
-                              multiValue: (base) => ({
-                                ...base,
-                                backgroundColor: "#dcfce7", // green-100
-                                border: "1px solid #bbf7d0", // green-200
-                                borderRadius: "9999px", // rounded-full
-                                padding: "0.25rem 0.75rem", // px-3 py-1
-                                margin: "0.125rem",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem", // gap-2
-                              }),
-                              multiValueLabel: (base) => ({
-                                ...base,
-                                color: "#166534", // green-700
-                                fontWeight: "500", // font-medium
-                                fontSize: "0.75rem", // text-xs
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem", // gap-2
-                              }),
-                              multiValueRemove: (base) => ({
-                                ...base,
-                                color: "#ef4444", // red-500
-                                ":hover": {
-                                  backgroundColor: "#fee2e2", // red-100
-                                  color: "#dc2626", // red-600
-                                },
-                              }),
+
                               placeholder: (base) => ({
                                 ...base,
                                 color:
@@ -24445,52 +23850,14 @@ export default function DetailBlok() {
                                 backgroundColor: "transparent",
                               }),
                             }}
-                            components={{
-                              MultiValue: ({ data, removeProps }: any) => {
-                                const dosen = data.data;
-                                if (dosen) {
-                                  return (
-                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/40">
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
-                                        <span className="text-white text-xs font-bold">
-                                          {dosen.name.charAt(0)}
-                                        </span>
-                                      </div>
-                                      <span className="text-xs font-medium text-green-700 dark:text-green-200">
-                                        {dosen.name}
-                                      </span>
-                                      <button
-                                        className="ml-2 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full transition text-xs"
-                                        title="Hapus dosen"
-                                        {...removeProps}
-                                      >
-                                        <svg
-                                          className="w-3 h-3"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                          />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              },
-                            }}
+
                           />
                         )}
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Kelompok Besar
+                          Kelompok
                         </label>
 
                         {kelompokBesarOptions.length === 0 ? (
@@ -24509,14 +23876,14 @@ export default function DetailBlok() {
                               </svg>
 
                               <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada kelompok besar yang ditambahkan untuk
+                                Belum ada kelompok yang ditambahkan untuk
                                 mata kuliah ini
                               </span>
                             </div>
 
                             <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan tambahkan kelompok besar terlebih dahulu
-                              di halaman Kelompok Detail
+                              Silakan tambahkan kelompok terlebih dahulu di
+                              halaman Kelompok Detail
                             </p>
                           </div>
                         ) : (
@@ -24546,7 +23913,7 @@ export default function DetailBlok() {
                               resetErrorForm();
                             }}
                             isSearchable={false}
-                            placeholder="Pilih Kelompok Besar"
+                            placeholder="Pilih Kelompok"
                             isClearable
                             classNamePrefix="react-select"
                             className="react-select-container"
@@ -27145,7 +26512,7 @@ export default function DetailBlok() {
                                   icon={faCheckCircle}
                                   className="w-3.5 h-3.5 shrink-0"
                                 />
-                                <span className="hidden xl:inline whitespace-nowrap">
+                                <span className="inline whitespace-nowrap">
                                   Absensi
                                 </span>
                               </button>
@@ -33504,57 +32871,42 @@ export default function DetailBlok() {
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
                           Error Validasi (
-                          {seminarPlenoCellErrors.length +
-                            seminarPlenoImportErrors.filter((err) => {
-                              // Filter error generic yang tidak perlu ditampilkan
-                              if (
-                                err.includes("data.") &&
-                                err.includes("field is required")
-                              )
-                                return false;
-                              if (
-                                err.includes(
-                                  "Terjadi kesalahan saat memvalidasi data"
-                                )
-                              )
-                                return false;
-                              return true;
-                            }).length}{" "}
+                          {seminarPlenoImportErrors.filter((err) => {
+                            // Filter error generic yang tidak perlu ditampilkan
+                            if (err.includes("data.") && err.includes("field is required")) return false;
+                            if (err.includes("Terjadi kesalahan saat memvalidasi data")) return false;
+                            if (err.includes("Gagal mengimport data. Perbaiki error terlebih dahulu")) return false;
+                            return true;
+                          }).length + (seminarPlenoImportErrors.length === 0 ? seminarPlenoCellErrors.length : 0)}{" "}
                           error)
                         </h3>
                         <div className="max-h-40 overflow-y-auto">
+                          {/* Tampilkan cell errors HANYA saat editing (belum ada import errors) */}
+                          {seminarPlenoImportErrors.length === 0 && seminarPlenoCellErrors.map((err, idx) => (
+                            <p
+                              key={`cell-${idx}`}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • Baris {err.row}: {err.message}
+                            </p>
+                          ))}
+                          {/* Tampilkan import errors (validasi backend) */}
                           {seminarPlenoImportErrors
                             .filter((err) => {
                               // Filter error generic yang tidak perlu ditampilkan
-                              if (
-                                err.includes("data.") &&
-                                err.includes("field is required")
-                              )
-                                return false;
-                              if (
-                                err.includes(
-                                  "Terjadi kesalahan saat memvalidasi data"
-                                )
-                              )
-                                return false;
+                              if (err.includes("data.") && err.includes("field is required")) return false;
+                              if (err.includes("Terjadi kesalahan saat memvalidasi data")) return false;
+                              if (err.includes("Gagal mengimport data. Perbaiki error terlebih dahulu")) return false;
                               return true;
                             })
                             .map((err, idx) => (
                               <p
-                                key={idx}
+                                key={`import-${idx}`}
                                 className="text-sm text-red-600 dark:text-red-400 mb-1"
                               >
                                 • {err}
                               </p>
                             ))}
-                          {seminarPlenoCellErrors.map((err, idx) => (
-                            <p
-                              key={idx}
-                              className="text-sm text-red-600 dark:text-red-400 mb-1"
-                            >
-                              • {err.message}
-                            </p>
-                          ))}
                         </div>
                       </div>
                     </div>
@@ -33603,7 +32955,7 @@ export default function DetailBlok() {
                               Ruangan
                             </th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                              Kelompok Besar
+                              Kelompok
                             </th>
                           </tr>
                         </thead>
@@ -33791,7 +33143,14 @@ export default function DetailBlok() {
                                           row.kelompok_besar_id
                                       );
                                     if (kelompokBesar) {
-                                      displayValue = kelompokBesar.label;
+                                      displayValue = kelompokBesar.label.includes(
+                                        "Semester"
+                                      )
+                                        ? kelompokBesar.label.replace(
+                                          /^(?:Kelompok Besar\s+)?Semester\s*(\d+)/i,
+                                          "Kelompok Besar Semester $1"
+                                        )
+                                        : kelompokBesar.label;
                                     }
                                   }
 

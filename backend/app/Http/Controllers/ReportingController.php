@@ -214,7 +214,16 @@ class ReportingController extends Controller
     public function dosenCsrReport(Request $request)
     {
         // Ambil data mapping dosen ke CSR beserta semester & blok
-        $mappings = \App\Models\CSRMapping::with(['dosen', 'csr'])->get();
+        $query = \App\Models\CSRMapping::with(['dosen', 'csr']);
+        
+        // Filter berdasarkan semester jika ada parameter
+        if ($request->filled('semester_id')) {
+            $query->whereHas('csr', function ($q) use ($request) {
+                $q->where('semester', $request->semester_id);
+            });
+        }
+        
+        $mappings = $query->get();
 
         $result = [];
         foreach ($mappings as $mapping) {

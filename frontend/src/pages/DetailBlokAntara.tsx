@@ -149,19 +149,19 @@ export default function DetailBlokAntara() {
   const [jadwalAgendaKhusus, setJadwalAgendaKhusus] = useState<JadwalAgendaKhususType[]>([]);
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<JadwalJurnalReadingType[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
-  
+
   // Pagination state for all schedule types
   const [kuliahBesarPage, setKuliahBesarPage] = useState(1);
   const [kuliahBesarPageSize, setKuliahBesarPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [agendaKhususPage, setAgendaKhususPage] = useState(1);
   const [agendaKhususPageSize, setAgendaKhususPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  
+
   const [pblPage, setPblPage] = useState(1);
   const [pblPageSize, setPblPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  
+
   const [jurnalReadingPage, setJurnalReadingPage] = useState(1);
   const [jurnalReadingPageSize, setJurnalReadingPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  
+
   // Memoized ruangan options untuk optimisasi performa
   const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
 
@@ -192,15 +192,15 @@ export default function DetailBlokAntara() {
         break;
     }
   }, []);
-  
+
   // State untuk loading assigned PBL - untuk semester antara menggunakan allDosenOptions
   const [loadingAssignedPBL, setLoadingAssignedPBL] = useState(false);
 
   const [allDosenOptions, setAllDosenOptions] = useState<DosenType[]>([]);
-  const [kelompokBesarAntaraOptions, setKelompokBesarAntaraOptions] = useState<{id: number, label: string, jumlah_mahasiswa: number, mahasiswa: any[]}[]>([]);
+  const [kelompokBesarAntaraOptions, setKelompokBesarAntaraOptions] = useState<{ id: number, label: string, jumlah_mahasiswa: number, mahasiswa: any[] }[]>([]);
   const [showKelompokBesarAntaraModal, setShowKelompokBesarAntaraModal] = useState(false);
-  const [selectedMahasiswa, setSelectedMahasiswa] = useState<{id: number, name: string, email: string, ipk?: number}[]>([]);
-  const [allMahasiswaOptions, setAllMahasiswaOptions] = useState<{id: number, name: string, email: string, ipk?: number}[]>([]);
+  const [selectedMahasiswa, setSelectedMahasiswa] = useState<{ id: number, name: string, email: string, ipk?: number }[]>([]);
+  const [allMahasiswaOptions, setAllMahasiswaOptions] = useState<{ id: number, name: string, email: string, ipk?: number }[]>([]);
   const [isLoadingMahasiswa, setIsLoadingMahasiswa] = useState(false);
   const [isLoadingKelompok, setIsLoadingKelompok] = useState(false);
   const [isCreatingKelompok, setIsCreatingKelompok] = useState(false);
@@ -211,18 +211,18 @@ export default function DetailBlokAntara() {
     mahasiswa_ids: [] as number[]
   });
 
-  const [kelompokKecilAntaraList, setKelompokKecilAntaraList] = useState<{id: number, nama_kelompok: string, jumlah_anggota: number, mahasiswa_ids: number[]}[]>([]);
+  const [kelompokKecilAntaraList, setKelompokKecilAntaraList] = useState<{ id: number, nama_kelompok: string, jumlah_anggota: number, mahasiswa_ids: number[] }[]>([]);
   const [kelompokKecilAntaraForm, setKelompokKecilAntaraForm] = useState({
     nama_kelompok: '',
     mahasiswa_ids: [] as number[]
   });
   const [isLoadingKelompokKecilAntara, setIsLoadingKelompokKecilAntara] = useState(false);
   const [isCreatingKelompokKecilAntara, setIsCreatingKelompokKecilAntara] = useState(false);
-  
+
   // State untuk search di tab Kelompok Kecil
   const [searchMahasiswaKelompokKecil, setSearchMahasiswaKelompokKecil] = useState('');
   const [filterIPKKelompokKecil, setFilterIPKKelompokKecil] = useState('semua');
-  
+
   // State untuk tab modal kelompok
   const [activeTab, setActiveTab] = useState<'besar' | 'kecil'>('besar');
 
@@ -333,7 +333,7 @@ export default function DetailBlokAntara() {
 
     // Filter by search term
     if (searchMahasiswa) {
-      filtered = filtered.filter(mahasiswa => 
+      filtered = filtered.filter(mahasiswa =>
         mahasiswa.name.toLowerCase().includes(searchMahasiswa.toLowerCase()) ||
         mahasiswa.email.toLowerCase().includes(searchMahasiswa.toLowerCase())
       );
@@ -490,16 +490,16 @@ export default function DetailBlokAntara() {
   // Helper functions - optimized with useCallback
   const formatTanggalKonsisten = useCallback((dateStr: string) => {
     if (!dateStr) return '';
-    
+
     const date = new Date(dateStr);
     const hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const hariIndo = hari[date.getDay()];
-    
+
     // Format tanggal DD/MM/YYYY
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
-    
+
     return `${hariIndo}, ${day}/${month}/${year}`;
   }, []);
 
@@ -534,10 +534,10 @@ export default function DetailBlokAntara() {
   const truncateFileName = useCallback((fileName: string, maxLength: number = 20) => {
     if (!fileName) return '';
     if (fileName.length <= maxLength) return fileName;
-    
+
     const dotIdx = fileName.lastIndexOf('.');
     if (dotIdx === -1) return fileName.slice(0, maxLength - 3) + '...';
-    
+
     const ext = fileName.slice(dotIdx);
     const base = fileName.slice(0, maxLength - 3 - ext.length);
     return base + '...' + ext;
@@ -592,15 +592,15 @@ export default function DetailBlokAntara() {
         isDuplicate = jadwalPBL.some((j: JadwalPBLType, idx: number) => {
           if (!j.tanggal) return false;
           const tglISO = j.tanggal.slice(0, 10);
-        if (editIndex !== null && idx === editIndex) return false;
-          
+          if (editIndex !== null && idx === editIndex) return false;
+
           // Cek apakah tanggal, kelompok, dan pbl_tipe sama
           const sameDate = tglISO === value;
           const sameGroup = j.nama_kelompok === form.kelompok || j.kelompok_kecil_antara?.nama_kelompok === form.kelompok;
           const samePblType = j.pbl_tipe === form.pblTipe;
-          
+
           return sameDate && sameGroup && samePblType;
-      });
+        });
       }
       if (isDuplicate) {
         setErrorForm('Hari/Tanggal sudah ada di jadwal PBL untuk kelompok dan tipe yang sama!');
@@ -621,12 +621,12 @@ export default function DetailBlokAntara() {
       }
     }
     setForm(newForm);
-    
+
     // Reset error form ketika ada perubahan input (kecuali untuk validasi tanggal yang sudah ada)
     if (errorForm && !errorForm.includes('Tanggal tidak boleh') && !errorForm.includes('Hari/Tanggal sudah ada di jadwal PBL')) {
       setErrorForm('');
     }
-    
+
     // Reset error dari backend ketika user mengubah form (untuk memberikan kesempatan retry)
     if (errorBackend) {
       setErrorBackend('');
@@ -642,7 +642,7 @@ export default function DetailBlokAntara() {
       if (/^\d{4}-\d{2}-\d{2}$/.test(row.hariTanggal)) {
         tglISO = row.hariTanggal;
       } else {
-      const tglStr = row.hariTanggal.split(', ')[1];
+        const tglStr = row.hariTanggal.split(', ')[1];
         if (tglStr && /^\d{4}-\d{2}-\d{2}$/.test(tglStr)) {
           tglISO = tglStr;
         }
@@ -669,8 +669,8 @@ export default function DetailBlokAntara() {
       });
     } else if (row.jenisBaris === 'pbl' || jenisBaris === 'pbl') {
       // Cari nama kelompok dari transform backend atau relasi
-              const namaKelompok = row.nama_kelompok || row.kelompok_kecil_antara?.nama_kelompok || '';
-      
+      const namaKelompok = row.nama_kelompok || row.kelompok_kecil_antara?.nama_kelompok || '';
+
       setForm({
         hariTanggal: row.tanggal, // Gunakan tanggal langsung dari backend
         jamMulai: String(row.jam_mulai || ''),
@@ -776,7 +776,7 @@ export default function DetailBlokAntara() {
         topik: form.topik,
         catatan: '',
       };
-      
+
       // Gunakan handler khusus untuk PBL
       try {
         await handleTambahJadwalPBL(payload);
@@ -791,7 +791,7 @@ export default function DetailBlokAntara() {
       }
       return;
     }
-    
+
     // Handle untuk jenis baris 'materi' (kuliah besar)
     if (form.jenisBaris === 'materi') {
       // Validasi field wajib untuk kuliah besar
@@ -811,12 +811,12 @@ export default function DetailBlokAntara() {
         setErrorForm('Pengampu wajib dipilih!');
         throw new Error('Pengampu wajib dipilih!');
       }
-      
+
       // Gunakan handler khusus untuk kuliah besar
       await handleTambahJadwalKuliahBesar();
       return;
     }
-    
+
     // Handle untuk jenis baris 'agenda' (agenda khusus)
     if (form.jenisBaris === 'agenda') {
       // Validasi field wajib untuk agenda khusus
@@ -829,18 +829,18 @@ export default function DetailBlokAntara() {
         setErrorForm('Semua field wajib diisi!');
         throw new Error('Semua field wajib diisi!');
       }
-      
+
       // Validasi ruangan hanya jika menggunakan ruangan
       if (form.useRuangan && !form.lokasi) {
         setErrorForm('Ruangan wajib dipilih jika menggunakan ruangan!');
         throw new Error('Ruangan wajib dipilih jika menggunakan ruangan!');
       }
-      
+
       // Gunakan handler khusus untuk agenda khusus
       await handleTambahJadwalAgendaKhusus();
       return;
     }
-    
+
   }
 
   // Hapus useEffect yang tidak perlu karena data sudah dalam format yang benar
@@ -861,34 +861,34 @@ export default function DetailBlokAntara() {
     setLoadingPBL(true);
     setLoadingDosenRuangan(true);
     setErrorBackend('');
-    
+
     try {
       setError(null); // Reset error state
       const response = await api.get(`/mata-kuliah/${kode}/batch-data`);
       const batchData = response.data;
-      
+
       // Set mata kuliah data
       setData(batchData.mata_kuliah);
-      
+
       // Set jadwal data
       setJadwalPBL(Array.isArray(batchData.jadwal_pbl) ? batchData.jadwal_pbl : []);
       setJadwalKuliahBesar(Array.isArray(batchData.jadwal_kuliah_besar) ? batchData.jadwal_kuliah_besar : []);
       setJadwalAgendaKhusus(Array.isArray(batchData.jadwal_agenda_khusus) ? batchData.jadwal_agenda_khusus : []);
       setJadwalJurnalReading(Array.isArray(batchData.jadwal_jurnal_reading) ? batchData.jadwal_jurnal_reading : []);
-      
+
       // Set reference data
       setModulPBLList(Array.isArray(batchData.modul_pbl) ? batchData.modul_pbl : []);
       // setKelompokKecilList(Array.isArray(batchData.kelompok_kecil) ? batchData.kelompok_kecil : []); // Use kelompokKecilAntaraList instead
       setAllRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
       setRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
       setJamOptions(Array.isArray(batchData.jam_options) ? batchData.jam_options : []);
-      
+
       // Set dosen data
       if (batchData.dosen) {
         setAllDosenList(Array.isArray(batchData.dosen.all) ? batchData.dosen.all : []);
         // dosenList removed for semester antara
       }
-      
+
     } catch (err) {
       setErrorBackend('Gagal mengambil data batch');
       setError('Gagal mengambil data batch'); // Set main error state
@@ -922,15 +922,15 @@ export default function DetailBlokAntara() {
       // No assigned dosen setup needed for semester antara
       return;
     }
-    
+
     setLoadingAssignedPBL(true);
     try {
       const pblIds = modulPBLList.map(pbl => pbl.id).filter(Boolean);
-      
+
       if (pblIds.length > 0) {
         const assignedRes = await api.post('/pbls/assigned-dosen-batch', { pbl_ids: pblIds });
         const assignedData = assignedRes.data || {};
-        
+
         // Gabungkan semua assigned dosen dari semua PBL modul
         const dosenMap = new Map<number, DosenType>();
         Object.values(assignedData).forEach((dosenList) => {
@@ -943,7 +943,7 @@ export default function DetailBlokAntara() {
             });
           }
         });
-        
+
         // For semester antara, no need to track assigned dosen separately
         // Use allDosenOptions instead
       }
@@ -957,7 +957,7 @@ export default function DetailBlokAntara() {
   // Fetch semua dosen untuk PBL
   const fetchAllDosenPBL = useCallback(async () => {
     if (!kode) return;
-    
+
     // For semester antara, use allDosenOptions instead of separate PBL dosen options
     // No additional loading needed
   }, [kode]);
@@ -994,7 +994,7 @@ export default function DetailBlokAntara() {
       {/* Header skeleton */}
       <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
       <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
-      
+
       {/* Info Mata Kuliah skeleton */}
       <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
@@ -1016,7 +1016,7 @@ export default function DetailBlokAntara() {
           </div>
         ))}
       </div>
-      
+
       {/* Kuliah Besar skeleton */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -1305,15 +1305,15 @@ export default function DetailBlokAntara() {
   async function handleEditJadwalPBL(id: number, formPBL: JadwalPBLType) {
     setErrorBackend('');
     setErrorBackend('');
-          // Reset error state
+    // Reset error state
 
-    
+
     // Tambahkan jumlah_sesi berdasarkan pbl_tipe
     const updatedFormPBL = {
       ...formPBL,
       jumlah_sesi: formPBL.pbl_tipe === 'PBL 2' ? 3 : 2
     };
-    
+
     try {
       await api.put(`/mata-kuliah/${kode}/jadwal-pbl/${id}`, updatedFormPBL);
       await fetchBatchData();
@@ -1357,7 +1357,7 @@ export default function DetailBlokAntara() {
   async function handleTambahJadwalKuliahBesar() {
     setErrorForm('');
     setErrorBackend('');
-    
+
     // Validasi field wajib
     if (!form.hariTanggal || !form.jamMulai || !form.jamSelesai || !form.lokasi) {
       setErrorForm('Semua field wajib diisi!');
@@ -1409,7 +1409,7 @@ export default function DetailBlokAntara() {
   // Handler edit jadwal kuliah besar
   function handleEditJadwalKuliahBesar(idx: number) {
     const row = jadwalKuliahBesar[idx];
-    
+
     // Set form untuk semester antara
     setForm({
       hariTanggal: row.tanggal,
@@ -1442,7 +1442,7 @@ export default function DetailBlokAntara() {
     try {
       await api.delete(`/kuliah-besar/jadwal/${data!.kode}/${row.id}`);
       await fetchBatchData();
-    } catch {}
+    } catch { }
     setIsSaving(false);
   }
 
@@ -1455,13 +1455,13 @@ export default function DetailBlokAntara() {
       setErrorForm('Semua field wajib diisi!');
       throw new Error('Semua field wajib diisi!');
     }
-    
+
     // Validasi ruangan jika menggunakan ruangan
     if (form.useRuangan && !form.lokasi) {
       setErrorForm('Ruangan wajib dipilih jika menggunakan ruangan!');
       throw new Error('Ruangan wajib dipilih jika menggunakan ruangan!');
     }
-    
+
     // Validasi bentrok frontend
     let payload: any = {
       tanggal: form.hariTanggal,
@@ -1498,7 +1498,7 @@ export default function DetailBlokAntara() {
   // Handler edit jadwal agenda khusus
   function handleEditJadwalAgendaKhusus(idx: number) {
     const row = jadwalAgendaKhusus[idx];
-    
+
     // Set form untuk semester antara
     setForm({
       hariTanggal: row.tanggal,
@@ -1532,15 +1532,15 @@ export default function DetailBlokAntara() {
   // Handler konfirmasi hapus agenda khusus
   async function handleConfirmDeleteAgendaKhusus() {
     if (selectedDeleteAgendaIndex === null) return;
-    
+
     const row = jadwalAgendaKhusus[selectedDeleteAgendaIndex];
     if (!row?.id) return;
-    
+
     setIsSaving(true);
     try {
       await api.delete(`/agenda-khusus/jadwal/${data!.kode}/${row.id}`);
       await fetchBatchData();
-    } catch {}
+    } catch { }
     setIsSaving(false);
     setShowDeleteAgendaModal(false);
     setSelectedDeleteAgendaIndex(null);
@@ -1555,14 +1555,14 @@ export default function DetailBlokAntara() {
       setErrorForm('Semua field wajib diisi!');
       throw new Error('Semua field wajib diisi!');
     }
-    
+
     // Validasi kelompok_kecil_antara_id dari semester antara
     const kelompokKecilAntaraId = kelompokKecilAntaraList.find(k => k.nama_kelompok === form.kelompok)?.id;
     if (!kelompokKecilAntaraId) {
       setErrorForm('Kelompok tidak ditemukan!');
       throw new Error('Kelompok tidak ditemukan!');
     }
-    
+
     // Validasi bentrok frontend
     const payload = {
       tanggal: form.hariTanggal,
@@ -1576,9 +1576,9 @@ export default function DetailBlokAntara() {
       ruangan_id: Number(form.lokasi),
       topik: form.topik,
     };
-    
 
-    
+
+
     try {
       const formData = new FormData();
       formData.append('tanggal', payload.tanggal);
@@ -1591,11 +1591,11 @@ export default function DetailBlokAntara() {
       formData.append('dosen_ids', JSON.stringify(payload.dosen_ids));
       formData.append('ruangan_id', payload.ruangan_id.toString());
       formData.append('topik', payload.topik);
-      
+
       if (form.fileJurnal) {
         formData.append('file_jurnal', form.fileJurnal);
       }
-      
+
       if (editIndex !== null && jadwalJurnalReading[editIndex]?.id) {
         // Edit mode - gunakan JSON untuk data biasa, FormData hanya jika ada file baru
         if (form.fileJurnal) {
@@ -1613,7 +1613,7 @@ export default function DetailBlokAntara() {
           editFormData.append('ruangan_id', payload.ruangan_id.toString());
           editFormData.append('topik', payload.topik);
           editFormData.append('file_jurnal', form.fileJurnal);
-          
+
           await api.post(`/jurnal-reading/jadwal/${data!.kode}/${jadwalJurnalReading[editIndex].id}`, editFormData, {
             headers: {
               'Content-Type': 'multipart/form-data',
@@ -1643,7 +1643,7 @@ export default function DetailBlokAntara() {
           },
         });
       }
-      
+
       await fetchBatchData();
       setShowModal(false);
       setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 1, jamSelesai: '', pengampu: null, materi: '', topik: '', lokasi: null, jenisBaris: 'jurnal', agenda: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
@@ -1658,7 +1658,7 @@ export default function DetailBlokAntara() {
   // Handler edit jadwal jurnal reading
   function handleEditJadwalJurnalReading(idx: number) {
     const row = jadwalJurnalReading[idx];
-    
+
     setForm({
       hariTanggal: row.tanggal || '',
       jamMulai: row.jam_mulai || '',
@@ -1672,12 +1672,12 @@ export default function DetailBlokAntara() {
       agenda: '',
       pblTipe: '',
       modul: null,
-                kelompok: row.kelompok_kecil_antara?.nama_kelompok || '',
+      kelompok: row.kelompok_kecil_antara?.nama_kelompok || '',
       kelompokBesar: null,
       useRuangan: true,
       fileJurnal: null,
     });
-    
+
     // Set informasi file yang sudah ada di backend
     if (row.file_jurnal) {
       setExistingFileJurnal({
@@ -1687,7 +1687,7 @@ export default function DetailBlokAntara() {
     } else {
       setExistingFileJurnal(null);
     }
-    
+
     setEditIndex(idx);
     setShowModal(true);
     resetErrorForm();
@@ -1702,10 +1702,10 @@ export default function DetailBlokAntara() {
   // Handler konfirmasi hapus jurnal reading
   async function handleConfirmDeleteJurnalReading() {
     if (selectedDeleteJurnalReadingIndex === null) return;
-    
+
     const row = jadwalJurnalReading[selectedDeleteJurnalReadingIndex];
     if (!row?.id) return;
-    
+
     setIsSaving(true);
     try {
       await api.delete(`/jurnal-reading/jadwal/${data!.kode}/${row.id}`);
@@ -1726,14 +1726,14 @@ export default function DetailBlokAntara() {
 
   const confirmBulkDelete = async () => {
     if (!data?.kode) return;
-    
+
     setIsBulkDeleting(true);
-    
+
     try {
       let selectedItems: number[] = [];
       let endpoint = '';
       let successMessage = '';
-      
+
       switch (bulkDeleteType) {
         case 'kuliah-besar':
           selectedItems = selectedKuliahBesarItems;
@@ -1756,14 +1756,14 @@ export default function DetailBlokAntara() {
           successMessage = `${selectedItems.length} jadwal jurnal reading berhasil dihapus.`;
           break;
       }
-      
+
       // Delete all selected items
       await Promise.all(selectedItems.map(id => api.delete(`${endpoint}/${id}`)));
-      
+
       // Show success message first
       setSuccessMessage(successMessage);
       setTimeout(() => setSuccessMessage(''), 3000);
-      
+
       // Clear selected items
       switch (bulkDeleteType) {
         case 'kuliah-besar':
@@ -1779,13 +1779,13 @@ export default function DetailBlokAntara() {
           setSelectedJurnalReadingItems([]);
           break;
       }
-      
+
       // Close modal after successful delete
       setShowBulkDeleteModal(false);
-      
+
       // Refresh data after setting success message
       await fetchBatchData();
-      
+
     } catch (error) {
       setErrorBackend('Gagal menghapus jadwal yang dipilih');
     } finally {
@@ -1795,7 +1795,7 @@ export default function DetailBlokAntara() {
 
   const handleSelectAll = (type: 'kuliah-besar' | 'agenda-khusus' | 'pbl' | 'jurnal-reading', allItems: any[]) => {
     const allIds = allItems.map(item => item.id).filter(id => id !== undefined);
-    
+
     switch (type) {
       case 'kuliah-besar':
         if (selectedKuliahBesarItems.length === allIds.length) {
@@ -1962,7 +1962,7 @@ export default function DetailBlokAntara() {
             </div>
           </div>
         )}
-        
+
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white">Kuliah Besar</h2>
           <button
@@ -2045,13 +2045,13 @@ export default function DetailBlokAntara() {
               </thead>
               <tbody>
                 {jadwalKuliahBesar.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
+                  <tr>
+                    <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
                   </tr>
                 ) : (
-                    getPaginatedData(jadwalKuliahBesar, kuliahBesarPage, kuliahBesarPageSize).map((row, i) => {
-                      const dosen = allDosenList.find(d => d.id === row.dosen_id);
-                      const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
+                  getPaginatedData(jadwalKuliahBesar, kuliahBesarPage, kuliahBesarPageSize).map((row, i) => {
+                    const dosen = allDosenList.find(d => d.id === row.dosen_id);
+                    const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
                     return (
                       <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
                         <td className="px-4 py-4 text-center">
@@ -2074,7 +2074,7 @@ export default function DetailBlokAntara() {
                           {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
                         </td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi || 1} x 50 menit</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi || 1} x 50 menit</td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                           {row.topik || '-'}
                         </td>
@@ -2091,12 +2091,12 @@ export default function DetailBlokAntara() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {row.kelompok_besar_antara_id ? 
-                            kelompokBesarAntaraOptions.find(k => k.id === row.kelompok_besar_antara_id)?.label || 
+                          {row.kelompok_besar_antara_id ?
+                            kelompokBesarAntaraOptions.find(k => k.id === row.kelompok_besar_antara_id)?.label ||
                             `Kelompok Besar Antara ${row.kelompok_besar_antara_id}` : '-'}
                         </td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.topik || row.materi}</td>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{ruangan?.nama || `Ruangan ${row.ruangan_id}`}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{ruangan?.nama || `Ruangan ${row.ruangan_id}`}</td>
                         <td className="px-3 py-3 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                             {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
@@ -2107,20 +2107,20 @@ export default function DetailBlokAntara() {
                                 title="Buka Absensi"
                               >
                                 <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
-                                <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                                <span className="xl:inline whitespace-nowrap">Absensi</span>
                               </button>
                             )}
                             <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
                               <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
-                              <span className="hidden xl:inline whitespace-nowrap">Edit</span>
+                              <span className="xl:inline whitespace-nowrap">Edit</span>
                             </button>
-                            <button onClick={() => { 
-                              setSelectedDeleteIndex(i); 
+                            <button onClick={() => {
+                              setSelectedDeleteIndex(i);
                               setSelectedDeleteType('materi');
-                              setShowDeleteModal(true); 
+                              setShowDeleteModal(true);
                             }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
                               <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
-                              <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
+                              <span className="xl:inline whitespace-nowrap">Hapus</span>
                             </button>
                           </div>
                         </td>
@@ -2153,7 +2153,7 @@ export default function DetailBlokAntara() {
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 Menampilkan {((kuliahBesarPage - 1) * kuliahBesarPageSize) + 1} - {Math.min(kuliahBesarPage * kuliahBesarPageSize, jadwalKuliahBesar.length)} dari {jadwalKuliahBesar.length} data
               </span>
-              
+
               <select
                 value={kuliahBesarPageSize}
                 onChange={(e) => {
@@ -2213,11 +2213,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) > 1 && (
                 <button
                   onClick={() => setKuliahBesarPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    kuliahBesarPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${kuliahBesarPage === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
@@ -2239,11 +2238,10 @@ export default function DetailBlokAntara() {
                   <button
                     key={pageNum}
                     onClick={() => setKuliahBesarPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      kuliahBesarPage === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${kuliahBesarPage === pageNum
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -2261,11 +2259,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) > 1 && (
                 <button
                   onClick={() => setKuliahBesarPage(getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize))}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    kuliahBesarPage === getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${kuliahBesarPage === getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)}
                 </button>
@@ -2393,29 +2390,29 @@ export default function DetailBlokAntara() {
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi || 1} x 50 menit</td>
-                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.agenda}</td>
-                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                      {row.kelompok_besar_antara_id ? 
-                        kelompokBesarAntaraOptions.find(k => k.id === row.kelompok_besar_antara_id)?.label || 
-                        `Kelompok Besar Antara ${row.kelompok_besar_antara_id}` : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.agenda}</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.kelompok_besar_antara_id ?
+                          kelompokBesarAntaraOptions.find(k => k.id === row.kelompok_besar_antara_id)?.label ||
+                          `Kelompok Besar Antara ${row.kelompok_besar_antara_id}` : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.use_ruangan ? (allRuanganList.find(r => r.id === row.ruangan_id)?.nama || `Ruangan ${row.ruangan_id}`) : '-'}
-                    </td>
-                    <td className="px-3 py-3 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5 flex-nowrap">
-                        <button onClick={() => handleEditJadwalAgendaKhusus(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
-                          <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
-                          <span className="hidden xl:inline whitespace-nowrap">Edit</span>
-                      </button>
-                        <button onClick={() => handleDeleteJadwalAgendaKhusus(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
-                          <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
-                          <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
-                      </button>
-                      </div>
-                    </td>
-                  </tr>
-                    ))
+                      </td>
+                      <td className="px-3 py-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                          <button onClick={() => handleEditJadwalAgendaKhusus(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                            <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Edit</span>
+                          </button>
+                          <button onClick={() => handleDeleteJadwalAgendaKhusus(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                            <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Hapus</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -2442,7 +2439,7 @@ export default function DetailBlokAntara() {
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 Menampilkan {((agendaKhususPage - 1) * agendaKhususPageSize) + 1} - {Math.min(agendaKhususPage * agendaKhususPageSize, jadwalAgendaKhusus.length)} dari {jadwalAgendaKhusus.length} data
               </span>
-              
+
               <select
                 value={agendaKhususPageSize}
                 onChange={(e) => {
@@ -2502,11 +2499,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) > 1 && (
                 <button
                   onClick={() => setAgendaKhususPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    agendaKhususPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${agendaKhususPage === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
@@ -2528,11 +2524,10 @@ export default function DetailBlokAntara() {
                   <button
                     key={pageNum}
                     onClick={() => setAgendaKhususPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      agendaKhususPage === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${agendaKhususPage === pageNum
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -2550,11 +2545,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) > 1 && (
                 <button
                   onClick={() => setAgendaKhususPage(getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize))}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    agendaKhususPage === getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${agendaKhususPage === getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize)
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize)}
                 </button>
@@ -2614,9 +2608,9 @@ export default function DetailBlokAntara() {
                 <div className="space-y-4">
                   {form.jenisBaris === 'materi' && (
                     <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari/Tanggal</label>
-                    <input type="date" name="hariTanggal" value={form.hariTanggal || ''} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari/Tanggal</label>
+                        <input type="date" name="hariTanggal" value={form.hariTanggal || ''} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                         {errorForm && <div className="text-sm text-red-500 mt-2">{errorForm}</div>}
                       </div>
                       <div className="flex gap-2">
@@ -2666,8 +2660,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -2700,7 +2694,7 @@ export default function DetailBlokAntara() {
                         <div className="w-32">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">x 50 menit</label>
                           <select name="jumlahKali" value={form.jumlahKali} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
+                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
                           </select>
                         </div>
                       </div>
@@ -2730,8 +2724,8 @@ export default function DetailBlokAntara() {
                               options={materiOptions.map((m: string) => ({ value: m, label: m }))}
                               value={materiOptions.map((m: string) => ({ value: m, label: m })).find((opt: any) => opt.value === form.materi) || null}
                               onChange={opt => {
-                                setForm(f => ({ 
-                                  ...f, 
+                                setForm(f => ({
+                                  ...f,
                                   materi: opt?.value || '',
                                   pengampu: null // Reset pengampu ketika materi berubah
                                 }));
@@ -2772,8 +2766,8 @@ export default function DetailBlokAntara() {
                                   backgroundColor: state.isSelected
                                     ? '#3b82f6'
                                     : state.isFocused
-                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                      ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                      : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                   color: state.isSelected
                                     ? '#fff'
                                     : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -2822,9 +2816,9 @@ export default function DetailBlokAntara() {
                             }}
                             noOptionsMessage={() => "Tidak ada dosen yang ditemukan"}
                             loadingMessage={() => "Mencari dosen..."}
-                            value={Array.isArray(form.pengampu) 
+                            value={Array.isArray(form.pengampu)
                               ? form.pengampu.map(id => allDosenOptions.find(d => d.id === id)).filter(Boolean).map(d => ({ value: d!.id, label: d!.name }))
-                              : form.pengampu 
+                              : form.pengampu
                                 ? [{ value: form.pengampu, label: allDosenOptions.find(d => d.id === form.pengampu)?.name || `Dosen ${form.pengampu}` }]
                                 : []
                             }
@@ -2868,8 +2862,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -2917,7 +2911,7 @@ export default function DetailBlokAntara() {
                               <span className="font-medium">{form.pengampu.length}</span> dosen dipilih
                             </div>
                           )}
-                          </>
+                        </>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Topik</label>
@@ -2927,27 +2921,27 @@ export default function DetailBlokAntara() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
                         {/* Kelompok besar antara untuk Semester Antara */}
                         {kelompokBesarAntaraOptions.length === 0 ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Belum ada kelompok besar yang dibuat untuk Semester Antara
-                                </span>
-                              </div>
-                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                                Silakan buat kelompok besar terlebih dahulu dengan menekan tombol "Kelola Kelompok"
-                              </p>
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada kelompok besar yang dibuat untuk Semester Antara
+                              </span>
                             </div>
-                          ) : (
-                            <Select
-                              options={kelompokBesarAntaraOptions.map(k => ({ value: k.id, label: k.label }))}
-                              value={kelompokBesarAntaraOptions.find(k => k.id === form.kelompokBesar) ? { value: form.kelompokBesar, label: kelompokBesarAntaraOptions.find(k => k.id === form.kelompokBesar)?.label } : null}
-                              onChange={opt => {
-                                setForm(f => ({ ...f, kelompokBesar: opt ? Number(opt.value) : null }));
-                                resetErrorForm();
-                              }}
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan buat kelompok besar terlebih dahulu dengan menekan tombol "Kelola Kelompok"
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            options={kelompokBesarAntaraOptions.map(k => ({ value: k.id, label: k.label }))}
+                            value={kelompokBesarAntaraOptions.find(k => k.id === form.kelompokBesar) ? { value: form.kelompokBesar, label: kelompokBesarAntaraOptions.find(k => k.id === form.kelompokBesar)?.label } : null}
+                            onChange={opt => {
+                              setForm(f => ({ ...f, kelompokBesar: opt ? Number(opt.value) : null }));
+                              resetErrorForm();
+                            }}
                             isSearchable={false}
                             placeholder="Pilih Kelompok Besar"
                             isClearable
@@ -2981,8 +2975,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3069,8 +3063,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3156,8 +3150,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3190,7 +3184,7 @@ export default function DetailBlokAntara() {
                         <div className="w-32">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">x 50 menit</label>
                           <select name="jumlahKali" value={form.jumlahKali} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
+                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
                           </select>
                         </div>
                       </div>
@@ -3214,88 +3208,88 @@ export default function DetailBlokAntara() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
                         {/* Kelompok besar antara untuk Semester Antara */}
                         {kelompokBesarAntaraOptions.length === 0 ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Belum ada kelompok besar yang dibuat untuk Semester Antara
-                                </span>
-                              </div>
-                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                                Silakan buat kelompok besar terlebih dahulu dengan menekan tombol "Kelola Kelompok"
-                              </p>
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada kelompok besar yang dibuat untuk Semester Antara
+                              </span>
                             </div>
-                          ) : (
-                            <Select
-                              options={kelompokBesarAntaraOptions.map(k => ({ value: Number(k.id), label: k.label }))}
-                              value={kelompokBesarAntaraOptions.map(k => ({ value: Number(k.id), label: k.label })).find(opt => opt.value === form.kelompokBesar) || null}
-                              onChange={opt => setForm(f => ({ ...f, kelompokBesar: opt ? Number(opt.value) : null }))}
-                              placeholder="Pilih Kelompok Besar"
-                              isClearable
-                              isSearchable={false}
-                              classNamePrefix="react-select"
-                              className="react-select-container"
-                              styles={{
-                                control: (base, state) => ({
-                                  ...base,
-                                  backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                                  borderColor: state.isFocused
-                                    ? '#3b82f6'
-                                    : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                  boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                                  borderRadius: '0.75rem',
-                                  minHeight: '2.5rem',
-                                  fontSize: '1rem',
-                                  paddingLeft: '0.75rem',
-                                  paddingRight: '0.75rem',
-                                  '&:hover': { borderColor: '#3b82f6' },
-                                }),
-                                menu: base => ({
-                                  ...base,
-                                  zIndex: 9999,
-                                  fontSize: '1rem',
-                                  backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                }),
-                                option: (base, state) => ({
-                                  ...base,
-                                  backgroundColor: state.isSelected
-                                    ? '#3b82f6'
-                                    : state.isFocused
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan buat kelompok besar terlebih dahulu dengan menekan tombol "Kelola Kelompok"
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            options={kelompokBesarAntaraOptions.map(k => ({ value: Number(k.id), label: k.label }))}
+                            value={kelompokBesarAntaraOptions.map(k => ({ value: Number(k.id), label: k.label })).find(opt => opt.value === form.kelompokBesar) || null}
+                            onChange={opt => setForm(f => ({ ...f, kelompokBesar: opt ? Number(opt.value) : null }))}
+                            placeholder="Pilih Kelompok Besar"
+                            isClearable
+                            isSearchable={false}
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
+                                borderColor: state.isFocused
+                                  ? '#3b82f6'
+                                  : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                                boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
+                                borderRadius: '0.75rem',
+                                minHeight: '2.5rem',
+                                fontSize: '1rem',
+                                paddingLeft: '0.75rem',
+                                paddingRight: '0.75rem',
+                                '&:hover': { borderColor: '#3b82f6' },
+                              }),
+                              menu: base => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: '1rem',
+                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? '#3b82f6'
+                                  : state.isFocused
                                     ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
                                     : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                                  color: state.isSelected
-                                    ? '#fff'
-                                    : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                                  fontSize: '1rem',
-                                }),
-                                singleValue: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                }),
-                                placeholder: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                }),
-                                input: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                }),
-                                dropdownIndicator: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                  '&:hover': { color: '#3b82f6' },
-                                }),
-                                indicatorSeparator: base => ({
-                                  ...base,
-                                  backgroundColor: 'transparent',
-                                }),
-                              }}
-                            />
-                          )}
+                                color: state.isSelected
+                                  ? '#fff'
+                                  : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
+                                fontSize: '1rem',
+                              }),
+                              singleValue: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              placeholder: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                              }),
+                              input: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              dropdownIndicator: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                                '&:hover': { color: '#3b82f6' },
+                              }),
+                              indicatorSeparator: base => ({
+                                ...base,
+                                backgroundColor: 'transparent',
+                              }),
+                            }}
+                          />
+                        )}
                       </div>
                       <div>
                         <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -3319,7 +3313,7 @@ export default function DetailBlokAntara() {
                                 dark:focus:ring-brand-600
                                 relative
                               `}
-              
+
                             />
                             {form.useRuangan && (
                               <svg
@@ -3392,8 +3386,8 @@ export default function DetailBlokAntara() {
                                   backgroundColor: state.isSelected
                                     ? '#3b82f6'
                                     : state.isFocused
-                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                      ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                      : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                   color: state.isSelected
                                     ? '#fff'
                                     : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3431,7 +3425,7 @@ export default function DetailBlokAntara() {
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari/Tanggal</label>
-      
+
                         <input
                           type="date"
                           name="hariTanggal"
@@ -3508,8 +3502,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3601,8 +3595,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3650,76 +3644,76 @@ export default function DetailBlokAntara() {
                             </p>
                           </div>
                         ) : (
-                        <Select
-                          options={uniqueKelompok}
-                          value={uniqueKelompok.find(opt => opt.value === form.kelompok) || null}
+                          <Select
+                            options={uniqueKelompok}
+                            value={uniqueKelompok.find(opt => opt.value === form.kelompok) || null}
                             onChange={opt => {
                               setForm(f => ({ ...f, kelompok: opt?.value || '' }));
                               resetErrorForm();
                             }}
-                          placeholder="Pilih Kelompok"
-                          isClearable
-                          classNamePrefix="react-select"
-                          className="react-select-container"
-                          styles={{
-                            control: (base, state) => ({
-                              ...base,
-                              backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                              borderColor: state.isFocused
-                                ? '#3b82f6'
-                                : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                              borderRadius: '0.75rem',
-                              minHeight: '2.5rem',
-                              fontSize: '1rem',
-                              paddingLeft: '0.75rem',
-                              paddingRight: '0.75rem',
-                              '&:hover': { borderColor: '#3b82f6' },
-                            }),
-                            menu: base => ({
-                              ...base,
-                              zIndex: 9999,
-                              fontSize: '1rem',
-                              backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            option: (base, state) => ({
-                              ...base,
-                              backgroundColor: state.isSelected
-                                ? '#3b82f6'
-                                : state.isFocused
-                                ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                              color: state.isSelected
-                                ? '#fff'
-                                : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                              fontSize: '1rem',
-                            }),
-                            singleValue: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            placeholder: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                            }),
-                            input: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            dropdownIndicator: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              '&:hover': { color: '#3b82f6' },
-                            }),
-                            indicatorSeparator: base => ({
-                              ...base,
-                              backgroundColor: 'transparent',
-                            }),
-                          }}
-                        />
-                      )}
+                            placeholder="Pilih Kelompok"
+                            isClearable
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
+                                borderColor: state.isFocused
+                                  ? '#3b82f6'
+                                  : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                                boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
+                                borderRadius: '0.75rem',
+                                minHeight: '2.5rem',
+                                fontSize: '1rem',
+                                paddingLeft: '0.75rem',
+                                paddingRight: '0.75rem',
+                                '&:hover': { borderColor: '#3b82f6' },
+                              }),
+                              menu: base => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: '1rem',
+                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? '#3b82f6'
+                                  : state.isFocused
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                color: state.isSelected
+                                  ? '#fff'
+                                  : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
+                                fontSize: '1rem',
+                              }),
+                              singleValue: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              placeholder: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                              }),
+                              input: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              dropdownIndicator: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                                '&:hover': { color: '#3b82f6' },
+                              }),
+                              indicatorSeparator: base => ({
+                                ...base,
+                                backgroundColor: 'transparent',
+                              }),
+                            }}
+                          />
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pengampu ({allDosenOptions.length} dosen tersedia)</label>
@@ -3750,7 +3744,7 @@ export default function DetailBlokAntara() {
                             </p>
                           </div>
                         ) : (
-                        <Select
+                          <Select
                             isMulti
                             options={allDosenOptions.map(d => ({ value: d.id, label: d.name }))}
                             isSearchable={true}
@@ -3761,9 +3755,9 @@ export default function DetailBlokAntara() {
                             }}
                             noOptionsMessage={() => "Tidak ada dosen yang ditemukan"}
                             loadingMessage={() => "Mencari dosen..."}
-                            value={Array.isArray(form.pengampu) 
+                            value={Array.isArray(form.pengampu)
                               ? form.pengampu.map(id => allDosenOptions.find(d => d.id === id)).filter(Boolean).map(d => ({ value: d!.id, label: d!.name }))
-                              : form.pengampu 
+                              : form.pengampu
                                 ? [{ value: form.pengampu, label: allDosenOptions.find(d => d.id === form.pengampu)?.name || `Dosen ${form.pengampu}` }]
                                 : []
                             }
@@ -3807,8 +3801,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3831,25 +3825,25 @@ export default function DetailBlokAntara() {
                                   color: '#fff',
                                 },
                               }),
-                            placeholder: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                            }),
-                            input: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            dropdownIndicator: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              '&:hover': { color: '#3b82f6' },
-                            }),
-                            indicatorSeparator: base => ({
-                              ...base,
-                              backgroundColor: 'transparent',
-                            }),
-                          }}
-                        />
+                              placeholder: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                              }),
+                              input: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              dropdownIndicator: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                                '&:hover': { color: '#3b82f6' },
+                              }),
+                              indicatorSeparator: base => ({
+                                ...base,
+                                backgroundColor: 'transparent',
+                              }),
+                            }}
+                          />
                         )}
                       </div>
                       {(form.jenisBaris as string) === 'materi' && pengampuOptions.length === 0 && (
@@ -3911,8 +3905,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -3998,8 +3992,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -4032,7 +4026,7 @@ export default function DetailBlokAntara() {
                         <div className="w-32">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">x 50 menit</label>
                           <select name="jumlahKali" value={form.jumlahKali} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
+                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
                           </select>
                         </div>
                       </div>
@@ -4057,12 +4051,12 @@ export default function DetailBlokAntara() {
                             </p>
                           </div>
                         ) : (
-                        <select name="kelompok" value={form.kelompok} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                          <option value="">Pilih Kelompok</option>
-                          {uniqueKelompok.map(kelompok => (
-                            <option key={kelompok.value} value={kelompok.value}>{kelompok.label}</option>
-                          ))}
-                        </select>
+                          <select name="kelompok" value={form.kelompok} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="">Pilih Kelompok</option>
+                            {uniqueKelompok.map(kelompok => (
+                              <option key={kelompok.value} value={kelompok.value}>{kelompok.label}</option>
+                            ))}
+                          </select>
                         )}
                       </div>
                       <div>
@@ -4098,7 +4092,7 @@ export default function DetailBlokAntara() {
                             </p>
                           </div>
                         ) : (
-                        <Select
+                          <Select
                             isMulti
                             options={allDosenOptions.map(d => ({ value: d.id, label: d.name }))}
                             isSearchable={true}
@@ -4109,9 +4103,9 @@ export default function DetailBlokAntara() {
                             }}
                             noOptionsMessage={() => "Tidak ada dosen yang ditemukan"}
                             loadingMessage={() => "Mencari dosen..."}
-                            value={Array.isArray(form.pengampu) 
+                            value={Array.isArray(form.pengampu)
                               ? form.pengampu.map(id => allDosenOptions.find(d => d.id === id)).filter(Boolean).map(d => ({ value: d!.id, label: d!.name }))
-                              : form.pengampu 
+                              : form.pengampu
                                 ? [{ value: form.pengampu, label: allDosenOptions.find(d => d.id === form.pengampu)?.name || `Dosen ${form.pengampu}` }]
                                 : []
                             }
@@ -4127,85 +4121,85 @@ export default function DetailBlokAntara() {
                             isClearable
                             classNamePrefix="react-select"
                             className="react-select-container"
-                          styles={{
-                            control: (base, state) => ({
-                              ...base,
-                              backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                              borderColor: state.isFocused
-                                ? '#3b82f6'
-                                : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                              borderRadius: '0.75rem',
-                              minHeight: '2.5rem',
-                              fontSize: '1rem',
-                              paddingLeft: '0.75rem',
-                              paddingRight: '0.75rem',
-                              '&:hover': { borderColor: '#3b82f6' },
-                            }),
-                            menu: base => ({
-                              ...base,
-                              zIndex: 9999,
-                              fontSize: '1rem',
-                              backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            option: (base, state) => ({
-                              ...base,
-                              backgroundColor: state.isSelected
-                                ? '#3b82f6'
-                                : state.isFocused
-                                ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                              color: state.isSelected
-                                ? '#fff'
-                                : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                              fontSize: '1rem',
-                            }),
-                            multiValue: base => ({
-                              ...base,
-                              backgroundColor: '#3b82f6',
-                              color: '#fff',
-                            }),
-                            multiValueLabel: base => ({
-                              ...base,
-                              color: '#fff',
-                            }),
-                            multiValueRemove: base => ({
-                              ...base,
-                              color: '#fff',
-                              '&:hover': {
-                                backgroundColor: '#2563eb',
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
+                                borderColor: state.isFocused
+                                  ? '#3b82f6'
+                                  : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                                boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
+                                borderRadius: '0.75rem',
+                                minHeight: '2.5rem',
+                                fontSize: '1rem',
+                                paddingLeft: '0.75rem',
+                                paddingRight: '0.75rem',
+                                '&:hover': { borderColor: '#3b82f6' },
+                              }),
+                              menu: base => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: '1rem',
+                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? '#3b82f6'
+                                  : state.isFocused
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                color: state.isSelected
+                                  ? '#fff'
+                                  : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
+                                fontSize: '1rem',
+                              }),
+                              multiValue: base => ({
+                                ...base,
+                                backgroundColor: '#3b82f6',
                                 color: '#fff',
-                              },
-                            }),
-                            placeholder: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                            }),
-                            input: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            dropdownIndicator: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              '&:hover': { color: '#3b82f6' },
-                            }),
-                            indicatorSeparator: base => ({
-                              ...base,
-                              backgroundColor: 'transparent',
-                            }),
-                          }}
-                        />
+                              }),
+                              multiValueLabel: base => ({
+                                ...base,
+                                color: '#fff',
+                              }),
+                              multiValueRemove: base => ({
+                                ...base,
+                                color: '#fff',
+                                '&:hover': {
+                                  backgroundColor: '#2563eb',
+                                  color: '#fff',
+                                },
+                              }),
+                              placeholder: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                              }),
+                              input: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              }),
+                              dropdownIndicator: base => ({
+                                ...base,
+                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
+                                '&:hover': { color: '#3b82f6' },
+                              }),
+                              indicatorSeparator: base => ({
+                                ...base,
+                                backgroundColor: 'transparent',
+                              }),
+                            }}
+                          />
                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Upload File Jurnal</label>
                         <div className="relative">
-                          <input 
-                            type="file" 
-                            accept=".xlsx,.xls,.docx,.doc,.pdf" 
+                          <input
+                            type="file"
+                            accept=".xlsx,.xls,.docx,.doc,.pdf"
                             onChange={e => {
                               const file = e.target.files && e.target.files[0];
                               if (file) {
@@ -4220,20 +4214,18 @@ export default function DetailBlokAntara() {
                               } else {
                                 setForm(f => ({ ...f, fileJurnal: null }));
                               }
-                            }} 
-                            className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 ${
-                              (form.fileJurnal && form.fileJurnal instanceof File) || (existingFileJurnal && !form.fileJurnal) 
-                                ? 'pointer-events-none' 
-                                : ''
-                            }`}
+                            }}
+                            className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 ${(form.fileJurnal && form.fileJurnal instanceof File) || (existingFileJurnal && !form.fileJurnal)
+                              ? 'pointer-events-none'
+                              : ''
+                              }`}
                             id="file-upload-jurnal"
                           />
-                          <div 
-                            className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-in-out transform ${
-                              isDragOver 
-                                ? 'border-brand-500 dark:border-brand-400 bg-brand-50 dark:bg-brand-900/20 scale-105 shadow-lg' 
-                                : 'border-gray-300 dark:border-gray-600 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800 hover:scale-102'
-                            }`}
+                          <div
+                            className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-in-out transform ${isDragOver
+                              ? 'border-brand-500 dark:border-brand-400 bg-brand-50 dark:bg-brand-900/20 scale-105 shadow-lg'
+                              : 'border-gray-300 dark:border-gray-600 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800 hover:scale-102'
+                              }`}
                             onDragOver={(e) => {
                               e.preventDefault();
                               setIsDragOver(true);
@@ -4338,11 +4330,10 @@ export default function DetailBlokAntara() {
                                 </div>
                               ) : (
                                 <>
-                                  <svg className={`w-8 h-8 transition-colors duration-200 ${
-                                    isDragOver 
-                                      ? 'text-brand-500 dark:text-brand-400' 
-                                      : 'text-gray-400 dark:text-gray-500'
-                                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className={`w-8 h-8 transition-colors duration-200 ${isDragOver
+                                    ? 'text-brand-500 dark:text-brand-400'
+                                    : 'text-gray-400 dark:text-gray-500'
+                                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                   </svg>
                                   <div className="text-sm transition-colors duration-200">
@@ -4421,8 +4412,8 @@ export default function DetailBlokAntara() {
                                 backgroundColor: state.isSelected
                                   ? '#3b82f6'
                                   : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
+                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
                                 color: state.isSelected
                                   ? '#fff'
                                   : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
@@ -4458,7 +4449,7 @@ export default function DetailBlokAntara() {
                   )}
                 </div>
 
-                
+
                 {/* Error Backend */}
                 {errorBackend && (
                   <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -4470,128 +4461,128 @@ export default function DetailBlokAntara() {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="flex justify-end gap-2 pt-6">
                   <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
                   <button
-  onClick={async () => {
-    setIsSaving(true);
+                    onClick={async () => {
+                      setIsSaving(true);
 
-    try {
-    // Validasi kelompok kecil hanya untuk jenis baris PBL
-    if (form.jenisBaris === 'pbl') {
-      // Cari objek kelompok kecil antara yang cocok
-      // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
-      // karena dropdown menggunakan nama_kelompok sebagai value
-      const kelompokObj = kelompokKecilAntaraList.find(
-        k => k.nama_kelompok === form.kelompok
-      ) || kelompokKecilAntaraList.find(
-        k => `Kelompok ${k.nama_kelompok}` === form.kelompok
-      );
-      if (!kelompokObj) {
-        setErrorForm('Kelompok kecil tidak valid!');
-        setIsSaving(false);
-        return;
-      }
-    }
+                      try {
+                        // Validasi kelompok kecil hanya untuk jenis baris PBL
+                        if (form.jenisBaris === 'pbl') {
+                          // Cari objek kelompok kecil antara yang cocok
+                          // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
+                          // karena dropdown menggunakan nama_kelompok sebagai value
+                          const kelompokObj = kelompokKecilAntaraList.find(
+                            k => k.nama_kelompok === form.kelompok
+                          ) || kelompokKecilAntaraList.find(
+                            k => `Kelompok ${k.nama_kelompok}` === form.kelompok
+                          );
+                          if (!kelompokObj) {
+                            setErrorForm('Kelompok kecil tidak valid!');
+                            setIsSaving(false);
+                            return;
+                          }
+                        }
 
-    // Format tanggal ke yyyy-mm-dd
-    const tanggalFormatted = (() => {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(form.hariTanggal)) return form.hariTanggal;
-      const tglStr = form.hariTanggal.split(', ')[1];
-      if (tglStr && /^\d{4}-\d{2}-\d{2}$/.test(tglStr)) return tglStr;
-      const [d, m, y] = form.hariTanggal.split('/');
-      if (d && m && y) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-      return form.hariTanggal;
-    })();
+                        // Format tanggal ke yyyy-mm-dd
+                        const tanggalFormatted = (() => {
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(form.hariTanggal)) return form.hariTanggal;
+                          const tglStr = form.hariTanggal.split(', ')[1];
+                          if (tglStr && /^\d{4}-\d{2}-\d{2}$/.test(tglStr)) return tglStr;
+                          const [d, m, y] = form.hariTanggal.split('/');
+                          if (d && m && y) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+                          return form.hariTanggal;
+                        })();
 
-      if (editIndex !== null) {
-      // EDIT MODE (PUT)
-      if (form.jenisBaris === 'pbl' && jadwalPBL[editIndex] && jadwalPBL[editIndex].id) {
-        // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
-        // karena dropdown menggunakan nama_kelompok sebagai value
-        const kelompokObj = kelompokKecilAntaraList.find(
-          k => k.nama_kelompok === form.kelompok
-        ) || kelompokKecilAntaraList.find(
-          k => `Kelompok ${k.nama_kelompok}` === form.kelompok
-        );
-        if (!kelompokObj) {
-          setErrorForm('Kelompok kecil tidak valid!');
-          setIsSaving(false);
-          return;
-        }
-        const payload = {
-          tanggal: tanggalFormatted,
-          jam_mulai: form.jamMulai,
-          jam_selesai: form.jamSelesai,
-          jumlah_sesi: form.pblTipe === 'PBL 2' ? 3 : 2,
-          modul_pbl_id: Number(form.modul),
-          kelompok_kecil_id: null, // Set null untuk semester antara
-          kelompok_kecil_antara_id: kelompokObj.id, // Gunakan kelompok_kecil_antara_id untuk semester antara
-          dosen_id: null, // Set null untuk multiple dosen
-          dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : (form.pengampu ? [form.pengampu] : []),
-          ruangan_id: Number(form.lokasi),
-          pbl_tipe: form.pblTipe,
-        };
-          await handleEditJadwalPBL(jadwalPBL[editIndex].id!, payload);
-      } else if (form.jenisBaris === 'jurnal' && jadwalJurnalReading[editIndex] && jadwalJurnalReading[editIndex].id) {
-        // Handle edit untuk jurnal reading
-        await handleTambahJadwalJurnalReading();
-      } else {
-        // Handle edit untuk jenis baris lain
-        await handleTambahJadwal();
-      }
-    } else {
-      // TAMBAH MODE (POST)
-      if (form.jenisBaris === 'jurnal') {
-        await handleTambahJadwalJurnalReading();
-      } else {
-        await handleTambahJadwal();
-      }
-      }
-      
-      // Hanya tutup modal dan reset form jika berhasil (tidak ada error/bentrok)
-      setShowModal(false);
-      setExistingFileJurnal(null);
-      setEditIndex(null);
-    } catch (err: any) {
-      // Jika ada error dari API, tampilkan pesan error tapi modal tetap terbuka
-      setErrorBackend(err?.response?.data?.message || 'Terjadi kesalahan saat menyimpan data');
-    }
-    
-    setIsSaving(false);
-  }}
-  className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-  disabled={
-    isSaving ||
-    !form.hariTanggal ||
-    (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.topik || !form.lokasi)) ||
-    (form.jenisBaris === 'agenda' && (!form.agenda || !form.jamMulai || !form.jumlahKali || !form.jamSelesai || (form.useRuangan && !form.lokasi))) ||
-    (form.jenisBaris === 'pbl' && (
-      !form.pblTipe ||
-      !form.jamMulai ||
-      !form.jamSelesai ||
-      form.modul == null ||
-      !form.kelompok ||
-      !form.pengampu ||
-      (Array.isArray(form.pengampu) && form.pengampu.length === 0) ||
-      form.lokasi == null
-    )) ||
-    (form.jenisBaris === 'jurnal' && (!form.hariTanggal || !form.jamMulai || !form.jamSelesai || !form.kelompok || !form.topik || !form.pengampu || (Array.isArray(form.pengampu) && form.pengampu.length === 0) || !form.lokasi))
-  }
->
-  {isSaving ? (
-    <>
-      <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-      </svg>
-      Menyimpan...
-    </>
-  ) : (
-    editIndex !== null ? 'Simpan' : 'Tambah Jadwal'
-  )}
-</button>
+                        if (editIndex !== null) {
+                          // EDIT MODE (PUT)
+                          if (form.jenisBaris === 'pbl' && jadwalPBL[editIndex] && jadwalPBL[editIndex].id) {
+                            // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
+                            // karena dropdown menggunakan nama_kelompok sebagai value
+                            const kelompokObj = kelompokKecilAntaraList.find(
+                              k => k.nama_kelompok === form.kelompok
+                            ) || kelompokKecilAntaraList.find(
+                              k => `Kelompok ${k.nama_kelompok}` === form.kelompok
+                            );
+                            if (!kelompokObj) {
+                              setErrorForm('Kelompok kecil tidak valid!');
+                              setIsSaving(false);
+                              return;
+                            }
+                            const payload = {
+                              tanggal: tanggalFormatted,
+                              jam_mulai: form.jamMulai,
+                              jam_selesai: form.jamSelesai,
+                              jumlah_sesi: form.pblTipe === 'PBL 2' ? 3 : 2,
+                              modul_pbl_id: Number(form.modul),
+                              kelompok_kecil_id: null, // Set null untuk semester antara
+                              kelompok_kecil_antara_id: kelompokObj.id, // Gunakan kelompok_kecil_antara_id untuk semester antara
+                              dosen_id: null, // Set null untuk multiple dosen
+                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : (form.pengampu ? [form.pengampu] : []),
+                              ruangan_id: Number(form.lokasi),
+                              pbl_tipe: form.pblTipe,
+                            };
+                            await handleEditJadwalPBL(jadwalPBL[editIndex].id!, payload);
+                          } else if (form.jenisBaris === 'jurnal' && jadwalJurnalReading[editIndex] && jadwalJurnalReading[editIndex].id) {
+                            // Handle edit untuk jurnal reading
+                            await handleTambahJadwalJurnalReading();
+                          } else {
+                            // Handle edit untuk jenis baris lain
+                            await handleTambahJadwal();
+                          }
+                        } else {
+                          // TAMBAH MODE (POST)
+                          if (form.jenisBaris === 'jurnal') {
+                            await handleTambahJadwalJurnalReading();
+                          } else {
+                            await handleTambahJadwal();
+                          }
+                        }
+
+                        // Hanya tutup modal dan reset form jika berhasil (tidak ada error/bentrok)
+                        setShowModal(false);
+                        setExistingFileJurnal(null);
+                        setEditIndex(null);
+                      } catch (err: any) {
+                        // Jika ada error dari API, tampilkan pesan error tapi modal tetap terbuka
+                        setErrorBackend(err?.response?.data?.message || 'Terjadi kesalahan saat menyimpan data');
+                      }
+
+                      setIsSaving(false);
+                    }}
+                    className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={
+                      isSaving ||
+                      !form.hariTanggal ||
+                      (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.topik || !form.lokasi)) ||
+                      (form.jenisBaris === 'agenda' && (!form.agenda || !form.jamMulai || !form.jumlahKali || !form.jamSelesai || (form.useRuangan && !form.lokasi))) ||
+                      (form.jenisBaris === 'pbl' && (
+                        !form.pblTipe ||
+                        !form.jamMulai ||
+                        !form.jamSelesai ||
+                        form.modul == null ||
+                        !form.kelompok ||
+                        !form.pengampu ||
+                        (Array.isArray(form.pengampu) && form.pengampu.length === 0) ||
+                        form.lokasi == null
+                      )) ||
+                      (form.jenisBaris === 'jurnal' && (!form.hariTanggal || !form.jamMulai || !form.jamSelesai || !form.kelompok || !form.topik || !form.pengampu || (Array.isArray(form.pengampu) && form.pengampu.length === 0) || !form.lokasi))
+                    }
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Menyimpan...
+                      </>
+                    ) : (
+                      editIndex !== null ? 'Simpan' : 'Tambah Jadwal'
+                    )}
+                  </button>
                 </div>
               </motion.div>
             </div>
@@ -4730,12 +4721,12 @@ export default function DetailBlokAntara() {
                   </tr>
                 ) : (
                   getPaginatedData(
-                  jadwalPBL
-                  .slice()
-                  .sort((a: JadwalPBLType, b: JadwalPBLType) => {
-                    const dateA = new Date(a.tanggal);
-                    const dateB = new Date(b.tanggal);
-                    return dateA.getTime() - dateB.getTime();
+                    jadwalPBL
+                      .slice()
+                      .sort((a: JadwalPBLType, b: JadwalPBLType) => {
+                        const dateA = new Date(a.tanggal);
+                        const dateB = new Date(b.tanggal);
+                        return dateA.getTime() - dateB.getTime();
                       }),
                     pblPage,
                     pblPageSize
@@ -4757,50 +4748,50 @@ export default function DetailBlokAntara() {
                         </button>
                       </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(pblPage - 1) * pblPageSize + i + 1}</td>
-                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
-                        </td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.pbl_tipe}</td>
-                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
-                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi || 1} x 50 menit</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {modulPBLList.find(m => m.id === Number(row.modul_pbl_id))?.nama_modul || (loadingPBL ? 'Memuat...' : `Modul ${row.modul_pbl_id}`)}
+                        {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
                       </td>
-                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.pbl_tipe}</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi || 1} x 50 menit</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {modulPBLList.find(m => m.id === Number(row.modul_pbl_id))?.nama_modul || (loadingPBL ? 'Memuat...' : `Modul ${row.modul_pbl_id}`)}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.nama_kelompok || row.kelompok_kecil_antara?.nama_kelompok || 'Memuat...'}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.dosen_names || allDosenList.find(d => d.id === Number(row.dosen_id))?.name || (loadingDosenRuangan ? 'Memuat...' : `Dosen ${row.dosen_id}`)}
                       </td>
-                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {allRuanganList.find(r => r.id === Number(row.ruangan_id))?.nama || (loadingDosenRuangan ? 'Memuat...' : `Ruangan ${row.ruangan_id}`)}
-                        </td>
-                        <td className="px-3 py-3 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {allRuanganList.find(r => r.id === Number(row.ruangan_id))?.nama || (loadingDosenRuangan ? 'Memuat...' : `Ruangan ${row.ruangan_id}`)}
+                      </td>
+                      <td className="px-3 py-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                           <button
                             onClick={() => navigate(`/penilaian-pbl-antara/${kode}/${row.kelompok_kecil_antara?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}&jadwal_id=${row.id || ''}`)}
-                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded transition-colors shrink-0"
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded transition-colors shrink-0"
                             title="Nilai"
                           >
-                              <FontAwesomeIcon icon={faStar} className="w-3.5 h-3.5 shrink-0" />
-                              <span className="hidden xl:inline whitespace-nowrap">Nilai</span>
+                            <FontAwesomeIcon icon={faStar} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Nilai</span>
                           </button>
-                            <button onClick={() => handleEditJadwal(jadwalPBL.findIndex((j: JadwalPBLType) => j.id === row.id), 'pbl')} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
-                              <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
-                              <span className="hidden xl:inline whitespace-nowrap">Edit</span>
+                          <button onClick={() => handleEditJadwal(jadwalPBL.findIndex((j: JadwalPBLType) => j.id === row.id), 'pbl')} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                            <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Edit</span>
                           </button>
-                          <button onClick={() => { 
-                            setSelectedDeleteIndex(i); 
+                          <button onClick={() => {
+                            setSelectedDeleteIndex(i);
                             setSelectedDeleteType('pbl');
-                            setShowDeleteModal(true); 
-                            }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
-                              <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
-                              <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
+                            setShowDeleteModal(true);
+                          }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                            <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="xl:inline whitespace-nowrap">Hapus</span>
                           </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -4827,7 +4818,7 @@ export default function DetailBlokAntara() {
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 Menampilkan {((pblPage - 1) * pblPageSize) + 1} - {Math.min(pblPage * pblPageSize, jadwalPBL.length)} dari {jadwalPBL.length} data
               </span>
-              
+
               <select
                 value={pblPageSize}
                 onChange={(e) => {
@@ -4887,11 +4878,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalPBL.length, pblPageSize) > 1 && (
                 <button
                   onClick={() => setPblPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    pblPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pblPage === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
@@ -4913,11 +4903,10 @@ export default function DetailBlokAntara() {
                   <button
                     key={pageNum}
                     onClick={() => setPblPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      pblPage === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pblPage === pageNum
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -4935,11 +4924,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalPBL.length, pblPageSize) > 1 && (
                 <button
                   onClick={() => setPblPage(getTotalPages(jadwalPBL.length, pblPageSize))}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    pblPage === getTotalPages(jadwalPBL.length, pblPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pblPage === getTotalPages(jadwalPBL.length, pblPageSize)
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {getTotalPages(jadwalPBL.length, pblPageSize)}
                 </button>
@@ -5107,7 +5095,7 @@ export default function DetailBlokAntara() {
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
-                                              <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.nama_kelompok || row.kelompok_kecil_antara?.nama_kelompok || 'Memuat...'}</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.nama_kelompok || row.kelompok_kecil_antara?.nama_kelompok || 'Memuat...'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.topik}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.dosen_names || allDosenList.find(d => d.id === Number(row.dosen_id))?.name || (loadingDosenRuangan ? 'Memuat...' : `Dosen ${row.dosen_id}`)}
@@ -5131,10 +5119,10 @@ export default function DetailBlokAntara() {
                               </p>
                             </div>
                             <div className="flex-shrink-0">
-                              <a 
-                                href={`${API_BASE_URL}/jurnal-reading/download/${data!.kode}/${row.id}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
+                              <a
+                                href={`${API_BASE_URL}/jurnal-reading/download/${data!.kode}/${row.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-md transition-colors duration-200"
                                 title="Download File"
                               >
@@ -5154,41 +5142,41 @@ export default function DetailBlokAntara() {
                       </td>
                       <td className="px-3 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5 flex-nowrap">
-                        <button
-                          onClick={() => {
-                            // Validasi data sebelum navigasi
-                            if (!(row as any).kelompok_kecil_antara?.nama_kelompok) {
-                              alert('Data kelompok tidak ditemukan');
-                              return;
-                            }
-                            
-                            // Simpan data jurnal ke localStorage untuk halaman penilaian
-                            const jurnalData = {
-                              dosen: (row as any).dosen_names || allDosenList.find(d => d.id === Number((row as any).dosen_id))?.name || '',
-                              tanggal: (row as any).tanggal,
-                              judulJurnal: (row as any).topik
-                            };
-                            
-                            const storageKey = `jurnalInfo_${data!.kode}_${(row as any).kelompok_kecil_antara.nama_kelompok}_${row.id}`;
-                            localStorage.setItem(storageKey, JSON.stringify(jurnalData));
-                            
-                            // Navigasi ke halaman penilaian dengan jurnal_id
-                            navigate(`/penilaian-jurnal-antara/${data!.kode}/${(row as any).kelompok_kecil_antara.nama_kelompok}/${row.id}`);
-                          }}
+                          <button
+                            onClick={() => {
+                              // Validasi data sebelum navigasi
+                              if (!(row as any).kelompok_kecil_antara?.nama_kelompok) {
+                                alert('Data kelompok tidak ditemukan');
+                                return;
+                              }
+
+                              // Simpan data jurnal ke localStorage untuk halaman penilaian
+                              const jurnalData = {
+                                dosen: (row as any).dosen_names || allDosenList.find(d => d.id === Number((row as any).dosen_id))?.name || '',
+                                tanggal: (row as any).tanggal,
+                                judulJurnal: (row as any).topik
+                              };
+
+                              const storageKey = `jurnalInfo_${data!.kode}_${(row as any).kelompok_kecil_antara.nama_kelompok}_${row.id}`;
+                              localStorage.setItem(storageKey, JSON.stringify(jurnalData));
+
+                              // Navigasi ke halaman penilaian dengan jurnal_id
+                              navigate(`/penilaian-jurnal-antara/${data!.kode}/${(row as any).kelompok_kecil_antara.nama_kelompok}/${row.id}`);
+                            }}
                             className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded transition-colors shrink-0"
-                          title="Nilai"
-                        >
+                            title="Nilai"
+                          >
                             <FontAwesomeIcon icon={faStar} className="w-3.5 h-3.5 shrink-0" />
-                            <span className="hidden xl:inline whitespace-nowrap">Nilai</span>
-                        </button>
+                            <span className="xl:inline whitespace-nowrap">Nilai</span>
+                          </button>
                           <button onClick={() => handleEditJadwalJurnalReading(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
                             <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
-                            <span className="hidden xl:inline whitespace-nowrap">Edit</span>
-                        </button>
+                            <span className="xl:inline whitespace-nowrap">Edit</span>
+                          </button>
                           <button onClick={() => handleDeleteJadwalJurnalReading(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
                             <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
-                            <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
-                        </button>
+                            <span className="xl:inline whitespace-nowrap">Hapus</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -5219,7 +5207,7 @@ export default function DetailBlokAntara() {
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 Menampilkan {((jurnalReadingPage - 1) * jurnalReadingPageSize) + 1} - {Math.min(jurnalReadingPage * jurnalReadingPageSize, jadwalJurnalReading.length)} dari {jadwalJurnalReading.length} data
               </span>
-              
+
               <select
                 value={jurnalReadingPageSize}
                 onChange={(e) => {
@@ -5279,11 +5267,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize) > 1 && (
                 <button
                   onClick={() => setJurnalReadingPage(1)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    jurnalReadingPage === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${jurnalReadingPage === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
@@ -5305,11 +5292,10 @@ export default function DetailBlokAntara() {
                   <button
                     key={pageNum}
                     onClick={() => setJurnalReadingPage(pageNum)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      jurnalReadingPage === pageNum
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${jurnalReadingPage === pageNum
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -5327,11 +5313,10 @@ export default function DetailBlokAntara() {
               {getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize) > 1 && (
                 <button
                   onClick={() => setJurnalReadingPage(getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize))}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    jurnalReadingPage === getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize)
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${jurnalReadingPage === getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize)
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize)}
                 </button>
@@ -5357,8 +5342,8 @@ export default function DetailBlokAntara() {
               <p className="mb-6 text-gray-500 dark:text-gray-300">Apakah Anda yakin ingin menghapus data ini? Data yang dihapus tidak dapat dikembalikan.</p>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
-                <button onClick={() => { 
-                  if (selectedDeleteIndex !== null) { 
+                <button onClick={() => {
+                  if (selectedDeleteIndex !== null) {
                     // Cek apakah yang dihapus adalah kuliah besar, PBL, atau jadwal biasa
                     if (selectedDeleteType === 'materi') {
                       handleDeleteJadwalKuliahBesar(selectedDeleteIndex);
@@ -5367,10 +5352,10 @@ export default function DetailBlokAntara() {
                     } else {
                       handleDeleteJadwal(selectedDeleteIndex);
                     }
-                    setShowDeleteModal(false); 
-                    setSelectedDeleteIndex(null); 
+                    setShowDeleteModal(false);
+                    setSelectedDeleteIndex(null);
                     setSelectedDeleteType('other');
-                  } 
+                  }
                 }} className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition">Hapus</button>
               </div>
             </motion.div>
@@ -5424,7 +5409,7 @@ export default function DetailBlokAntara() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
-                              className="relative w-full max-w-7xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 max-h-[90vh] overflow-hidden"
+              className="relative w-full max-w-7xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 max-h-[90vh] overflow-hidden"
             >
               {/* Enhanced Header */}
               <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-gray-700">
@@ -5456,21 +5441,19 @@ export default function DetailBlokAntara() {
                 <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1.5 shadow-sm border border-gray-200 dark:border-gray-700">
                   <button
                     onClick={() => setActiveTab('besar')}
-                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                      activeTab === 'besar'
-                        ? 'bg-white dark:bg-gray-700 text-brand-600 dark:text-brand-400 shadow-md'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${activeTab === 'besar'
+                      ? 'bg-white dark:bg-gray-700 text-brand-600 dark:text-brand-400 shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                      }`}
                   >
                     Kelompok Besar
                   </button>
                   <button
                     onClick={() => setActiveTab('kecil')}
-                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                      activeTab === 'kecil'
-                        ? 'bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-md'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${activeTab === 'kecil'
+                      ? 'bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                      }`}
                   >
                     Kelompok Kecil
                   </button>
@@ -5482,496 +5465,138 @@ export default function DetailBlokAntara() {
                 {activeTab === 'besar' ? (
                   <>
                     {/* Left Panel - Create New Group */}
-                <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-6">
-                      <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Baru</h3>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      {/* Nama Kelompok */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Nama Kelompok
-                        </label>
-                        <input
-                          type="text"
-                          value={kelompokBesarAntaraForm.nama_kelompok}
-                          onChange={(e) => setKelompokBesarAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 shadow-sm"
-                          placeholder="Contoh: Kelompok Besar 1"
-                        />
-                      </div>
-                      
-                      {/* Selected Count */}
-                      {selectedMahasiswa.length > 0 && (
-                        <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-xl p-4 shadow-sm">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                            <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
-                              {selectedMahasiswa.length} mahasiswa dipilih
-                            </p>
+                    <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="flex items-center space-x-2 mb-6">
+                          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
                           </div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Baru</h3>
                         </div>
-                      )}
-                      
-                      {/* Mahasiswa List */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                          Pilih Mahasiswa ({allMahasiswaOptions.length} tersedia, {getTotalGroupedStudents()} sudah dikelompokkan)
-                        </label>
-                        
-                        {/* Search and Filter */}
-                        <div className="flex gap-3 mb-3">
-                          {/* Search Input */}
-                          <div className="relative flex-1">
+
+                        <div className="space-y-4">
+                          {/* Nama Kelompok */}
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                              Nama Kelompok
+                            </label>
                             <input
                               type="text"
-                              value={searchMahasiswa}
-                              onChange={(e) => setSearchMahasiswa(e.target.value)}
-                              placeholder="Cari nama atau email mahasiswa..."
-                              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
+                              value={kelompokBesarAntaraForm.nama_kelompok}
+                              onChange={(e) => setKelompokBesarAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
+                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 shadow-sm"
+                              placeholder="Contoh: Kelompok Besar 1"
                             />
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                              </svg>
-                            </div>
                           </div>
-                          
-                          {/* IPK Filter */}
-                          <div className="w-40">
-                            <select
-                              value={filterIPK}
-                              onChange={(e) => setFilterIPK(e.target.value)}
-                              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
-                            >
-                              <option value="semua">Semua IPK</option>
-                              <option value="3.5+">IPK 3.5+ (Hijau)</option>
-                              <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
-                              <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
-                              <option value="<2.5">IPK &lt;2.5 (Merah)</option>
-                            </select>
-                          </div>
-                        </div>
-                        
-                        <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
-                          {/* Search Results Info */}
-                          {(searchMahasiswa || filterIPK !== 'semua') && (
-                            <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Menampilkan {getFilteredMahasiswa().length} dari {allMahasiswaOptions.length} mahasiswa
-                                {searchMahasiswa && ` untuk pencarian "${searchMahasiswa}"`}
-                                {filterIPK !== 'semua' && ` dengan filter IPK ${filterIPK}`}
-                              </p>
-                            </div>
-                          )}
-                          {isLoadingMahasiswa ? (
-                            // Skeleton loading untuk mahasiswa
-                            <div className="p-4 space-y-3">
-                              {[...Array(6)].map((_, index) => (
-                                <div key={index} className="flex items-center space-x-3 animate-pulse">
-                                  <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                  <div className="flex-1">
-                                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
-                                    <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
-                                  </div>
-                                  <div className="w-16 h-6 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <>
-                            {getFilteredMahasiswa().map((mahasiswa) => {
-                            const isSelected = selectedMahasiswa.some(m => m.id === mahasiswa.id);
-                            const isInOtherGroup = kelompokBesarAntaraOptions.some(group => 
-                              group.mahasiswa.some(m => m.id === mahasiswa.id)
-                            );
-                            
-                            return (
-                              <div
-                                key={mahasiswa.id}
-                                className={`p-4 border-b border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${
-                                  isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''
-                                } ${isInOtherGroup && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                onClick={() => {
-                                  if (isInOtherGroup && !isSelected) return;
-                                  
-                                  if (isSelected) {
-                                    setSelectedMahasiswa(prev => prev.filter(m => m.id !== mahasiswa.id));
-                                    setKelompokBesarAntaraForm(prev => ({
-                                      ...prev,
-                                      mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
-                                    }));
-                                  } else {
-                                    setSelectedMahasiswa(prev => [...prev, mahasiswa]);
-                                    setKelompokBesarAntaraForm(prev => ({
-                                      ...prev,
-                                      mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
-                                    }));
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-3">
-                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                      isSelected 
-                                        ? 'bg-brand-500 border-brand-500' 
-                                        : 'border-gray-300 dark:border-gray-600'
-                                    }`}>
-                                      {isSelected && (
-                                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="flex items-center space-x-2">
-                                        <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
-                                        <span
-                                          className={`text-xs px-2 py-0.5 rounded-full ${
-                                            (mahasiswa.ipk || 0) >= 3.5
-                                              ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                              : (mahasiswa.ipk || 0) >= 3.0
-                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                              : (mahasiswa.ipk || 0) >= 2.5
-                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                          }`}
-                                        >
-                                          IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
-                                    </div>
-                                  </div>
-                                  {isInOtherGroup && !isSelected && (
-                                    <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                            </>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Create Button */}
-                      <button
-                        onClick={createKelompokBesarAntara}
-                        disabled={!kelompokBesarAntaraForm.nama_kelompok || kelompokBesarAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompok}
-                        className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                      >
-                        <div className="flex items-center justify-center space-x-2">
-                          {isCreatingKelompok ? (
-                            <>
-                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              <span>Membuat Kelompok...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                              <span>Buat Kelompok ({selectedMahasiswa.length} mahasiswa)</span>
-                            </>
-                          )}
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Panel - Existing Groups */}
-                <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
-                  <div className="flex items-center space-x-2 mb-6">
-                    <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Kelompok yang Sudah Ada ({kelompokBesarAntaraOptions.length})
-                    </h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {isLoadingKelompok ? (
-                      // Skeleton loading untuk kelompok yang sudah ada
-                      <div className="space-y-3">
-                        {[...Array(2)].map((_, index) => (
-                          <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
-                              </div>
-                              <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {[...Array(6)].map((_, studentIndex) => (
-                                <div key={studentIndex} className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                  <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
-                                  <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <>
-                        {kelompokBesarAntaraOptions.map((kelompok: any) => (
-                          <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          {/* Selected Count */}
+                          {selectedMahasiswa.length > 0 && (
+                            <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-xl p-4 shadow-sm">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                 </div>
-                                <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.label}</h4>
-                              </div>
-                              <button
-                                onClick={() => deleteKelompokBesarAntara(kelompok.id)}
-                                className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                title="Hapus kelompok"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {kelompok.mahasiswa.map((mahasiswa: any) => (
-                                <div key={mahasiswa.id} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                                  <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                  <span>{mahasiswa.name}</span>
-                                  <span
-                                    className={`text-xs px-2 py-0.5 rounded-full ${
-                                      (mahasiswa.ipk || 0) >= 3.5
-                                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                        : (mahasiswa.ipk || 0) >= 3.0
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                        : (mahasiswa.ipk || 0) >= 2.5
-                                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                        : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                    }`}
-                                  >
-                                    IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                    
-                    {!isLoadingKelompok && kelompokBesarAntaraOptions.length === 0 && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-400 font-medium">
-                          Belum ada kelompok besar yang dibuat
-                        </p>
-                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                          Buat kelompok pertama di panel sebelah kiri
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Left Panel - Create New Kelompok Kecil */}
-                <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-6">
-                      <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Kecil Baru</h3>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      {/* Nama Kelompok */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Nama Kelompok Kecil
-                        </label>
-                        <input
-                          type="text"
-                          value={kelompokKecilAntaraForm.nama_kelompok}
-                          onChange={(e) => setKelompokKecilAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm"
-                          placeholder="Contoh: Kelompok Kecil 1"
-                        />
-                      </div>
-
-                      {/* Pilih Mahasiswa dari Kelompok Besar */}
-                      {/* Selected Count */}
-                      {kelompokKecilAntaraForm.mahasiswa_ids.length > 0 && (
-                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 shadow-sm mb-4">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                              {kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa dipilih
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                          Pilih Mahasiswa dari Kelompok Besar Antara
-                        </label>
-                        
-                        {/* Search and Filter */}
-                        <div className="flex space-x-3 mb-3">
-                          {/* Search Input */}
-                          <div className="relative flex-1">
-                            <input
-                              type="text"
-                              value={searchMahasiswaKelompokKecil}
-                              onChange={(e) => setSearchMahasiswaKelompokKecil(e.target.value)}
-                              placeholder="Cari nama atau email mahasiswa..."
-                              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                            />
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                              </svg>
-                            </div>
-                          </div>
-                          
-                          {/* IPK Filter */}
-                          <div className="w-48">
-                            <select
-                              value={filterIPKKelompokKecil}
-                              onChange={(e) => setFilterIPKKelompokKecil(e.target.value)}
-                              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                            >
-                              <option value="semua">Semua IPK</option>
-                              <option value=">=3.5">IPK ≥3.5 (Hijau)</option>
-                              <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
-                              <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
-                              <option value="<2.5">IPK &lt;2.5 (Merah)</option>
-                            </select>
-                          </div>
-                        </div>
-                        {isLoadingKelompok ? (
-                          <div className="space-y-2">
-                            {[...Array(3)].map((_, index) => (
-                              <div key={index} className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse"></div>
-                            ))}
-                          </div>
-                        ) : kelompokBesarAntaraOptions.length === 0 ? (
-                          <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                            <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada kelompok besar yang dibuat</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Buat kelompok besar terlebih dahulu</p>
-
-                          </div>
-                        ) : (
-                          <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
-                            {/* Search Results Info */}
-                            {(searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && (
-                              <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                  {searchMahasiswaKelompokKecil && `Mencari: "${searchMahasiswaKelompokKecil}"`}
-                                  {searchMahasiswaKelompokKecil && filterIPKKelompokKecil !== 'semua' && ' | '}
-                                  {filterIPKKelompokKecil !== 'semua' && `Filter IPK: ${filterIPKKelompokKecil}`}
+                                <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
+                                  {selectedMahasiswa.length} mahasiswa dipilih
                                 </p>
                               </div>
-                            )}
-                            {kelompokBesarAntaraOptions.map((kelompok: any) => {
-                              // Filter mahasiswa berdasarkan search dan IPK
-                              const filteredMahasiswa = kelompok.mahasiswa?.filter((mahasiswa: any) => {
-                                // Filter berdasarkan search
-                                const matchesSearch = !searchMahasiswaKelompokKecil || 
-                                  mahasiswa.name.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase()) ||
-                                  mahasiswa.email.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase());
-                                
-                                // Filter berdasarkan IPK
-                                const matchesIPK = filterIPKKelompokKecil === 'semua' || 
-                                  (filterIPKKelompokKecil === '>=3.5' && (mahasiswa.ipk || 0) >= 3.5) ||
-                                  (filterIPKKelompokKecil === '3.0-3.49' && (mahasiswa.ipk || 0) >= 3.0 && (mahasiswa.ipk || 0) < 3.5) ||
-                                  (filterIPKKelompokKecil === '2.5-2.99' && (mahasiswa.ipk || 0) >= 2.5 && (mahasiswa.ipk || 0) < 3.0) ||
-                                  (filterIPKKelompokKecil === '<2.5' && (mahasiswa.ipk || 0) < 2.5);
-                                
-                                return matchesSearch && matchesIPK;
-                              }) || [];
-                              
-                              // Skip kelompok jika tidak ada mahasiswa yang cocok dengan filter
-                              if ((searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && filteredMahasiswa.length === 0) {
-                                return null;
-                              }
-                              
-                              return (
-                              <div key={kelompok.id} className="p-4 border-b border-gray-200 dark:border-gray-600">
-                                                                                                    <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center space-x-3">
-                                      <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                                        <svg className="w-3 h-3 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                        </svg>
+                            </div>
+                          )}
+
+                          {/* Mahasiswa List */}
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                              Pilih Mahasiswa ({allMahasiswaOptions.length} tersedia, {getTotalGroupedStudents()} sudah dikelompokkan)
+                            </label>
+
+                            {/* Search and Filter */}
+                            <div className="flex gap-3 mb-3">
+                              {/* Search Input */}
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  value={searchMahasiswa}
+                                  onChange={(e) => setSearchMahasiswa(e.target.value)}
+                                  placeholder="Cari nama atau email mahasiswa..."
+                                  className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
+                                />
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              {/* IPK Filter */}
+                              <div className="w-40">
+                                <select
+                                  value={filterIPK}
+                                  onChange={(e) => setFilterIPK(e.target.value)}
+                                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
+                                >
+                                  <option value="semua">Semua IPK</option>
+                                  <option value="3.5+">IPK 3.5+ (Hijau)</option>
+                                  <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
+                                  <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
+                                  <option value="<2.5">IPK &lt;2.5 (Merah)</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
+                              {/* Search Results Info */}
+                              {(searchMahasiswa || filterIPK !== 'semua') && (
+                                <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Menampilkan {getFilteredMahasiswa().length} dari {allMahasiswaOptions.length} mahasiswa
+                                    {searchMahasiswa && ` untuk pencarian "${searchMahasiswa}"`}
+                                    {filterIPK !== 'semua' && ` dengan filter IPK ${filterIPK}`}
+                                  </p>
+                                </div>
+                              )}
+                              {isLoadingMahasiswa ? (
+                                // Skeleton loading untuk mahasiswa
+                                <div className="p-4 space-y-3">
+                                  {[...Array(6)].map((_, index) => (
+                                    <div key={index} className="flex items-center space-x-3 animate-pulse">
+                                      <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                      <div className="flex-1">
+                                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+                                        <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
                                       </div>
-                                      <div>
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">{kelompok.mahasiswa?.length || 0} mahasiswa</span>
-                                        <span className="text-xs text-blue-600 dark:text-blue-400 block">{kelompok.label.split(' (')[0]}</span>
-                                      </div>
+                                      <div className="w-16 h-6 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
                                     </div>
-                                  </div>
-                                <div className="space-y-1">
-                                  {filteredMahasiswa.map((mahasiswa: any) => {
-                                    const isSelected = kelompokKecilAntaraForm.mahasiswa_ids.includes(mahasiswa.id);
-                                    const isInOtherKelompokKecil = kelompokKecilAntaraList.some(kelompok => 
-                                      kelompok.mahasiswa_ids.includes(mahasiswa.id)
+                                  ))}
+                                </div>
+                              ) : (
+                                <>
+                                  {getFilteredMahasiswa().map((mahasiswa) => {
+                                    const isSelected = selectedMahasiswa.some(m => m.id === mahasiswa.id);
+                                    const isInOtherGroup = kelompokBesarAntaraOptions.some(group =>
+                                      group.mahasiswa.some(m => m.id === mahasiswa.id)
                                     );
-                                    
+
                                     return (
                                       <div
                                         key={mahasiswa.id}
-                                        className={`p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${
-                                          isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''
-                                        } ${isInOtherKelompokKecil && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        className={`p-4 border-b border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''
+                                          } ${isInOtherGroup && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         onClick={() => {
-                                          if (isInOtherKelompokKecil && !isSelected) return;
-                                          
+                                          if (isInOtherGroup && !isSelected) return;
+
                                           if (isSelected) {
-                                            setKelompokKecilAntaraForm(prev => ({
+                                            setSelectedMahasiswa(prev => prev.filter(m => m.id !== mahasiswa.id));
+                                            setKelompokBesarAntaraForm(prev => ({
                                               ...prev,
                                               mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
                                             }));
                                           } else {
-                                            setKelompokKecilAntaraForm(prev => ({
+                                            setSelectedMahasiswa(prev => [...prev, mahasiswa]);
+                                            setKelompokBesarAntaraForm(prev => ({
                                               ...prev,
                                               mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
                                             }));
@@ -5980,11 +5605,10 @@ export default function DetailBlokAntara() {
                                       >
                                         <div className="flex items-center justify-between">
                                           <div className="flex items-center space-x-3">
-                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                              isSelected 
-                                                ? 'bg-green-500 border-green-500' 
-                                                : 'border-gray-300 dark:border-gray-600'
-                                            }`}>
+                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected
+                                              ? 'bg-brand-500 border-brand-500'
+                                              : 'border-gray-300 dark:border-gray-600'
+                                              }`}>
                                               {isSelected && (
                                                 <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -5995,15 +5619,14 @@ export default function DetailBlokAntara() {
                                               <div className="flex items-center space-x-2">
                                                 <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
                                                 <span
-                                                  className={`text-xs px-2 py-0.5 rounded-full ${
-                                                    (mahasiswa.ipk || 0) >= 3.5
-                                                      ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                                      : (mahasiswa.ipk || 0) >= 3.0
+                                                  className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                                    ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                                    : (mahasiswa.ipk || 0) >= 3.0
                                                       ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
                                                       : (mahasiswa.ipk || 0) >= 2.5
-                                                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                                      : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                                  }`}
+                                                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                                        : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                                    }`}
                                                 >
                                                   IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
                                                 </span>
@@ -6011,155 +5634,507 @@ export default function DetailBlokAntara() {
                                               <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
                                             </div>
                                           </div>
-                                          {isInOtherKelompokKecil && !isSelected && (
+                                          {isInOtherGroup && !isSelected && (
                                             <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
                                           )}
                                         </div>
                                       </div>
                                     );
                                   })}
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Create Button */}
+                          <button
+                            onClick={createKelompokBesarAntara}
+                            disabled={!kelompokBesarAntaraForm.nama_kelompok || kelompokBesarAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompok}
+                            className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                          >
+                            <div className="flex items-center justify-center space-x-2">
+                              {isCreatingKelompok ? (
+                                <>
+                                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span>Membuat Kelompok...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  <span>Buat Kelompok ({selectedMahasiswa.length} mahasiswa)</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Panel - Existing Groups */}
+                    <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
+                      <div className="flex items-center space-x-2 mb-6">
+                        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Kelompok yang Sudah Ada ({kelompokBesarAntaraOptions.length})
+                        </h3>
+                      </div>
+
+                      <div className="space-y-3">
+                        {isLoadingKelompok ? (
+                          // Skeleton loading untuk kelompok yang sudah ada
+                          <div className="space-y-3">
+                            {[...Array(2)].map((_, index) => (
+                              <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
+                                    <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
+                                  </div>
+                                  <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {[...Array(6)].map((_, studentIndex) => (
+                                    <div key={studentIndex} className="flex items-center space-x-2">
+                                      <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                      <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
+                                      <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                              );
-                            })}
+                            ))}
+                          </div>
+                        ) : (
+                          <>
+                            {kelompokBesarAntaraOptions.map((kelompok: any) => (
+                              <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                                      <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                      </svg>
+                                    </div>
+                                    <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.label}</h4>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteKelompokBesarAntara(kelompok.id)}
+                                    className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                                    title="Hapus kelompok"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {kelompok.mahasiswa.map((mahasiswa: any) => (
+                                    <div key={mahasiswa.id} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                                      <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                                      <span>{mahasiswa.name}</span>
+                                      <span
+                                        className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                          : (mahasiswa.ipk || 0) >= 3.0
+                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                            : (mahasiswa.ipk || 0) >= 2.5
+                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                          }`}
+                                      >
+                                        IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+
+                        {!isLoadingKelompok && kelompokBesarAntaraOptions.length === 0 && (
+                          <div className="text-center py-12">
+                            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                            </div>
+                            <p className="text-gray-500 dark:text-gray-400 font-medium">
+                              Belum ada kelompok besar yang dibuat
+                            </p>
+                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                              Buat kelompok pertama di panel sebelah kiri
+                            </p>
                           </div>
                         )}
                       </div>
-                      
-                      {/* Create Button */}
-                      <button
-                        onClick={createKelompokKecilAntara}
-                        disabled={!kelompokKecilAntaraForm.nama_kelompok || kelompokKecilAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompokKecilAntara}
-                        className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                      >
-                        <div className="flex items-center justify-center space-x-2">
-                          {isCreatingKelompokKecilAntara ? (
-                            <>
-                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              <span>Membuat Kelompok...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                              <span>Buat Kelompok Kecil ({kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa)</span>
-                            </>
-                          )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Left Panel - Create New Kelompok Kecil */}
+                    <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="flex items-center space-x-2 mb-6">
+                          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Kecil Baru</h3>
                         </div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Right Panel - Existing Kelompok Kecil */}
-                <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-6">
-                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Kelompok Kecil yang Sudah Dibuat</h3>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      {isLoadingKelompokKecilAntara ? (
-                        // Skeleton loading untuk kelompok kecil yang sudah ada
-                        <div className="space-y-3">
-                          {[...Array(2)].map((_, index) => (
-                            <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
-                              <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center space-x-3">
-                                  <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                  <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
+                        <div className="space-y-4">
+                          {/* Nama Kelompok */}
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                              Nama Kelompok Kecil
+                            </label>
+                            <input
+                              type="text"
+                              value={kelompokKecilAntaraForm.nama_kelompok}
+                              onChange={(e) => setKelompokKecilAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
+                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm"
+                              placeholder="Contoh: Kelompok Kecil 1"
+                            />
+                          </div>
+
+                          {/* Pilih Mahasiswa dari Kelompok Besar */}
+                          {/* Selected Count */}
+                          {kelompokKecilAntaraForm.mahasiswa_ids.length > 0 && (
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 shadow-sm mb-4">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
                                 </div>
-                                <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {[...Array(6)].map((_, studentIndex) => (
-                                  <div key={studentIndex} className="flex items-center space-x-2">
-                                    <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
-                                    <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                  </div>
-                                ))}
+                                <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                                  {kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa dipilih
+                                </p>
                               </div>
                             </div>
-                          ))}
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                              Pilih Mahasiswa dari Kelompok Besar Antara
+                            </label>
+
+                            {/* Search and Filter */}
+                            <div className="flex space-x-3 mb-3">
+                              {/* Search Input */}
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  value={searchMahasiswaKelompokKecil}
+                                  onChange={(e) => setSearchMahasiswaKelompokKecil(e.target.value)}
+                                  placeholder="Cari nama atau email mahasiswa..."
+                                  className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                                />
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              {/* IPK Filter */}
+                              <div className="w-48">
+                                <select
+                                  value={filterIPKKelompokKecil}
+                                  onChange={(e) => setFilterIPKKelompokKecil(e.target.value)}
+                                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                                >
+                                  <option value="semua">Semua IPK</option>
+                                  <option value=">=3.5">IPK ≥3.5 (Hijau)</option>
+                                  <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
+                                  <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
+                                  <option value="<2.5">IPK &lt;2.5 (Merah)</option>
+                                </select>
+                              </div>
+                            </div>
+                            {isLoadingKelompok ? (
+                              <div className="space-y-2">
+                                {[...Array(3)].map((_, index) => (
+                                  <div key={index} className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse"></div>
+                                ))}
+                              </div>
+                            ) : kelompokBesarAntaraOptions.length === 0 ? (
+                              <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada kelompok besar yang dibuat</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Buat kelompok besar terlebih dahulu</p>
+
+                              </div>
+                            ) : (
+                              <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
+                                {/* Search Results Info */}
+                                {(searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && (
+                                  <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                      {searchMahasiswaKelompokKecil && `Mencari: "${searchMahasiswaKelompokKecil}"`}
+                                      {searchMahasiswaKelompokKecil && filterIPKKelompokKecil !== 'semua' && ' | '}
+                                      {filterIPKKelompokKecil !== 'semua' && `Filter IPK: ${filterIPKKelompokKecil}`}
+                                    </p>
+                                  </div>
+                                )}
+                                {kelompokBesarAntaraOptions.map((kelompok: any) => {
+                                  // Filter mahasiswa berdasarkan search dan IPK
+                                  const filteredMahasiswa = kelompok.mahasiswa?.filter((mahasiswa: any) => {
+                                    // Filter berdasarkan search
+                                    const matchesSearch = !searchMahasiswaKelompokKecil ||
+                                      mahasiswa.name.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase()) ||
+                                      mahasiswa.email.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase());
+
+                                    // Filter berdasarkan IPK
+                                    const matchesIPK = filterIPKKelompokKecil === 'semua' ||
+                                      (filterIPKKelompokKecil === '>=3.5' && (mahasiswa.ipk || 0) >= 3.5) ||
+                                      (filterIPKKelompokKecil === '3.0-3.49' && (mahasiswa.ipk || 0) >= 3.0 && (mahasiswa.ipk || 0) < 3.5) ||
+                                      (filterIPKKelompokKecil === '2.5-2.99' && (mahasiswa.ipk || 0) >= 2.5 && (mahasiswa.ipk || 0) < 3.0) ||
+                                      (filterIPKKelompokKecil === '<2.5' && (mahasiswa.ipk || 0) < 2.5);
+
+                                    return matchesSearch && matchesIPK;
+                                  }) || [];
+
+                                  // Skip kelompok jika tidak ada mahasiswa yang cocok dengan filter
+                                  if ((searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && filteredMahasiswa.length === 0) {
+                                    return null;
+                                  }
+
+                                  return (
+                                    <div key={kelompok.id} className="p-4 border-b border-gray-200 dark:border-gray-600">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center space-x-3">
+                                          <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                                            <svg className="w-3 h-3 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            </svg>
+                                          </div>
+                                          <div>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">{kelompok.mahasiswa?.length || 0} mahasiswa</span>
+                                            <span className="text-xs text-blue-600 dark:text-blue-400 block">{kelompok.label.split(' (')[0]}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        {filteredMahasiswa.map((mahasiswa: any) => {
+                                          const isSelected = kelompokKecilAntaraForm.mahasiswa_ids.includes(mahasiswa.id);
+                                          const isInOtherKelompokKecil = kelompokKecilAntaraList.some(kelompok =>
+                                            kelompok.mahasiswa_ids.includes(mahasiswa.id)
+                                          );
+
+                                          return (
+                                            <div
+                                              key={mahasiswa.id}
+                                              className={`p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''
+                                                } ${isInOtherKelompokKecil && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                              onClick={() => {
+                                                if (isInOtherKelompokKecil && !isSelected) return;
+
+                                                if (isSelected) {
+                                                  setKelompokKecilAntaraForm(prev => ({
+                                                    ...prev,
+                                                    mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
+                                                  }));
+                                                } else {
+                                                  setKelompokKecilAntaraForm(prev => ({
+                                                    ...prev,
+                                                    mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
+                                                  }));
+                                                }
+                                              }}
+                                            >
+                                              <div className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-3">
+                                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected
+                                                    ? 'bg-green-500 border-green-500'
+                                                    : 'border-gray-300 dark:border-gray-600'
+                                                    }`}>
+                                                    {isSelected && (
+                                                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                      </svg>
+                                                    )}
+                                                  </div>
+                                                  <div>
+                                                    <div className="flex items-center space-x-2">
+                                                      <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
+                                                      <span
+                                                        className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                                          : (mahasiswa.ipk || 0) >= 3.0
+                                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                                            : (mahasiswa.ipk || 0) >= 2.5
+                                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                                          }`}
+                                                      >
+                                                        IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
+                                                      </span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
+                                                  </div>
+                                                </div>
+                                                {isInOtherKelompokKecil && !isSelected && (
+                                                  <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Create Button */}
+                          <button
+                            onClick={createKelompokKecilAntara}
+                            disabled={!kelompokKecilAntaraForm.nama_kelompok || kelompokKecilAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompokKecilAntara}
+                            className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                          >
+                            <div className="flex items-center justify-center space-x-2">
+                              {isCreatingKelompokKecilAntara ? (
+                                <>
+                                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span>Membuat Kelompok...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  <span>Buat Kelompok Kecil ({kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa)</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
                         </div>
-                      ) : kelompokKecilAntaraList.length === 0 ? (
-                        <div className="text-center py-12">
-                          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      </div>
+                    </div>
+
+                    {/* Right Panel - Existing Kelompok Kecil */}
+                    <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="flex items-center space-x-2 mb-6">
+                          <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
                           </div>
-                          <p className="text-gray-500 dark:text-gray-400 font-medium">
-                            Belum ada kelompok kecil yang dibuat
-                          </p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                            Buat kelompok pertama di panel sebelah kiri
-                          </p>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Kelompok Kecil yang Sudah Dibuat</h3>
                         </div>
-                      ) : (
-                        kelompokKecilAntaraList.map((kelompok) => (
-                          <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                                  <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                  </svg>
-                                </div>
-                                <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.nama_kelompok}</h4>
-                              </div>
-                              <button
-                                onClick={() => deleteKelompokKecilAntara(kelompok.id)}
-                                className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                title="Hapus kelompok"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {kelompok.mahasiswa_ids.map((mahasiswaId) => {
-                                const mahasiswa = allMahasiswaOptions.find(m => m.id === mahasiswaId);
-                                return mahasiswa ? (
-                                  <div key={mahasiswaId} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                    <span>{mahasiswa.name}</span>
-                                    <span
-                                      className={`text-xs px-2 py-0.5 rounded-full ${
-                                        (mahasiswa.ipk || 0) >= 3.5
-                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                          : (mahasiswa.ipk || 0) >= 3.0
-                                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                          : (mahasiswa.ipk || 0) >= 2.5
-                                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                          : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                      }`}
-                                    >
-                                      IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                    </span>
+
+                        <div className="space-y-3">
+                          {isLoadingKelompokKecilAntara ? (
+                            // Skeleton loading untuk kelompok kecil yang sudah ada
+                            <div className="space-y-3">
+                              {[...Array(2)].map((_, index) => (
+                                <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center space-x-3">
+                                      <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
+                                      <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
+                                    </div>
+                                    <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
                                   </div>
-                                ) : null;
-                              })}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {[...Array(6)].map((_, studentIndex) => (
+                                      <div key={studentIndex} className="flex items-center space-x-2">
+                                        <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
+                                        <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          </div>
-                        ))
-                      )}
+                          ) : kelompokKecilAntaraList.length === 0 ? (
+                            <div className="text-center py-12">
+                              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                              </div>
+                              <p className="text-gray-500 dark:text-gray-400 font-medium">
+                                Belum ada kelompok kecil yang dibuat
+                              </p>
+                              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                                Buat kelompok pertama di panel sebelah kiri
+                              </p>
+                            </div>
+                          ) : (
+                            kelompokKecilAntaraList.map((kelompok) => (
+                              <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                                      <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                      </svg>
+                                    </div>
+                                    <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.nama_kelompok}</h4>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteKelompokKecilAntara(kelompok.id)}
+                                    className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                                    title="Hapus kelompok"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {kelompok.mahasiswa_ids.map((mahasiswaId) => {
+                                    const mahasiswa = allMahasiswaOptions.find(m => m.id === mahasiswaId);
+                                    return mahasiswa ? (
+                                      <div key={mahasiswaId} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                                        <span>{mahasiswa.name}</span>
+                                        <span
+                                          className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                            : (mahasiswa.ipk || 0) >= 3.0
+                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                              : (mahasiswa.ipk || 0) >= 2.5
+                                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                                : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                            }`}
+                                        >
+                                          IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
+                                        </span>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </>
-            )}
+                  </>
+                )}
               </div>
             </motion.div>
           </div>

@@ -83,6 +83,14 @@ class Forum extends Model
     }
 
     /**
+     * Relationship ke Semester
+     */
+    public function semester(): BelongsTo
+    {
+        return $this->belongsTo(Semester::class, 'semester_id');
+    }
+
+    /**
      * Relationship ke User yang terakhir reply
      */
     public function lastReplyUser(): BelongsTo

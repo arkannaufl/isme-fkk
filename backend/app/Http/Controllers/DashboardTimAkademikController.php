@@ -294,4 +294,28 @@ class DashboardTimAkademikController extends Controller
             return response()->json($data);
         } catch (\Exception $e) { return response()->json(['error' => $e->getMessage()], 500); }
     }
+
+    public function getAttendance(Request $request): JsonResponse
+    {
+        $semester = $request->get('semester', 'reguler');
+        return response()->json([
+            'attendanceStats' => $this->getAttendanceStats($semester)
+        ]);
+    }
+
+    public function getAssessment(Request $request): JsonResponse
+    {
+        $semester = $request->get('semester', 'reguler');
+        return response()->json([
+            'assessmentStats' => $this->getAssessmentStats($semester)
+        ]);
+    }
+
+    public function getSchedule(Request $request): JsonResponse
+    {
+        $semester = $request->get('semester', 'reguler');
+        return response()->json([
+            'scheduleStats' => $this->getScheduleStats($semester)
+        ]);
+    }
 }

@@ -229,16 +229,21 @@ const DashboardTimAkademik: React.FC = () => {
 
   // Cache untuk menyimpan data yang sudah pernah di-fetch
   const [dataCache, setDataCache] = useState<{ [key: string]: any }>({});
-  
+
   // Individual loading states for each card
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [assessmentLoading, setAssessmentLoading] = useState(false);
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
+  // Individual error states for each card
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
+  const [assessmentError, setAssessmentError] = useState<string | null>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
   // Fetch attendance data separately
   const fetchAttendanceData = async (semester: "reguler" | "antara") => {
     const cacheKey = `${semester}-attendance`;
-    
+
     // Jika data sudah ada di cache, gunakan cache
     if (dataCache[cacheKey]) {
       setStats(prev => ({
@@ -250,6 +255,7 @@ const DashboardTimAkademik: React.FC = () => {
 
     try {
       setAttendanceLoading(true);
+      setAttendanceError(null);
       const response = await api.get(
         `/dashboard-tim-akademik/attendance?semester=${semester}`
       );
@@ -265,7 +271,7 @@ const DashboardTimAkademik: React.FC = () => {
         attendanceStats: response.data.attendanceStats
       }));
     } catch (err: any) {
-        // Handle error silently
+      setAttendanceError("Gagal memuat statistik kehadiran");
     } finally {
       setAttendanceLoading(false);
     }
@@ -274,7 +280,7 @@ const DashboardTimAkademik: React.FC = () => {
   // Fetch assessment data separately
   const fetchAssessmentData = async (semester: "reguler" | "antara") => {
     const cacheKey = `${semester}-assessment`;
-    
+
     // Jika data sudah ada di cache, gunakan cache
     if (dataCache[cacheKey]) {
       setStats(prev => ({
@@ -286,6 +292,7 @@ const DashboardTimAkademik: React.FC = () => {
 
     try {
       setAssessmentLoading(true);
+      setAssessmentError(null);
       const response = await api.get(
         `/dashboard-tim-akademik/assessment?semester=${semester}`
       );
@@ -301,7 +308,7 @@ const DashboardTimAkademik: React.FC = () => {
         assessmentStats: response.data.assessmentStats
       }));
     } catch (err: any) {
-        // Handle error silently
+      setAssessmentError("Gagal memuat statistik penilaian");
     } finally {
       setAssessmentLoading(false);
     }
@@ -310,7 +317,7 @@ const DashboardTimAkademik: React.FC = () => {
   // Fetch schedule data separately
   const fetchScheduleData = async (semester: "reguler" | "antara") => {
     const cacheKey = `${semester}-schedule`;
-    
+
     // Jika data sudah ada di cache, gunakan cache
     if (dataCache[cacheKey]) {
       setStats(prev => ({
@@ -322,6 +329,7 @@ const DashboardTimAkademik: React.FC = () => {
 
     try {
       setScheduleLoading(true);
+      setScheduleError(null);
       const response = await api.get(
         `/dashboard-tim-akademik/schedule?semester=${semester}`
       );
@@ -337,7 +345,7 @@ const DashboardTimAkademik: React.FC = () => {
         scheduleStats: response.data.scheduleStats
       }));
     } catch (err: any) {
-        // Handle error silently
+      setScheduleError("Gagal memuat statistik jadwal");
     } finally {
       setScheduleLoading(false);
     }
@@ -446,18 +454,258 @@ const DashboardTimAkademik: React.FC = () => {
     });
   };
 
+  // Skeleton Loading Components
+  const SkeletonCard = ({
+    className = "",
+    children,
+  }: {
+    className?: string;
+    children?: React.ReactNode;
+  }) => (
+    <div
+      className={`rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 ${className}`}
+    >
+      {children}
+    </div>
+  );
+
+  const SkeletonLine = ({
+    width = "w-full",
+    height = "h-4",
+  }: {
+    width?: string;
+    height?: string;
+  }) => (
+    <div
+      className={`${width} ${height} bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}
+    ></div>
+  );
+
+  const SkeletonCircle = ({ size = "w-12 h-12" }: { size?: string }) => (
+    <div
+      className={`${size} bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse`}
+    ></div>
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <div className="w-8 h-8 bg-blue-500 rounded-full animate-pulse"></div>
+      <>
+        <style>{`
+          @keyframes progressFill {
+            from { width: 0%; }
+            to { width: 100%; }
+          }
+          @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          .notification-enter {
+            animation: slideInRight 0.5s ease-out forwards;
+          }
+        `}</style>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+          <div className="grid grid-cols-12 gap-4 md:gap-6 p-4 md:p-6">
+            {/* Header Skeleton */}
+            <div className="col-span-12 mb-6">
+              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <SkeletonLine width="w-64" height="h-8" />
+                    <div className="mt-2">
+                      <SkeletonLine width="w-96" height="h-4" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-4 sm:mt-0">
+                    <SkeletonLine width="w-24" height="h-6" />
+                    <SkeletonLine width="w-16" height="h-6" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Stats Cards Skeleton */}
+            <div className="col-span-12">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <SkeletonCard key={i}>
+                    <div className="flex items-center justify-between mb-4">
+                      <SkeletonCircle size="w-12 h-12" />
+                      <SkeletonLine width="w-16" height="h-3" />
+                    </div>
+                    <div>
+                      <SkeletonLine width="w-24" height="h-4" />
+                      <div className="mt-2">
+                        <SkeletonLine width="w-12" height="h-8" />
+                      </div>
+                    </div>
+                  </SkeletonCard>
+                ))}
+              </div>
+            </div>
+
+            {/* Analytics Cards Skeleton */}
+            <div className="col-span-12">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+                {[1, 2, 3].map((i) => (
+                  <SkeletonCard key={i}>
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <SkeletonCircle size="w-10 h-10" />
+                        <SkeletonLine width="w-32" height="h-6" />
+                      </div>
+                      <SkeletonCircle size="w-2 h-2" />
+                    </div>
+                    <div className="space-y-4">
+                      {[1, 2, 3, 4].map((j) => (
+                        <div
+                          key={j}
+                          className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                        >
+                          <div className="flex justify-between mb-2">
+                            <SkeletonLine width="w-24" height="h-4" />
+                            <SkeletonLine width="w-12" height="h-4" />
+                          </div>
+                          <SkeletonLine width="w-full" height="h-2" />
+                        </div>
+                      ))}
+                    </div>
+                  </SkeletonCard>
+                ))}
+              </div>
+            </div>
+
+            {/* Notifications and Alerts Skeleton */}
+            <div className="col-span-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                {[1, 2].map((i) => (
+                  <SkeletonCard key={i}>
+                    <div className="flex items-center justify-between mb-6">
+                      <SkeletonLine width="w-40" height="h-6" />
+                      <SkeletonCircle size="w-5 h-5" />
+                    </div>
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((j) => (
+                        <div key={j} className="p-3 border rounded-lg">
+                          <SkeletonLine width="w-full" height="h-4" />
+                          <div className="mt-2">
+                            <SkeletonLine width="w-3/4" height="h-3" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </SkeletonCard>
+                ))}
+              </div>
+            </div>
+
+            {/* Praktikum Pending Skeleton */}
+            <div className="col-span-12">
+              <SkeletonCard>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <SkeletonCircle size="w-10 h-10" />
+                    <SkeletonLine width="w-48" height="h-6" />
+                  </div>
+                  <SkeletonCircle size="w-2 h-2" />
+                </div>
+                <div className="space-y-3">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="p-4 rounded-lg border">
+                      <SkeletonLine width="w-1/3" height="h-5" />
+                      <div className="mt-2 space-y-2">
+                        <SkeletonLine width="w-1/4" height="h-3" />
+                        <SkeletonLine width="w-1/2" height="h-3" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SkeletonCard>
+            </div>
+
+            {/* Bottom Cards (Schedule & Activities) Skeleton */}
+            <div className="col-span-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                {/* Today Schedule */}
+                <SkeletonCard>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <SkeletonCircle size="w-10 h-10" />
+                      <SkeletonLine width="w-32" height="h-6" />
+                    </div>
+                    <SkeletonCircle size="w-2 h-2" />
+                  </div>
+                  <div className="space-y-3">
+                    {[1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                      >
+                        <div className="flex justify-between">
+                          <SkeletonLine width="w-1/3" height="h-4" />
+                          <SkeletonLine width="w-1/4" height="h-4" />
+                        </div>
+                        <div className="mt-2">
+                          <SkeletonLine width="w-1/4" height="h-3" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </SkeletonCard>
+
+                {/* Recent Activities */}
+                <SkeletonCard>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <SkeletonCircle size="w-10 h-10" />
+                      <SkeletonLine width="w-32" height="h-6" />
+                    </div>
+                    <SkeletonCircle size="w-2 h-2" />
+                  </div>
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="flex items-start space-x-3 p-2">
+                        <SkeletonCircle size="w-4 h-4" />
+                        <div className="flex-1">
+                          <SkeletonLine width="w-3/4" height="h-4" />
+                          <div className="mt-1">
+                            <SkeletonLine width="w-1/4" height="h-3" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </SkeletonCard>
+              </div>
+            </div>
+
+            {/* Academic Overview Skeleton */}
+            <div className="col-span-12">
+              <SkeletonCard>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <SkeletonCircle size="w-10 h-10" />
+                    <SkeletonLine width="w-40" height="h-6" />
+                  </div>
+                  <SkeletonCircle size="w-2 h-2" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl"
+                    >
+                      <SkeletonLine width="w-1/2" height="h-4" />
+                      <div className="mt-3">
+                        <SkeletonLine width="w-full" height="h-3" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SkeletonCard>
+            </div>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            Loading Dashboard
-          </h3>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -725,11 +973,10 @@ const DashboardTimAkademik: React.FC = () => {
                         fetchAttendanceData("reguler");
                       }}
                       disabled={attendanceLoading}
-                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
-                        activeAttendanceSemester === "reguler"
-                          ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${activeAttendanceSemester === "reguler"
+                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        }`}
                     >
                       Reguler
                     </button>
@@ -739,11 +986,10 @@ const DashboardTimAkademik: React.FC = () => {
                         fetchAttendanceData("antara");
                       }}
                       disabled={attendanceLoading}
-                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
-                        activeAttendanceSemester === "antara"
-                          ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${activeAttendanceSemester === "antara"
+                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        }`}
                     >
                       Antara
                     </button>
@@ -776,6 +1022,19 @@ const DashboardTimAkademik: React.FC = () => {
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2"></div>
                       </div>
                     </>
+                  ) : attendanceError ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-2">
+                        <ErrorIcon className="w-5 h-5 text-red-500" />
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{attendanceError}</p>
+                      <button
+                        onClick={() => fetchAttendanceData(activeAttendanceSemester)}
+                        className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 transition"
+                      >
+                        Coba Lagi
+                      </button>
+                    </div>
                   ) : (
                     <>
                       <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
@@ -793,13 +1052,12 @@ const DashboardTimAkademik: React.FC = () => {
                         </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
                           <div
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              stats.attendanceStats.overall_rate >= 80
-                                ? "bg-green-500"
-                                : stats.attendanceStats.overall_rate >= 60
+                            className={`h-2 rounded-full transition-all duration-500 ${stats.attendanceStats.overall_rate >= 80
+                              ? "bg-green-500"
+                              : stats.attendanceStats.overall_rate >= 60
                                 ? "bg-yellow-500"
                                 : "bg-red-500"
-                            }`}
+                              }`}
                             style={{
                               width: `${Math.min(
                                 stats.attendanceStats.overall_rate,
@@ -825,13 +1083,12 @@ const DashboardTimAkademik: React.FC = () => {
                         </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
                           <div
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              stats.attendanceStats.pbl_rate >= 80
-                                ? "bg-green-500"
-                                : stats.attendanceStats.pbl_rate >= 60
+                            className={`h-2 rounded-full transition-all duration-500 ${stats.attendanceStats.pbl_rate >= 80
+                              ? "bg-green-500"
+                              : stats.attendanceStats.pbl_rate >= 60
                                 ? "bg-yellow-500"
                                 : "bg-red-500"
-                            }`}
+                              }`}
                             style={{
                               width: `${Math.min(
                                 stats.attendanceStats.pbl_rate,
@@ -857,13 +1114,12 @@ const DashboardTimAkademik: React.FC = () => {
                         </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
                           <div
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              stats.attendanceStats.journal_rate >= 80
-                                ? "bg-green-500"
-                                : stats.attendanceStats.journal_rate >= 60
+                            className={`h-2 rounded-full transition-all duration-500 ${stats.attendanceStats.journal_rate >= 80
+                              ? "bg-green-500"
+                              : stats.attendanceStats.journal_rate >= 60
                                 ? "bg-yellow-500"
                                 : "bg-red-500"
-                            }`}
+                              }`}
                             style={{
                               width: `${Math.min(
                                 stats.attendanceStats.journal_rate,
@@ -889,13 +1145,12 @@ const DashboardTimAkademik: React.FC = () => {
                         </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
                           <div
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              stats.attendanceStats.csr_rate >= 80
-                                ? "bg-green-500"
-                                : stats.attendanceStats.csr_rate >= 60
+                            className={`h-2 rounded-full transition-all duration-500 ${stats.attendanceStats.csr_rate >= 80
+                              ? "bg-green-500"
+                              : stats.attendanceStats.csr_rate >= 60
                                 ? "bg-yellow-500"
                                 : "bg-red-500"
-                            }`}
+                              }`}
                             style={{
                               width: `${Math.min(
                                 stats.attendanceStats.csr_rate,
@@ -941,11 +1196,10 @@ const DashboardTimAkademik: React.FC = () => {
                         fetchAssessmentData("reguler");
                       }}
                       disabled={assessmentLoading}
-                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
-                        activeAssessmentSemester === "reguler"
-                          ? "bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-sm"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${activeAssessmentSemester === "reguler"
+                        ? "bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        }`}
                     >
                       Reguler
                     </button>
@@ -955,11 +1209,10 @@ const DashboardTimAkademik: React.FC = () => {
                         fetchAssessmentData("antara");
                       }}
                       disabled={assessmentLoading}
-                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
-                        activeAssessmentSemester === "antara"
-                          ? "bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-sm"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${activeAssessmentSemester === "antara"
+                        ? "bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        }`}
                     >
                       Antara
                     </button>
@@ -967,87 +1220,120 @@ const DashboardTimAkademik: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Penyelesaian
-                      </span>
-                      <span
-                        className={`font-bold text-lg ${getAssessmentColor(
-                          stats.assessmentStats.completion_rate
-                        )}`}
+                  {assessmentLoading ? (
+                    // Skeleton Loading untuk Statistik Penilaian
+                    <>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                          <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2"></div>
+                      </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                          <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2"></div>
+                      </div>
+                    </>
+                  ) : assessmentError ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-2">
+                        <ErrorIcon className="w-5 h-5 text-red-500" />
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{assessmentError}</p>
+                      <button
+                        onClick={() => fetchAssessmentData(activeAssessmentSemester)}
+                        className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 transition"
                       >
-                        {stats.assessmentStats.completion_rate}%
-                      </span>
+                        Coba Lagi
+                      </button>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stats.assessmentStats.completion_rate >= 80
-                            ? "bg-green-500"
-                            : stats.assessmentStats.completion_rate >= 60
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            stats.assessmentStats.completion_rate,
-                            100
-                          )}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Penyelesaian
+                          </span>
+                          <span
+                            className={`font-bold text-lg ${getAssessmentColor(
+                              stats.assessmentStats.completion_rate
+                            )}`}
+                          >
+                            {stats.assessmentStats.completion_rate}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${stats.assessmentStats.completion_rate >= 80
+                              ? "bg-green-500"
+                              : stats.assessmentStats.completion_rate >= 60
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                              }`}
+                            style={{
+                              width: `${Math.min(
+                                stats.assessmentStats.completion_rate,
+                                100
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Nilai Rata-rata
-                      </span>
-                      <span className="font-bold text-lg text-gray-900 dark:text-white">
-                        {stats.assessmentStats.average_score.toFixed(1)}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stats.assessmentStats.average_score >= 3.0
-                            ? "bg-green-500"
-                            : stats.assessmentStats.average_score >= 2.0
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            (stats.assessmentStats.average_score / 4.0) * 100,
-                            100
-                          )}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Nilai Rata-rata
+                          </span>
+                          <span className="font-bold text-lg text-gray-900 dark:text-white">
+                            {stats.assessmentStats.average_score.toFixed(1)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${stats.assessmentStats.average_score >= 3.0
+                              ? "bg-green-500"
+                              : stats.assessmentStats.average_score >= 2.0
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                              }`}
+                            style={{
+                              width: `${Math.min(
+                                (stats.assessmentStats.average_score / 4.0) * 100,
+                                100
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg transition-all duration-300 hover:scale-[1.02] border border-orange-200 dark:border-orange-800">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
-                        PBL Tertunda
-                      </span>
-                      <span className="font-bold text-lg text-orange-600 dark:text-orange-400">
-                        {stats.assessmentStats.pending_pbl}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg transition-all duration-300 hover:scale-[1.02] border border-orange-200 dark:border-orange-800">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+                            PBL Tertunda
+                          </span>
+                          <span className="font-bold text-lg text-orange-600 dark:text-orange-400">
+                            {stats.assessmentStats.pending_pbl}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg transition-all duration-300 hover:scale-[1.02] border border-orange-200 dark:border-orange-800">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
-                        Journal Tertunda
-                      </span>
-                      <span className="font-bold text-lg text-orange-600 dark:text-orange-400">
-                        {stats.assessmentStats.pending_journal}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg transition-all duration-300 hover:scale-[1.02] border border-orange-200 dark:border-orange-800">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+                            Journal Tertunda
+                          </span>
+                          <span className="font-bold text-lg text-orange-600 dark:text-orange-400">
+                            {stats.assessmentStats.pending_journal}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1082,11 +1368,10 @@ const DashboardTimAkademik: React.FC = () => {
                         fetchScheduleData("reguler");
                       }}
                       disabled={scheduleLoading}
-                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
-                        activeScheduleSemester === "reguler"
-                          ? "bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${activeScheduleSemester === "reguler"
+                        ? "bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        }`}
                     >
                       Reguler
                     </button>
@@ -1096,11 +1381,10 @@ const DashboardTimAkademik: React.FC = () => {
                         fetchScheduleData("antara");
                       }}
                       disabled={scheduleLoading}
-                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
-                        activeScheduleSemester === "antara"
-                          ? "bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${activeScheduleSemester === "antara"
+                        ? "bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        }`}
                     >
                       Antara
                     </button>
@@ -1108,60 +1392,89 @@ const DashboardTimAkademik: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Kuliah Besar
-                      </span>
-                      <span className="font-bold text-lg text-gray-900 dark:text-white">
-                        {stats.scheduleStats.kuliah_besar}
-                      </span>
+                  {scheduleLoading ? (
+                    // Skeleton Loading untuk Statistik Jadwal
+                    <>
+                      <div className="space-y-2">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <div key={i} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                            <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                            <div className="h-5 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : scheduleError ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-2">
+                        <ErrorIcon className="w-5 h-5 text-red-500" />
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{scheduleError}</p>
+                      <button
+                        onClick={() => fetchScheduleData(activeScheduleSemester)}
+                        className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 transition"
+                      >
+                        Coba Lagi
+                      </button>
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Kuliah Besar
+                          </span>
+                          <span className="font-bold text-lg text-gray-900 dark:text-white">
+                            {stats.scheduleStats.kuliah_besar}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        PBL
-                      </span>
-                      <span className="font-bold text-lg text-gray-900 dark:text-white">
-                        {stats.scheduleStats.pbl}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            PBL
+                          </span>
+                          <span className="font-bold text-lg text-gray-900 dark:text-white">
+                            {stats.scheduleStats.pbl}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Journal Reading
-                      </span>
-                      <span className="font-bold text-lg text-gray-900 dark:text-white">
-                        {stats.scheduleStats.jurnal_reading}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Journal Reading
+                          </span>
+                          <span className="font-bold text-lg text-gray-900 dark:text-white">
+                            {stats.scheduleStats.jurnal_reading}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        CSR
-                      </span>
-                      <span className="font-bold text-lg text-gray-900 dark:text-white">
-                        {stats.scheduleStats.csr}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            CSR
+                          </span>
+                          <span className="font-bold text-lg text-gray-900 dark:text-white">
+                            {stats.scheduleStats.csr}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Praktikum
-                      </span>
-                      <span className="font-bold text-lg text-gray-900 dark:text-white">
-                        {stats.scheduleStats.praktikum}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Praktikum
+                          </span>
+                          <span className="font-bold text-lg text-gray-900 dark:text-white">
+                            {stats.scheduleStats.praktikum}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1287,11 +1600,10 @@ const DashboardTimAkademik: React.FC = () => {
                         e.stopPropagation();
                         navigate(`${praktikum.action_url}?tab=dosen`);
                       }}
-                      className={`p-4 rounded-lg border cursor-pointer transition-all duration-300 hover:shadow-md ${
-                        praktikum.status === "selesai"
-                          ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                          : "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30"
-                      }`}
+                      className={`p-4 rounded-lg border cursor-pointer transition-all duration-300 hover:shadow-md ${praktikum.status === "selesai"
+                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                        : "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30"
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -1300,11 +1612,10 @@ const DashboardTimAkademik: React.FC = () => {
                               {praktikum.mata_kuliah_nama}
                             </p>
                             <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                praktikum.status === "selesai"
-                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                  : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                              }`}
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${praktikum.status === "selesai"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                                }`}
                             >
                               {praktikum.status === "selesai"
                                 ? "✓ Selesai"

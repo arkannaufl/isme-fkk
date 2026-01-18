@@ -257,6 +257,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/send-reminder', [App\Http\Controllers\NotificationController::class, 'sendReminderNotifications']);
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/pending-dosen', [App\Http\Controllers\NotificationController::class, 'getPendingDosen']);
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/send-status-change', [App\Http\Controllers\NotificationController::class, 'sendStatusChangeNotification']);
+    
+    // Broadcast notification route
+    Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/broadcast', [App\Http\Controllers\NotificationController::class, 'broadcast']);
 });
 
 Route::middleware('auth:sanctum')->get('/kelompok-besar', [KelompokBesarController::class, 'index']);
@@ -505,7 +508,6 @@ Route::middleware('auth:sanctum')->prefix('seminar-pleno')->group(function () {
     Route::get('/jadwal/{kode}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'index']);
     Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'store']);
     Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'import']);
-    Route::post('/jadwal/{kode}/validate-preview', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'validatePreview']);
     Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'destroy']);
 });
@@ -617,6 +619,9 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('dashboard/super
 // Routes untuk dashboard tim akademik
 Route::middleware(['auth:sanctum', 'role:tim_akademik'])->prefix('dashboard-tim-akademik')->group(function () {
     Route::get('/', [App\Http\Controllers\DashboardTimAkademikController::class, 'index']);
+    Route::get('/attendance', [App\Http\Controllers\DashboardTimAkademikController::class, 'getAttendance']);
+    Route::get('/assessment', [App\Http\Controllers\DashboardTimAkademikController::class, 'getAssessment']);
+    Route::get('/schedule', [App\Http\Controllers\DashboardTimAkademikController::class, 'getSchedule']);
     Route::get('/attendance-by-mata-kuliah', [App\Http\Controllers\DashboardTimAkademikController::class, 'getAttendanceByMataKuliah']);
     Route::get('/assessment-progress', [App\Http\Controllers\DashboardTimAkademikController::class, 'getAssessmentProgress']);
 });

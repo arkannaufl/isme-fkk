@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowLeft,
@@ -1420,8 +1420,99 @@ const PenilaianSeminarProposal = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-500"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Skeleton */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                <div>
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-64 mb-2 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48 animate-pulse"></div>
+                </div>
+              </div>
+              <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded-full w-24 animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Main Content Skeleton */}
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Sidebar Skeleton */}
+            <div className="w-80 lg:sticky lg:top-24 self-start hidden lg:block">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 animate-pulse"></div>
+                  </div>
+                  <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                </div>
+                <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg mb-3 animate-pulse"></div>
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 animate-pulse"></div>
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-1 animate-pulse"></div>
+                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-24 animate-pulse"></div>
+                        </div>
+                        <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Content Area Skeleton */}
+            <div className="flex-1">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <div className="mb-6">
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4 animate-pulse"></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="space-y-2">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 animate-pulse"></div>
+                        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-40 mb-4 animate-pulse"></div>
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="space-y-2">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 animate-pulse"></div>
+                        <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-36 mb-4 animate-pulse"></div>
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="space-y-2">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-28 animate-pulse"></div>
+                        <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg w-24 animate-pulse"></div>
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg w-32 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -2308,103 +2399,158 @@ const PenilaianSeminarProposal = () => {
       </div>
 
       {/* Modal Finalize */}
-      {showFinalizeModal && (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                <FontAwesomeIcon icon={faLock} className="text-green-600 dark:text-green-400 text-xl" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Finalize Keputusan
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Konfirmasi finalisasi keputusan
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Apakah Anda yakin ingin mem-finalize keputusan ini? Setelah di-finalize, keputusan tidak dapat diubah kecuali oleh admin.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
+      <AnimatePresence>
+        {showFinalizeModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowFinalizeModal(false)}
+            ></motion.div>
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
               <button
                 onClick={() => setShowFinalizeModal(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition"
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                Batal
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
               </button>
-              <button
-                onClick={handleFinalize}
-                disabled={finalizing}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-green-600 text-white font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {finalizing ? "Mem-finalize..." : "Ya, Finalize"}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    Finalize Nilai Seminar Proposal
+                  </h2>
+                </div>
+
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <p className="text-gray-600 dark:text-gray-300 mb-4">
+                      Apakah Anda yakin ingin mem-finalize nilai seminar proposal untuk mahasiswa ini? Tindakan ini tidak dapat dibatalkan.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 relative z-20">
+                    <button
+                      onClick={() => setShowFinalizeModal(false)}
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={handleFinalize}
+                      disabled={finalizing}
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out"
+                    >
+                      {finalizing ? "Mem-finalize..." : "Ya, Finalize"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal Unfinalize */}
-      {showUnfinalizeModal && (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                <FontAwesomeIcon icon={faUnlock} className="text-red-600 dark:text-red-400 text-xl" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Batalkan Finalize
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Konfirmasi pembatalan finalisasi
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Apakah Anda yakin ingin membatalkan finalize? Keputusan akan dapat diubah kembali.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
+      <AnimatePresence>
+        {showUnfinalizeModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowUnfinalizeModal(false)}
+            ></motion.div>
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
               <button
                 onClick={() => setShowUnfinalizeModal(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition"
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                Batal
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
               </button>
-              <button
-                onClick={handleUnfinalize}
-                disabled={finalizing}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {finalizing ? "Membatalkan..." : "Ya, Batalkan"}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    Batalkan Finalize Nilai Seminar Proposal
+                  </h2>
+                </div>
+
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <p className="text-gray-600 dark:text-gray-300 mb-4">
+                      Apakah Anda yakin ingin membatalkan finalize nilai seminar proposal untuk mahasiswa ini? Ini akan memungkinkan perubahan nilai kembali.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 relative z-20">
+                    <button
+                      onClick={() => setShowUnfinalizeModal(false)}
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={handleUnfinalize}
+                      disabled={finalizing}
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-red-600 text-white text-xs sm:text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out"
+                    >
+                      {finalizing ? "Membatalkan..." : "Ya, Batalkan"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 };
 
 export default PenilaianSeminarProposal;
-

@@ -5842,4 +5842,49 @@ class NotificationController extends Controller
 
         return $message;
     }
+
+    /**
+     * Broadcast notification to all users
+     */
+    public function broadcast(Request $request)
+    {
+        try {
+            $request->validate([
+                'title' => 'required|string|max:255',
+                'message' => 'required|string',
+                'type' => 'required|in:info,success,warning,error',
+                'send_to_all' => 'required|boolean'
+            ]);
+
+            // Create ONE public notification that all users can see
+            // This is better than creating individual notifications for each user
+            $notification = [
+                'user_id' => null, // Public notification for all roles
+                'title' => $request->title,
+                'message' => $request->message,
+                'type' => $request->type,
+                'is_read' => false,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            // Insert single public notification
+            Notification::insert([$notification]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notifikasi berhasil dikirim ke semua akun',
+                'count' => 1
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error broadcasting notification: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengirim notifikasi',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

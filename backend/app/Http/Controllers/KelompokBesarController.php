@@ -66,6 +66,9 @@ class KelompokBesarController extends Controller
             }
         });
 
+        // Clear cache
+        \Illuminate\Support\Facades\Cache::forget('kelompok_besar_all_semesters');
+
         // Log aktivitas batch kelompok besar
         $action = $isVeteranAddition ? 'Menambah veteran ke' : 'Mengatur';
         activity()
@@ -84,6 +87,10 @@ class KelompokBesarController extends Controller
             ->where('mahasiswa_id', $row->mahasiswa_id)
             ->delete();
         $row->delete();
+        
+        // Clear cache
+        \Illuminate\Support\Facades\Cache::forget('kelompok_besar_all_semesters');
+
         return response()->json(['message' => 'Data berhasil dihapus']);
     }
 
@@ -134,6 +141,9 @@ class KelompokBesarController extends Controller
                 ->delete();
 
             if ($deleted > 0) {
+                // Clear cache
+                \Illuminate\Support\Facades\Cache::forget('kelompok_besar_all_semesters');
+
                 return response()->json([
                     'message' => 'Mahasiswa berhasil dihapus dari kelompok besar',
                     'deleted_count' => $deleted
