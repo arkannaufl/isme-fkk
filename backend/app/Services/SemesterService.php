@@ -149,7 +149,10 @@ class SemesterService
     {
         // Ambil semua user yang perlu diberi notifikasi
         $users = User::whereIn('role', ['super_admin', 'tim_akademik', 'dosen', 'mahasiswa'])
-            ->where('status', '!=', 'keluar')
+            ->where(function($query) {
+                $query->whereNull('status')
+                      ->orWhere('status', '!=', 'keluar');
+            })
             ->get();
 
         $oldSemesterInfo = $oldSemester ? "{$oldSemester->jenis} ({$oldSemester->tahunAjaran->tahun})" : 'Tidak ada semester aktif';
