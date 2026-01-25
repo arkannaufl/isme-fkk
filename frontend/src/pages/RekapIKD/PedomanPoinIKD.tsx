@@ -5071,8 +5071,7 @@ const PedomanPoinIKD: React.FC = () => {
                             key={idx}
                             className="text-sm text-red-600 dark:text-red-400 mb-1"
                           >
-                            • {err.message} (Baris {err.row}, Kolom{" "}
-                            {err.field.toUpperCase()})
+                            • {err.message} {err.field.toUpperCase()}
                           </p>
                         ))}
                       </div>

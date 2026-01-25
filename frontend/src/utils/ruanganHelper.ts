@@ -23,7 +23,6 @@ export const getRuanganByCapacity = async (api: any, requiredCapacity: number = 
     }));
     return ruanganWithCapacity;
   } catch (err) {
-    console.error('Error fetching ruangan by capacity:', err);
     return [];
   }
 };

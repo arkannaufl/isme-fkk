@@ -743,7 +743,7 @@ export default function TimAkademik() {
                   {cellErrors.length > 0
                     ? cellErrors.map((err, _) => (
                         <li key={err.row}>
-                          {err.message} (Baris {err.row + 2}, Kolom {err.field.toUpperCase()}): {previewData.find(r => r.nip === err.nip)?.[err.field] || ''}
+                          {err.message}
                         </li>
                       ))
                     : validationErrors.map((err, _) => (

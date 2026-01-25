@@ -14,7 +14,6 @@ import * as ExcelJS from 'exceljs';
 const SESSION_DURATION_MINUTES = 50;
 const CSR_REGULER_SESSIONS = 3;
 const CSR_RESPONSI_SESSIONS = 2;
-const TEMPLATE_DISPLAY_LIMIT = 10;
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const EXCEL_COLUMN_WIDTHS = {
@@ -237,50 +236,54 @@ const applySIAKADStyling = (worksheet: any) => {
  */
 const createSIAKADInfoSheet = (workbook: any, data: any, jadwalType: string, jadwalCount: number) => {
   const infoSheet = workbook.addWorksheet('Informasi');
-  infoSheet.addRow(['INFORMASI EXPORT SIAKAD']);
-  infoSheet.addRow([]);
-  infoSheet.addRow(['Kode Mata Kuliah', data?.kode || '']);
-  infoSheet.addRow(['Nama Mata Kuliah', data?.nama || '']);
-  infoSheet.addRow(['Tanggal Mulai', data?.tanggal_mulai ? new Date(data.tanggal_mulai).toISOString().split('T')[0] : '']);
-  infoSheet.addRow(['Tanggal Akhir', data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : '']);
-  infoSheet.addRow(['Kurikulum', data?.kurikulum || '']);
-  infoSheet.addRow(['Jenis', data?.jenis || '']);
-  infoSheet.addRow(['Tipe Non Block', data?.tipe_non_block || '']);
-  infoSheet.addRow(['Durasi Minggu', data?.durasi_minggu || '']);
-  infoSheet.addRow([]);
-  infoSheet.addRow([`TOTAL JADWAL ${jadwalType.toUpperCase()}`, jadwalCount]);
-  infoSheet.addRow([]);
-  infoSheet.addRow(['CATATAN:']);
-  infoSheet.addRow([`• File ini berisi data jadwal ${jadwalType.toLowerCase()} dalam format SIAKAD`]);
-  infoSheet.addRow(['• Header dengan line break pada kolom: Kelompok, Substansi, Jenis Pertemuan, Metode, Ruang, Dosen Pengganti, Tanggal, Waktu Mulai, Waktu Selesai']);
-  infoSheet.addRow([]);
-  infoSheet.addRow(['STYLING HEADER:']);
-  infoSheet.addRow(['• Header HIJAU (kolom yang dibiarkan kosong): Kurikulum, Kode MK, Nama Kelas, Topik, Jenis Pertemuan, Metode, Tanggal, Waktu Mulai, Waktu Selesai']);
-  infoSheet.addRow(['• Header ORANGE (kolom yang diisi dari sistem): Kelompok, Substansi, Ruang, NIP Pengajar, Dosen Pengganti']);
-  infoSheet.addRow(['• Alignment Header:']);
-  infoSheet.addRow(['  - Header satu baris: Rata kiri horizontal, Rata atas vertikal']);
-  infoSheet.addRow(['  - Header dua baris: Rata kiri horizontal, Tengah vertikal']);
-  infoSheet.addRow([]);
-  infoSheet.addRow(['MAPPING DATA:']);
-  infoSheet.addRow(['• Kolom yang diisi dari data asli SIAKAD:']);
-  infoSheet.addRow(['  - Kurikulum ← siakad_kurikulum']);
-  infoSheet.addRow(['  - Kode MK ← siakad_kode_mk']);
-  infoSheet.addRow(['  - Nama Kelas ← siakad_nama_kelas']);
-  infoSheet.addRow(['  - Jenis Pertemuan ← siakad_jenis_pertemuan']);
-  infoSheet.addRow(['  - Metode ← siakad_metode']);
-  infoSheet.addRow(['  - Dosen Pengganti ← siakad_dosen_pengganti']);
-  infoSheet.addRow(['• Kolom yang diisi dari sistem:']);
-  infoSheet.addRow(['  - Kelompok ← nama_kelompok']);
-  infoSheet.addRow(['  - Topik ← topik']);
-  infoSheet.addRow(['  - Substansi ← keahlian (dari kategori)']);
-  infoSheet.addRow(['  - Ruang ← id_ruangan (kode ruangan)']);
-  infoSheet.addRow(['  - NIP Pengajar ← nid (NID dosen)']);
-  infoSheet.addRow(['  - Tanggal ← tanggal']);
-  infoSheet.addRow(['  - Waktu Mulai ← jam_mulai']);
-  infoSheet.addRow(['  - Waktu Selesai ← jam_selesai']);
-  infoSheet.addRow([]);
-  infoSheet.addRow(['• Format tanggal: YYYY-MM-DD']);
-  infoSheet.addRow(['• Format jam: HH:MM']);
+  const infoData = [
+    ["INFORMASI EXPORT SIAKAD"],
+    [""],
+    ["Kode Mata Kuliah", data?.kode || ""],
+    ["Nama Mata Kuliah", data?.nama || ""],
+    ["Tanggal Mulai", data?.tanggal_mulai ? new Date(data.tanggal_mulai).toISOString().split('T')[0] : ""],
+    ["Tanggal Akhir", data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : ""],
+    ["Kurikulum", data?.kurikulum || ""],
+    ["Jenis", data?.jenis || ""],
+    ["Tipe Non Block", data?.tipe_non_block || ""],
+    ["Durasi Minggu", data?.durasi_minggu || ""],
+    [""],
+    [`TOTAL JADWAL ${jadwalType.toUpperCase()}`, jadwalCount],
+    [""],
+    ["CATATAN:"],
+    [`• File ini berisi data jadwal ${jadwalType.toLowerCase()} dalam format SIAKAD`],
+    ["• Format tanggal: YYYY-MM-DD"],
+    ["• Format jam: HH:MM"],
+    ["• Header dengan line break pada kolom:"],
+    ["  Kelompok, Substansi, Jenis Pertemuan, Metode, Ruang,"],
+    ["  Dosen Pengganti, Tanggal, Waktu Mulai, Waktu Selesai"],
+  ];
+  
+  // Set column widths untuk mencegah text terpotong
+  infoSheet.getColumn(1).width = 50; // Lebar kolom untuk informasi
+  infoSheet.getColumn(2).width = 30; // Lebar kolom untuk value
+  
+  // Add data dengan styling (sama persis dengan Kuliah Besar)
+  infoData.forEach((row, index) => {
+    const worksheetRow = infoSheet.addRow(row);
+    
+    // Apply wrap text untuk semua cells
+    worksheetRow.eachCell((cell: any) => {
+      cell.alignment = { 
+        vertical: 'top', 
+        horizontal: 'left',
+        wrapText: true 
+      };
+    });
+    
+    // Styling untuk header
+    if (index === 0) {
+      worksheetRow.font = { bold: true, size: 14 };
+      worksheetRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    }
+    
+    // TIDAK ADA styling bold untuk "CATATAN:" (sesuai dengan Kuliah Besar)
+  });
 };
 
 /**
@@ -567,11 +570,33 @@ export default function DetailNonBlokCSR() {
           [['• Belum ada data keahlian']]
         ),
         [''],
-        ['👨‍🏫 DOSEN YANG TERSEDIA:'],
-        ...(dosenList.length > 0 ?
-          dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''} - ${dosen.keahlian}`]) :
-          [['• Belum ada data dosen']]
-        ),
+        ['👨‍🏫 DOSEN YANG TERSEDIA (berdasarkan keahlian):'],
+        ['• Dosen ditampilkan per keahlian untuk memudahkan pemilihan'],
+        ['• Pastikan keahlian dosen sesuai dengan kategori CSR yang dipilih'],
+        [''],
+        ...(() => {
+          // Group dosen by keahlian
+          const dosenByKeahlian = new Map<string, typeof dosenList>();
+          dosenList.forEach(dosen => {
+            const keahlian = dosen.keahlian || 'Tidak ada keahlian';
+            if (!dosenByKeahlian.has(keahlian)) {
+              dosenByKeahlian.set(keahlian, []);
+            }
+            dosenByKeahlian.get(keahlian)!.push(dosen);
+          });
+
+          // Generate output per keahlian
+          const result: string[][] = [];
+          dosenByKeahlian.forEach((dosenGroup, keahlian) => {
+            result.push([`📚 ${keahlian}:`]);
+            dosenGroup.forEach(dosen => {
+              result.push([`  • ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]);
+            });
+            result.push(['']); // Empty line between keahlian groups
+          });
+          
+          return result.length > 1 ? result : [['• Belum ada data dosen']];
+        })(),
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
         ...(ruanganList.length > 0 ?
@@ -634,7 +659,6 @@ export default function DetailNonBlokCSR() {
       // Download file
       XLSX.writeFile(wb, `Template_CSR_${data?.nama || 'MataKuliah'}.xlsx`);
     } catch (error) {
-      console.error('Error downloading CSR template:', error);
       alert('Gagal mendownload template CSR. Silakan coba lagi.');
     }
   };
@@ -675,11 +699,6 @@ export default function DetailNonBlokCSR() {
           // Konversi ke JSON
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-          if (jsonData.length < 2) {
-            reject(new Error('File Excel kosong atau tidak memiliki header'));
-            return;
-          }
-
           // Ambil header (baris pertama)
           const headers = jsonData[0] as string[];
           const headerStr = headers.join(' ').toLowerCase();
@@ -717,12 +736,6 @@ export default function DetailNonBlokCSR() {
     try {
       const { data: excelData, headers, format } = await readCSRExcelFile(file);
 
-      if (excelData.length === 0) {
-        setCSRImportErrors(['File Excel kosong atau tidak memiliki data']);
-        setShowCSRImportModal(true);
-        return;
-      }
-
       // Cek format header berdasarkan format yang dideteksi
       let expectedHeaders: string[];
       if (format === 'export') {
@@ -731,16 +744,17 @@ export default function DetailNonBlokCSR() {
         expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
       }
 
-      // Normalize headers untuk perbandingan (trim spasi dan case insensitive)
-      const normalizedHeaders = headers.map(h => h?.toString().trim().toLowerCase() || '');
-      const normalizedExpected = expectedHeaders.map(h => h.trim().toLowerCase());
-
-      const headerMatch = normalizedExpected.every(expected =>
-        normalizedHeaders.some(header => header === expected || header.includes(expected))
-      );
+      // Simple strict validation - sama seperti DetailBlok.tsx
+      const headerMatch = expectedHeaders.every(header => headers.includes(header));
 
       if (!headerMatch) {
-        setCSRImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.']);
+        setCSRImportErrors(['Template tidak valid. Pastikan menggunakan template dari aplikasi ini.']);
+        setShowCSRImportModal(true);
+        return;
+      }
+
+      if (excelData.length === 0) {
+        setCSRImportErrors(['File Excel kosong atau tidak memiliki data']);
         setShowCSRImportModal(true);
         return;
       }
@@ -842,12 +856,12 @@ export default function DetailNonBlokCSR() {
   // Helper function untuk validasi tanggal
   const validateDate = (tanggal: string, rowNumber: number): string | null => {
     if (!tanggal) {
-      return `Tanggal wajib diisi (Baris ${rowNumber}, Kolom TANGGAL)`;
+      return `Baris ${rowNumber}: Tanggal wajib diisi`;
     }
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(tanggal)) {
-      return `Format tanggal harus YYYY-MM-DD (Baris ${rowNumber}, Kolom TANGGAL)`;
+      return `Baris ${rowNumber}: Format tanggal harus YYYY-MM-DD`;
     }
 
     // Validasi rentang tanggal mata kuliah
@@ -856,7 +870,7 @@ export default function DetailNonBlokCSR() {
     const tanggalJadwal = new Date(tanggal);
 
     if (tanggalMulai && tanggalAkhir && (tanggalJadwal < tanggalMulai || tanggalJadwal > tanggalAkhir)) {
-      return `Tanggal di luar rentang mata kuliah (Baris ${rowNumber}, Kolom TANGGAL)`;
+      return `Baris ${rowNumber}: Tanggal di luar rentang mata kuliah`;
     }
 
     return null;
@@ -865,11 +879,11 @@ export default function DetailNonBlokCSR() {
   // Helper function untuk validasi jam
   const validateTime = (jam: string, rowNumber: number, fieldName: string): string | null => {
     if (!jam) {
-      return `${fieldName} wajib diisi (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
+      return `Baris ${rowNumber}: ${fieldName} wajib diisi`;
     }
 
     if (!/^\d{1,2}[.:]\d{2}$/.test(jam)) {
-      return `Format ${fieldName} harus HH:MM atau HH.MM (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
+      return `Baris ${rowNumber}: Format ${fieldName} harus HH:MM atau HH.MM`;
     }
 
     // Validasi jam sesuai dengan opsi yang tersedia
@@ -884,7 +898,7 @@ export default function DetailNonBlokCSR() {
     };
 
     if (!isTimeValid(jam)) {
-      return `${fieldName} "${jam}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')} (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
+      return `Baris ${rowNumber}: ${fieldName} "${jam}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')}`;
     }
 
     return null;
@@ -899,9 +913,9 @@ export default function DetailNonBlokCSR() {
 
       // Validasi jenis CSR
       if (!row.jenis_csr) {
-        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR wajib diisi (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Baris ${rowNumber}: Jenis CSR wajib diisi` });
       } else if (!['reguler', 'responsi'].includes(row.jenis_csr)) {
-        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR harus "reguler" atau "responsi" (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Baris ${rowNumber}: Jenis CSR harus "reguler" atau "responsi"` });
       }
 
       // Validasi tanggal
@@ -911,7 +925,7 @@ export default function DetailNonBlokCSR() {
       }
 
       // Validasi jam mulai
-      const jamMulaiError = validateTime(row.jam_mulai, rowNumber, 'jam mulai');
+      const jamMulaiError = validateTime(row.jam_mulai, rowNumber, 'Jam Mulai');
       if (jamMulaiError) {
         errors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
       }
@@ -922,36 +936,36 @@ export default function DetailNonBlokCSR() {
 
       // Validasi kelompok kecil
       if (!row.kelompok_kecil_id || row.kelompok_kecil_id === 0) {
-        errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Kelompok kecil wajib diisi (Baris ${rowNumber}, Kolom KELOMPOK_KECIL)` });
+        errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Baris ${rowNumber}: Kelompok kecil wajib diisi` });
       } else {
         const kelompokKecil = kelompokKecilList.find(k => k.id === row.kelompok_kecil_id);
         if (!kelompokKecil) {
-          errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Kelompok kecil tidak ditemukan (Baris ${rowNumber}, Kolom KELOMPOK_KECIL)` });
+          errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Baris ${rowNumber}: Kelompok kecil tidak ditemukan` });
         }
       }
 
       // Validasi topik
       if (!row.topik) {
-        errors.push({ row: rowNumber, field: 'topik', message: `Topik wajib diisi (Baris ${rowNumber}, Kolom TOPIK)` });
+        errors.push({ row: rowNumber, field: 'topik', message: `Baris ${rowNumber}: Topik wajib diisi` });
       }
 
       // Validasi keahlian/kategori
       if (!row.kategori_id || row.kategori_id === 0) {
-        errors.push({ row: rowNumber, field: 'kategori_id', message: `Keahlian wajib diisi (Baris ${rowNumber}, Kolom KEAHLIAN)` });
+        errors.push({ row: rowNumber, field: 'kategori_id', message: `Baris ${rowNumber}: Keahlian wajib diisi` });
       } else {
         const kategori = kategoriList.find(k => k.id === row.kategori_id);
         if (!kategori) {
-          errors.push({ row: rowNumber, field: 'kategori_id', message: `Keahlian tidak ditemukan (Baris ${rowNumber}, Kolom KEAHLIAN)` });
+          errors.push({ row: rowNumber, field: 'kategori_id', message: `Baris ${rowNumber}: Keahlian tidak ditemukan` });
         }
       }
 
       // Validasi dosen
       if (!row.dosen_id || row.dosen_id === 0) {
-        errors.push({ row: rowNumber, field: 'dosen_id', message: `Dosen wajib diisi (Baris ${rowNumber}, Kolom DOSEN)` });
+        errors.push({ row: rowNumber, field: 'dosen_id', message: `Baris ${rowNumber}: Dosen wajib diisi` });
       } else {
         const dosen = dosenList.find(d => d.id === row.dosen_id);
         if (!dosen) {
-          errors.push({ row: rowNumber, field: 'dosen_id', message: `Dosen tidak ditemukan (Baris ${rowNumber}, Kolom DOSEN)` });
+          errors.push({ row: rowNumber, field: 'dosen_id', message: `Baris ${rowNumber}: Dosen tidak ditemukan` });
         } else {
           // Validasi keahlian dosen sesuai dengan kategori
           if (row.kategori_id) {
@@ -960,7 +974,7 @@ export default function DetailNonBlokCSR() {
               errors.push({
                 row: rowNumber,
                 field: 'dosen_id',
-                message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)`
+                message: `Baris ${rowNumber}: Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}"`
               });
             }
           }
@@ -969,11 +983,11 @@ export default function DetailNonBlokCSR() {
 
       // Validasi ruangan
       if (!row.ruangan_id || row.ruangan_id === 0) {
-        errors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom RUANGAN)` });
+        errors.push({ row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan wajib diisi` });
       } else {
         const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
         if (!ruangan) {
-          errors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNumber}, Kolom RUANGAN)` });
+          errors.push({ row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan tidak ditemukan` });
         }
       }
     });
@@ -1109,9 +1123,9 @@ export default function DetailNonBlokCSR() {
   };
 
   // Handler untuk template selection
-  const handleCSRTemplateSelection = (template: 'LAMA' | 'SIAKAD') => {
+  const handleCSRTemplateSelection = (template: 'APLIKASI' | 'SIAKAD') => {
     setShowCSRTemplateSelectionModal(false);
-    if (template === 'LAMA') {
+    if (template === 'APLIKASI') {
       setShowCSRImportModal(true);
     } else {
       setShowCSRSIAKADImportModal(true);
@@ -1344,7 +1358,8 @@ export default function DetailNonBlokCSR() {
       // Validate template format
       const isValid = await validateCSRSIAKADTemplateFormat(file);
       if (!isValid) {
-        setCSRSiakadImportErrors(['Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang benar.']);
+        setCSRSiakadImportErrors(['Template tidak valid. Pastikan menggunakan template SIAKAD yang benar.']);
+        setShowCSRSIAKADImportModal(true);
         return;
       }
 
@@ -1352,6 +1367,7 @@ export default function DetailNonBlokCSR() {
 
       if (excelData.length === 0) {
         setCSRSiakadImportErrors(['File Excel kosong atau tidak memiliki data']);
+        setShowCSRSIAKADImportModal(true);
         return;
       }
 
@@ -1455,8 +1471,10 @@ export default function DetailNonBlokCSR() {
       const { cellErrors } = validateCSRSIAKADExcelData(convertedData);
       setCSRSiakadCellErrors(cellErrors);
       setCSRSiakadImportErrors([]);
+      setShowCSRSIAKADImportModal(true);
     } catch (error) {
       setCSRSiakadImportErrors(['Gagal membaca file Excel: ' + (error as Error).message]);
+      setShowCSRSIAKADImportModal(true);
     }
   };
 
@@ -1469,9 +1487,9 @@ export default function DetailNonBlokCSR() {
 
       // Validasi jenis CSR (wajib diisi manual)
       if (!row.jenis_csr) {
-        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR wajib diisi manual (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Baris ${rowNumber}: Jenis CSR wajib diisi manual` });
       } else if (!['reguler', 'responsi'].includes(row.jenis_csr)) {
-        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR harus "reguler" atau "responsi" (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Baris ${rowNumber}: Jenis CSR harus "reguler" atau "responsi"` });
       }
 
       // Validasi tanggal
@@ -1481,29 +1499,29 @@ export default function DetailNonBlokCSR() {
       }
 
       // Validasi jam mulai
-      const jamMulaiError = validateTime(row.jam_mulai, rowNumber, 'jam mulai');
+      const jamMulaiError = validateTime(row.jam_mulai, rowNumber, 'Jam Mulai');
       if (jamMulaiError) {
         errors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
       }
 
       // Validasi kelompok kecil
       if (!row.kelompok_kecil_id || row.kelompok_kecil_id === 0) {
-        errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Kelompok kecil wajib diisi (Baris ${rowNumber}, Kolom KELOMPOK_KECIL)` });
+        errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Baris ${rowNumber}: Kelompok kecil wajib diisi` });
       }
 
       // Validasi topik
       if (!row.topik) {
-        errors.push({ row: rowNumber, field: 'topik', message: `Topik wajib diisi (Baris ${rowNumber}, Kolom TOPIK)` });
+        errors.push({ row: rowNumber, field: 'topik', message: `Baris ${rowNumber}: Topik wajib diisi` });
       }
 
       // Validasi keahlian/kategori (wajib diisi manual)
       if (!row.kategori_id || row.kategori_id === 0) {
-        errors.push({ row: rowNumber, field: 'kategori_id', message: `Keahlian wajib diisi manual (Baris ${rowNumber}, Kolom KEAHLIAN)` });
+        errors.push({ row: rowNumber, field: 'kategori_id', message: `Baris ${rowNumber}: Keahlian wajib diisi manual` });
       }
 
       // Validasi dosen (wajib diisi manual)
       if (!row.dosen_id || row.dosen_id === 0) {
-        errors.push({ row: rowNumber, field: 'dosen_id', message: `Dosen wajib diisi manual (Baris ${rowNumber}, Kolom DOSEN)` });
+        errors.push({ row: rowNumber, field: 'dosen_id', message: `Baris ${rowNumber}: Dosen wajib diisi manual` });
       } else {
         const dosen = dosenList.find(d => d.id === row.dosen_id);
         if (dosen && row.kategori_id) {
@@ -1512,7 +1530,7 @@ export default function DetailNonBlokCSR() {
             errors.push({
               row: rowNumber,
               field: 'dosen_id',
-              message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)`
+              message: `Baris ${rowNumber}: Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}"`
             });
           }
         }
@@ -1520,7 +1538,7 @@ export default function DetailNonBlokCSR() {
 
       // Validasi ruangan
       if (!row.ruangan_id || row.ruangan_id === 0) {
-        errors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom RUANGAN)` });
+        errors.push({ row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan wajib diisi` });
       }
     });
 
@@ -1727,6 +1745,7 @@ export default function DetailNonBlokCSR() {
 
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
       setCSRSiakadImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+      setShowCSRSIAKADImportModal(true);
       return;
     }
 
@@ -1836,7 +1855,6 @@ export default function DetailNonBlokCSR() {
   function handleEditJadwal(idx: number) {
     // Validasi index dan data
     if (idx < 0 || idx >= jadwalCSR.length) {
-      console.error('Invalid index for jadwalCSR:', idx);
       return;
     }
 
@@ -1844,7 +1862,6 @@ export default function DetailNonBlokCSR() {
 
     // Validasi bahwa row ada dan memiliki ID
     if (!row || !row.id) {
-      console.error('Invalid row data or missing ID:', row);
       return;
     }
 
@@ -2035,15 +2052,21 @@ export default function DetailNonBlokCSR() {
         ['Tanggal Akhir', data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : ''],
         ['Durasi Minggu', data?.durasi_minggu || ''],
         [''],
-        ['TOTAL JADWAL CSR', jadwalCSR.length],
+        [`TOTAL JADWAL CSR`, jadwalCSR.length],
         [''],
         ['CATATAN:'],
         ['• File ini berisi data jadwal CSR yang dapat di-import kembali ke aplikasi'],
         ['• Format tanggal: YYYY-MM-DD'],
         ['• Format jam: HH.MM atau HH:MM'],
-        ['• Jenis CSR: "reguler" (3 sesi) atau "responsi" (2 sesi)'],
-        ['• Jam selesai dihitung otomatis berdasarkan jenis CSR'],
-        ['• Pastikan data dosen, ruangan, kelompok kecil, dan keahlian valid sebelum import']
+        ['• Pastikan data dosen dan ruangan valid sebelum import'],
+        [''],
+        ['PANDUAN IMPORT KEMBALI:'],
+        ['1. Pastikan format file sesuai dengan template aplikasi'],
+        ['2. Jangan mengubah nama kolom header'],
+        ['3. Jenis CSR: "reguler" (3 sesi) atau "responsi" (2 sesi)'],
+        ['4. Jam selesai dihitung otomatis berdasarkan jenis CSR'],
+        ['5. Pastikan data dosen, ruangan, kelompok kecil, dan keahlian valid sebelum import'],
+        ['6. Sistem akan melakukan validasi data sebelum import'],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -2054,7 +2077,6 @@ export default function DetailNonBlokCSR() {
       const fileName = `Export_CSR_Aplikasi_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      console.error('Error exporting CSR (Aplikasi):', error);
       alert('Gagal mengekspor data CSR (Template Aplikasi)');
     }
   };
@@ -2115,7 +2137,6 @@ export default function DetailNonBlokCSR() {
       await downloadExcelFile(workbook, filename);
 
     } catch (error) {
-      console.error('Error exporting CSR (SIAKAD):', error);
       alert('Gagal mengekspor data CSR (Template SIAKAD)');
     }
   };
@@ -2281,10 +2302,10 @@ export default function DetailNonBlokCSR() {
             <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis CSR</th>
@@ -2300,7 +2321,7 @@ export default function DetailNonBlokCSR() {
               </thead>
               <tbody>
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <tr key={`skeleton-csr-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                  <tr key={`skeleton-csr-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                     <td className="px-4 py-4">
                       <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
                     </td>
@@ -2517,10 +2538,10 @@ export default function DetailNonBlokCSR() {
           )}
         </AnimatePresence>
 
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll" >
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <button
@@ -2557,7 +2578,7 @@ export default function DetailNonBlokCSR() {
                   </tr>
                 ) : (
                   getPaginatedData(jadwalCSR, csrPage, csrPageSize).map((row, i) => (
-                    <tr key={row.id || i} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <tr key={row.id || i} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
                           type="button"
@@ -3449,7 +3470,7 @@ export default function DetailNonBlokCSR() {
                     {/* Template Aplikasi */}
                     <div
                       className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200"
-                      onClick={() => handleCSRTemplateSelection('LAMA')}
+                      onClick={() => handleCSRTemplateSelection('APLIKASI')}
                     >
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
@@ -3593,26 +3614,48 @@ export default function DetailNonBlokCSR() {
                 </div>
               )}
 
-              {/* Error Validasi Frontend */}
-              {csrCellErrors.length > 0 && (
-                <div className="mb-6">
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi ({csrCellErrors.length} error)
-                      </h3>
-                    </div>
-                    <div className="max-h-40 overflow-y-auto">
-                      {csrCellErrors.map((err, idx) => (
-                        <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
-                          • {err.message}
-                        </p>
-                      ))}
+              {/* Error Messages */}
+              {(csrImportErrors.length > 0 ||
+                csrCellErrors.length > 0) && (
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {csrImportErrors.length +
+                            csrCellErrors.length}{" "}
+                          error)
+                        </h3>
+                        <div className="max-h-40 overflow-y-auto">
+                          {/* Error dari API response */}
+                          {csrImportErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err}
+                            </p>
+                          ))}
+                          {/* Error cell/detail */}
+                          {csrCellErrors.map((err, idx) => (
+                            <p
+                              key={`cell-${idx}`}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err.message}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Data Table */}
               {csrImportData.length > 0 && (
@@ -3626,10 +3669,10 @@ export default function DetailNonBlokCSR() {
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
                     <div className="max-w-full overflow-x-auto hide-scroll">
-                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                           <tr>
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
@@ -3648,7 +3691,7 @@ export default function DetailNonBlokCSR() {
                             const cellError = (field: string) => csrCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
 
                             return (
-                              <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                              <tr key={actualIndex}>
                                 <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
                                   {actualIndex + 1}
                                 </td>
@@ -3951,26 +3994,48 @@ export default function DetailNonBlokCSR() {
                 </div>
               )}
 
-              {/* Error Validasi - SIAKAD */}
-              {csrSiakadCellErrors.length > 0 && (
-                <div className="mb-6">
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi ({csrSiakadCellErrors.length} error)
-                      </h3>
-                    </div>
-                    <div className="max-h-40 overflow-y-auto">
-                      {csrSiakadCellErrors.map((err, idx) => (
-                        <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
-                          • {err.message}
-                        </p>
-                      ))}
+              {/* Error Messages - SIAKAD */}
+              {(csrSiakadImportErrors.length > 0 ||
+                csrSiakadCellErrors.length > 0) && (
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi (
+                          {csrSiakadImportErrors.length +
+                            csrSiakadCellErrors.length}{" "}
+                          error)
+                        </h3>
+                        <div className="max-h-40 overflow-y-auto">
+                          {/* Error dari API response */}
+                          {csrSiakadImportErrors.map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err}
+                            </p>
+                          ))}
+                          {/* Error cell/detail */}
+                          {csrSiakadCellErrors.map((err, idx) => (
+                            <p
+                              key={`cell-${idx}`}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err.message}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Preview Data Table - SIAKAD */}
               {csrSiakadImportData.length > 0 && (
@@ -3984,10 +4049,10 @@ export default function DetailNonBlokCSR() {
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
                     <div className="max-w-full overflow-x-auto hide-scroll">
-                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                           <tr>
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
@@ -4006,7 +4071,7 @@ export default function DetailNonBlokCSR() {
                             const cellError = (field: string) => csrSiakadCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
 
                             return (
-                              <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                              <tr key={actualIndex}>
                                 <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
                                   {actualIndex + 1}
                                 </td>

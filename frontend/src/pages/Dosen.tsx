@@ -1740,7 +1740,7 @@ export default function Dosen() {
       // NID dan NIDN wajib diisi dengan angka atau "-"
       if (!rowNid || (!/^[0-9]+$/.test(rowNid) && rowNid !== "-")) {
         errors.push(
-          `NID harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NID): ${rowNid}`
+          `• Baris ${rowNum}: NID harus diisi dengan angka atau "-"`
         );
         newCellErrors.push({
           row: index,
@@ -1751,7 +1751,7 @@ export default function Dosen() {
       }
       if (!rowNidn || (!/^[0-9]+$/.test(rowNidn) && rowNidn !== "-")) {
         errors.push(
-          `NIDN harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NIDN): ${rowNidn}`
+          `• Baris ${rowNum}: NIDN harus diisi dengan angka atau "-"`
         );
         newCellErrors.push({
           row: index,
@@ -1763,7 +1763,7 @@ export default function Dosen() {
       // NUPTK wajib diisi dengan angka atau "-"
       if (!rowNuptk || (!/^[0-9]+$/.test(rowNuptk) && rowNuptk !== "-")) {
         errors.push(
-          `NUPTK harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NUPTK): ${rowNuptk}`
+          `• Baris ${rowNum}: NUPTK harus diisi dengan angka atau "-"`
         );
         newCellErrors.push({
           row: index,
@@ -1773,7 +1773,7 @@ export default function Dosen() {
         });
       }
       if (!row.nama) {
-        errors.push(`Nama harus diisi (Baris ${rowNum})`);
+        errors.push(`• Baris ${rowNum}: Nama harus diisi`);
         newCellErrors.push({
           row: index,
           field: "nama",
@@ -1782,7 +1782,7 @@ export default function Dosen() {
         });
       }
       if (!row.username) {
-        errors.push(`Username harus diisi (Baris ${rowNum})`);
+        errors.push(`• Baris ${rowNum}: Username harus diisi`);
         newCellErrors.push({
           row: index,
           field: "username",
@@ -1791,7 +1791,7 @@ export default function Dosen() {
         });
       }
       if (!row.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
-        errors.push(`Email tidak valid (Baris ${rowNum})`);
+        errors.push(`• Baris ${rowNum}: Email tidak valid`);
         newCellErrors.push({
           row: index,
           field: "email",
@@ -1800,7 +1800,7 @@ export default function Dosen() {
         });
       }
       if (!row.telepon || !/^[0-9]+$/.test(row.telepon)) {
-        errors.push(`Nomor telepon harus diisi dengan angka (Baris ${rowNum})`);
+        errors.push(`• Baris ${rowNum}: Nomor telepon harus diisi dengan angka`);
         newCellErrors.push({
           row: index,
           field: "telepon",
@@ -1810,7 +1810,7 @@ export default function Dosen() {
       }
       if (!row.password || String(row.password).length < 6) {
         errors.push(
-          `Password harus diisi minimal 6 karakter (Baris ${rowNum})`
+          `• Baris ${rowNum}: Password harus diisi minimal 6 karakter`
         );
         newCellErrors.push({
           row: index,
@@ -1833,7 +1833,7 @@ export default function Dosen() {
           .map((k) => k.trim().toLowerCase());
         if (keahlianArray.length !== 1 || keahlianArray[0] !== "standby") {
           errors.push(
-            `Jika keahlian mengandung "standby", maka harus HANYA "standby" saja (Baris ${rowNum})`
+            `• Baris ${rowNum}: Jika keahlian mengandung "standby", maka harus HANYA "standby" saja`
           );
           newCellErrors.push({
             row: index,
@@ -1846,7 +1846,7 @@ export default function Dosen() {
         // Jika standby, kompetensi harus kosong
         if (kompetensiValue !== "") {
           errors.push(
-            `Jika keahlian "standby", kompetensi harus kosong (Baris ${rowNum})`
+            `• Baris ${rowNum}: Jika keahlian "standby", kompetensi harus kosong`
           );
           newCellErrors.push({
             row: index,
@@ -1858,7 +1858,7 @@ export default function Dosen() {
       } else {
         // Jika tidak standby, kompetensi harus diisi
         if (!kompetensiValue) {
-          errors.push(`Kompetensi harus diisi (Baris ${rowNum})`);
+          errors.push(`• Baris ${rowNum}: Kompetensi harus diisi`);
           newCellErrors.push({
             row: index,
             field: "kompetensi",
@@ -1872,7 +1872,7 @@ export default function Dosen() {
       if (rowNid && rowNid !== "-") {
         if (nidSetInFile.has(rowNid)) {
           errors.push(
-            `NID ${rowNid} sudah terdaftar dalam file Excel ini (Baris ${rowNum})`
+            `• Baris ${rowNum}: NID ${rowNid} sudah terdaftar dalam file Excel ini`
           );
           newCellErrors.push({
             row: index,
@@ -1887,7 +1887,7 @@ export default function Dosen() {
       if (rowNidn && rowNidn !== "-") {
         if (nidnSetInFile.has(rowNidn)) {
           errors.push(
-            `NIDN ${rowNidn} sudah terdaftar dalam file Excel ini (Baris ${rowNum})`
+            `• Baris ${rowNum}: NIDN ${rowNidn} sudah terdaftar dalam file Excel ini`
           );
           newCellErrors.push({
             row: index,
@@ -1902,7 +1902,7 @@ export default function Dosen() {
       if (rowUsername) {
         if (usernameSetInFile.has(rowUsername)) {
           errors.push(
-            `Username ${rowUsername} sudah terdaftar dalam file Excel ini (Baris ${rowNum})`
+            `• Baris ${rowNum}: Username ${rowUsername} sudah terdaftar dalam file Excel ini`
           );
           newCellErrors.push({
             row: index,
@@ -1917,7 +1917,7 @@ export default function Dosen() {
       if (rowEmail) {
         if (emailSetInFile.has(rowEmail)) {
           errors.push(
-            `Email ${rowEmail} sudah terdaftar dalam file Excel ini (Baris ${rowNum})`
+            `• Baris ${rowNum}: Email ${rowEmail} sudah terdaftar dalam file Excel ini`
           );
           newCellErrors.push({
             row: index,
@@ -1934,7 +1934,7 @@ export default function Dosen() {
       const existingNid = existingDbData.find((d) => String(d.nid) === rowNid);
       if (existingNid) {
         errors.push(
-          `NID ${rowNid} sudah terdaftar di database (Baris ${rowNum})`
+          `• Baris ${rowNum}: NID ${rowNid} sudah terdaftar di database`
         );
         newCellErrors.push({
           row: index,
@@ -1948,7 +1948,7 @@ export default function Dosen() {
       );
       if (existingNidn) {
         errors.push(
-          `NIDN ${rowNidn} sudah terdaftar di database (Baris ${rowNum})`
+          `• Baris ${rowNum}: NIDN ${rowNidn} sudah terdaftar di database`
         );
         newCellErrors.push({
           row: index,
@@ -1962,7 +1962,7 @@ export default function Dosen() {
       );
       if (existingUsername) {
         errors.push(
-          `Username ${rowUsername} sudah terdaftar di database (Baris ${rowNum})`
+          `• Baris ${rowNum}: Username ${rowUsername} sudah terdaftar di database`
         );
         newCellErrors.push({
           row: index,
@@ -1976,7 +1976,7 @@ export default function Dosen() {
       );
       if (existingEmail) {
         errors.push(
-          `Email ${rowEmail} sudah terdaftar di database (Baris ${rowNum})`
+          `• Baris ${rowNum}: Email ${rowEmail} sudah terdaftar di database`
         );
         newCellErrors.push({
           row: index,
@@ -3110,9 +3110,7 @@ export default function Dosen() {
                   {cellErrors.length > 0
                     ? cellErrors.map((err, idx) => (
                       <li key={idx}>
-                        {err.message} (Baris {err.row + 2}, Kolom{" "}
-                        {err.field.toUpperCase()}):{" "}
-                        {previewData.find((r) => r.nid === err.nid)?.[
+                        {err.message} {previewData.find((r) => r.nid === err.nid)?.[
                           err.field
                         ] || ""}
                       </li>

@@ -18,12 +18,13 @@ const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
-  SESI: 6,
+  JUMLAH_SESI: 6,
   KELOMPOK_BESAR: 15,
   DOSEN: 20,
   MATERI: 25,
   RUANGAN: 15,
   AGENDA: 20,
+  MAHASISWA: 40,
   INFO_COLUMN: 50,
   INFO_COLUMN_LEFT: 30
 };
@@ -443,8 +444,12 @@ export default function DetailNonBlokNonCSR() {
       ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
       ['• Jam mulai harus sesuai opsi yang tersedia'],
       ['• Jam selesai akan dihitung otomatis:'],
-      ['  Jam selesai = Jam mulai + (Jumlah sesi × 50 menit)'],
+      ['  Jam selesai = Jam mulai + (Sesi × 50 menit)'],
       ['  Contoh: 07:20 + (2 × 50 menit) = 09:00'],
+      [''],
+      ['🔢 VALIDASI SESI:'],
+      [`• Sesi: ${MIN_SESSIONS}-${MAX_SESSIONS} (1 sesi = 50 menit)`],
+      ['• Digunakan untuk menghitung jam selesai otomatis'],
       [''],
       ...(isMateri ? [
         ['📝 VALIDASI MATERI KULIAH:'],
@@ -452,41 +457,10 @@ export default function DetailNonBlokNonCSR() {
         ['• Dosen, Materi, dan Ruangan tidak boleh kosong']
       ] : [
         ['📝 VALIDASI AGENDA KHUSUS:'],
-        ['• Untuk Agenda Khusus (wajib isi: Keterangan Agenda)'],
+        ['• Untuk Agenda Khusus (wajib isi: Agenda)'],
         ['• Ruangan opsional (boleh dikosongkan untuk agenda online)']
       ]),
       [''],
-      ['🔢 VALIDASI SESI:'],
-      [`• Jumlah sesi: ${MIN_SESSIONS}-${MAX_SESSIONS} (1 sesi = 50 menit)`],
-      ['• Digunakan untuk menghitung jam selesai otomatis'],
-      [''],
-      ...(isMateri ? [
-        ['👨‍🏫 VALIDASI DOSEN:'],
-        ['• Dosen wajib diisi untuk Materi Kuliah'],
-        ['• Nama dosen harus sesuai dengan data di sistem'],
-        ['• Pastikan dosen tersedia untuk jadwal tersebut'],
-        [''],
-        ['📚 VALIDASI MATERI:'],
-        ['• Materi wajib diisi untuk Materi Kuliah'],
-        ['• Isi dengan nama materi yang akan diajarkan'],
-        [''],
-        ['🏢 VALIDASI RUANGAN:'],
-        ['• Ruangan wajib diisi untuk Materi Kuliah'],
-        ['• Nama ruangan harus sesuai dengan data di sistem'],
-        ['• Pastikan kapasitas ruangan mencukupi (mahasiswa + 1 dosen)'],
-        ['• Sistem akan validasi kapasitas otomatis'],
-        ['']
-      ] : [
-        ['📝 VALIDASI KETERANGAN AGENDA:'],
-        ['• Keterangan Agenda wajib diisi untuk Agenda Khusus'],
-        ['• Isi dengan deskripsi agenda yang jelas'],
-        ['• Contoh: "Ujian Tengah Semester", "Seminar Kesehatan", dll'],
-        [''],
-        ['🏢 VALIDASI RUANGAN (OPSIONAL):'],
-        ['• Ruangan boleh dikosongkan untuk agenda online'],
-        ['• Jika diisi, nama ruangan harus sesuai dengan data di sistem'],
-        ['']
-      ]),
       ['👥 VALIDASI KELOMPOK BESAR:'],
       [`• Kelompok besar wajib diisi (harus semester ${data.semester})`],
       ['• ID kelompok besar harus sesuai dengan semester mata kuliah'],
@@ -504,6 +478,96 @@ export default function DetailNonBlokNonCSR() {
       ] : [
         ['• Ruangan boleh dikosongkan jika agenda tidak memerlukan ruangan']
       ])
+    ];
+  };
+
+  // Helper function untuk membuat Sheet Tips dan Info untuk Seminar & Sidang
+  const createSeminarTipsAndInfoSheet = (jenis: 'seminar-proposal' | 'sidang-skripsi'): any[][] => {
+    if (!data) return [];
+
+    const startDate = new Date(data.tanggal_mulai || '');
+    const endDate = new Date(data.tanggal_akhir || '');
+    const isSeminar = jenis === 'seminar-proposal';
+    const roleType = isSeminar ? 'Komentator' : 'Penguji';
+
+    return [
+      [`TIPS DAN INFORMASI IMPORT JADWAL ${isSeminar ? 'SEMINAR PROPOSAL' : 'SIDANG SKRIPSI'}`],
+      [''],
+      ['📋 CARA UPLOAD FILE:'],
+      [`1. Download template ini dan isi dengan data jadwal ${isSeminar ? 'Seminar Proposal' : 'Sidang Skripsi'}`],
+      ['2. Pastikan semua kolom wajib diisi dengan benar'],
+      ['3. Upload file Excel yang sudah diisi ke sistem'],
+      ['4. Periksa preview data dan perbaiki error jika ada'],
+      ['5. Klik "Import Data" untuk menyimpan jadwal'],
+      [''],
+      ['✏️ CARA EDIT DATA:'],
+      ['1. Klik pada kolom yang ingin diedit di tabel preview'],
+      ['2. Ketik atau paste data yang benar'],
+      ['3. Sistem akan otomatis validasi dan update error'],
+      ['4. Pastikan tidak ada error sebelum import'],
+      [''],
+      ['📊 KETERSEDIAAN DATA:'],
+      [''],
+      ['👨‍🏫 DOSEN YANG TERSEDIA:'],
+      ...(dosenList.length > 0 ?
+        dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]) :
+        [['• Belum ada data dosen']]
+      ),
+      [''],
+      ['🏢 RUANGAN YANG TERSEDIA:'],
+      ...(ruanganList.length > 0 ?
+        ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
+        [['• Belum ada data ruangan']]
+      ),
+      [''],
+      ['⚠️ VALIDASI SISTEM:'],
+      [''],
+      ['📅 VALIDASI TANGGAL:'],
+      ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
+      ['• Wajib dalam rentang mata kuliah:'],
+      [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+      [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+      [''],
+      ['⏰ VALIDASI JAM:'],
+      ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+      ['• Jam mulai harus sesuai opsi yang tersedia'],
+      ['• Jam selesai akan dihitung otomatis:'],
+      ['  Jam selesai = Jam mulai + (Sesi × 50 menit)'],
+      ['  Contoh: 07:20 + (2 × 50 menit) = 09:00'],
+      [''],
+      ['🔢 VALIDASI SESI:'],
+      ['• Sesi: 1-6 (1 sesi = 50 menit)'],
+      ['• Digunakan untuk menghitung jam selesai otomatis'],
+      [''],
+      ['👨‍🏫 VALIDASI PEMBIMBING:'],
+      ['• Pembimbing wajib diisi (1 dosen)'],
+      ['• Nama dosen harus sesuai dengan data di sistem'],
+      [''],
+      [`👥 VALIDASI ${roleType.toUpperCase()}:`],
+      [`• ${roleType} minimal 1 dosen (bisa multiple dengan backslash separator)`],
+      [`• Untuk multiple ${roleType.toLowerCase()}, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)`],
+      ['• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma'],
+      [`• ⚠️ Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan ${roleType}`],
+      [''],
+      ['👨‍🎓 VALIDASI MAHASISWA:'],
+      ['• Mahasiswa minimal 1, tidak ada batasan maksimal'],
+      ['• Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
+      ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
+      [''],
+      ['🏢 VALIDASI RUANGAN:'],
+      ['• Ruangan opsional (boleh dikosongkan)'],
+      ['• Jika diisi, nama ruangan harus sesuai dengan data di sistem'],
+      ['• Sistem akan cek konflik jadwal ruangan'],
+      [`• Kapasitas ruangan harus mencukupi (Pembimbing + ${roleType} + Mahasiswa)`],
+      [''],
+      ['💡 TIPS PENTING:'],
+      ['• Gunakan data yang ada di list ketersediaan di atas'],
+      ['• Periksa preview sebelum import'],
+      ['• Edit langsung di tabel preview jika ada error'],
+      ['• Sistem akan highlight error dengan warna merah'],
+      ['• Tooltip akan menampilkan pesan error detail'],
+      [`• Pastikan tidak ada dosen yang sama di Pembimbing dan ${roleType}`],
+      ['• Sistem akan cek konflik jadwal (mahasiswa, dosen, ruangan)']
     ];
   };
 
@@ -545,7 +609,7 @@ export default function DetailNonBlokNonCSR() {
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.MATERI },
@@ -577,7 +641,7 @@ export default function DetailNonBlokNonCSR() {
 
       // Template data untuk Agenda Khusus (hanya kolom yang relevan)
       const templateData = [
-        ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Keterangan Agenda'],
+        ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Agenda'],
         [
           formatDateToISO(exampleDate1),
           '08.20',
@@ -601,7 +665,7 @@ export default function DetailNonBlokNonCSR() {
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
         { wch: EXCEL_COLUMN_WIDTHS.AGENDA }
@@ -625,139 +689,72 @@ export default function DetailNonBlokNonCSR() {
     if (!data) return;
 
     try {
-      const startDate = new Date(data.tanggal_mulai || '');
-      const endDate = new Date(data.tanggal_akhir || '');
-      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000));
-      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000));
-
-      // Template data untuk Seminar Proposal
-      // Contoh data menggunakan nama mahasiswa untuk kemudahan membaca
-      // Komentator sekarang menggunakan 1 kolom dengan backslash separator (bukan 2 kolom terpisah)
-      const templateData = [
-        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
-        [
-          formatDateToISO(exampleDate1),
-          '07.20',
-          '2',
-          dosenList[0]?.name || 'Dosen 1',
-          dosenList[1]?.name && dosenList[2]?.name
-            ? `${dosenList[1].name}\\${dosenList[2].name}`
-            : dosenList[1]?.name || 'Dosen 2',
-          mahasiswaList[0]?.name && mahasiswaList[1]?.name
-            ? `${mahasiswaList[0].name}, ${mahasiswaList[1].name}`
-            : mahasiswaList[0]?.name
-              ? mahasiswaList[0].name
-              : 'Mahasiswa 1, Mahasiswa 2',
-          ruanganList[0]?.nama || 'Ruang 1'
-        ],
-        [
-          formatDateToISO(exampleDate2),
-          '08.20',
-          '3',
-          dosenList[0]?.name || 'Dosen 1',
-          dosenList[1]?.name || 'Dosen 2',
-          mahasiswaList[0]?.name
-            ? mahasiswaList[0].name
-            : 'Mahasiswa 3',
-          ruanganList[0]?.nama || 'Ruang 1'
-        ]
-      ];
-
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(templateData);
+
+      // Data sheet dengan data real yang tersedia
+      const startDate = data?.tanggal_mulai ? new Date(data.tanggal_mulai) : new Date();
+      const endDate = data?.tanggal_akhir ? new Date(data.tanggal_akhir) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      
+      // Generate contoh tanggal dalam rentang mata kuliah
+      const generateContohTanggal = () => {
+        const selisihHari = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const hari1 = Math.floor(selisihHari * 0.25);
+        const hari2 = Math.floor(selisihHari * 0.75);
+        
+        const tanggal1 = new Date(startDate.getTime() + hari1 * 24 * 60 * 60 * 1000);
+        const tanggal2 = new Date(startDate.getTime() + hari2 * 24 * 60 * 60 * 1000);
+        
+        return [
+          tanggal1.toISOString().split("T")[0],
+          tanggal2.toISOString().split("T")[0]
+        ];
+      };
+      
+      const [contohTanggal1, contohTanggal2] = generateContohTanggal();
+      
+      // Ambil contoh data real yang tersedia
+      const contohPembimbing = dosenList[0]?.name || "Nama Dosen Pembimbing";
+      const contohKomentator1 = dosenList[1]?.name || dosenList[0]?.name || "Nama Dosen Komentator 1";
+      const contohKomentator2 = dosenList[2]?.name || dosenList[1]?.name || dosenList[0]?.name || "Nama Dosen Komentator 2";
+      const contohRuangan = ruanganList[0]?.nama || "Nama Ruangan";
+      
+      // Data template dengan 2 contoh baris menggunakan data real
+      const seminarData = [
+        {
+          'Tanggal': contohTanggal1,
+          'Jam Mulai': '08.00',
+          'Sesi': 2,
+          'Pembimbing': contohPembimbing,
+          'Komentator': `${contohKomentator1}\\${contohKomentator2}`,
+          'Mahasiswa (Nama, dipisah koma)': 'Nama Mahasiswa 1, Nama Mahasiswa 2',
+          'Ruangan': contohRuangan
+        },
+        {
+          'Tanggal': contohTanggal2,
+          'Jam Mulai': '10.00',
+          'Sesi': 3,
+          'Pembimbing': contohPembimbing,
+          'Komentator': contohKomentator1,
+          'Mahasiswa (Nama, dipisah koma)': 'Nama Mahasiswa 3, Nama Mahasiswa 4',
+          'Ruangan': contohRuangan
+        }
+      ];
+      const ws = XLSX.utils.json_to_sheet(seminarData, {
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan']
+      });
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
-        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
-        { wch: 40 },
+        { wch: EXCEL_COLUMN_WIDTHS.MAHASISWA },
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
       ];
-      XLSX.utils.book_append_sheet(wb, ws, 'Template Seminar Proposal');
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Seminar Proposal');
 
-      // Sheet 2: Tips dan Info
-      const tipsData = [
-        ['TIPS DAN INFORMASI IMPORT JADWAL SEMINAR PROPOSAL'],
-        [''],
-        ['📋 CARA UPLOAD FILE:'],
-        ['1. Download template ini dan isi dengan data jadwal Seminar Proposal'],
-        ['2. Pastikan semua kolom wajib diisi dengan benar'],
-        ['3. Upload file Excel yang sudah diisi ke sistem'],
-        ['4. Periksa preview data dan perbaiki error jika ada'],
-        ['5. Klik "Import Data" untuk menyimpan jadwal'],
-        [''],
-        ['✏️ CARA EDIT DATA:'],
-        ['1. Klik pada kolom yang ingin diedit di tabel preview'],
-        ['2. Ketik atau paste data yang benar'],
-        ['3. Sistem akan otomatis validasi dan update error'],
-        ['4. Pastikan tidak ada error sebelum import'],
-        [''],
-        ['📊 KETERSEDIAAN DATA:'],
-        [''],
-        ['👨‍🏫 DOSEN YANG TERSEDIA:'],
-        ...(dosenList.length > 0 ?
-          dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]) :
-          [['• Belum ada data dosen']]
-        ),
-        [''],
-        ['🏢 RUANGAN YANG TERSEDIA:'],
-        ...(ruanganList.length > 0 ?
-          ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
-          [['• Belum ada data ruangan']]
-        ),
-        [''],
-        ['⚠️ VALIDASI SISTEM:'],
-        [''],
-        ['📅 VALIDASI TANGGAL:'],
-        ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
-        ['• Wajib dalam rentang mata kuliah:'],
-        [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
-        [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
-        [''],
-        ['⏰ VALIDASI JAM:'],
-        ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
-        ['• Jam mulai harus sesuai opsi yang tersedia'],
-        ['• Jam selesai akan dihitung otomatis:'],
-        ['  Jam selesai = Jam mulai + (Jumlah sesi × 50 menit)'],
-        ['  Contoh: 07:20 + (2 × 50 menit) = 09:00'],
-        [''],
-        ['🔢 VALIDASI SESI:'],
-        ['• Jumlah sesi: 1-6 (1 sesi = 50 menit)'],
-        ['• Digunakan untuk menghitung jam selesai otomatis'],
-        [''],
-        ['👨‍🏫 VALIDASI PEMBIMBING:'],
-        ['• Pembimbing wajib diisi (1 dosen)'],
-        ['• Nama dosen harus sesuai dengan data di sistem'],
-        [''],
-        ['👥 VALIDASI KOMENTATOR:'],
-        ['• Komentator minimal 1 dosen (bisa multiple dengan backslash separator)'],
-        ['• Untuk multiple komentator, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)'],
-        ['• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma'],
-        ['• ⚠️ Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Komentator'],
-        [''],
-        ['👨‍🎓 VALIDASI MAHASISWA:'],
-        ['• Mahasiswa minimal 1, tidak ada batasan maksimal'],
-        ['• Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
-        ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
-        [''],
-        ['🏢 VALIDASI RUANGAN:'],
-        ['• Ruangan opsional (boleh dikosongkan)'],
-        ['• Jika diisi, nama ruangan harus sesuai dengan data di sistem'],
-        ['• Sistem akan cek konflik jadwal ruangan'],
-        ['• Kapasitas ruangan harus mencukupi (Pembimbing + Komentator + Mahasiswa)'],
-        [''],
-        ['💡 TIPS PENTING:'],
-        ['• Gunakan data yang ada di list ketersediaan di atas'],
-        ['• Periksa preview sebelum import'],
-        ['• Edit langsung di tabel preview jika ada error'],
-        ['• Sistem akan highlight error dengan warna merah'],
-        ['• Tooltip akan menampilkan pesan error detail'],
-        ['• Pastikan tidak ada dosen yang sama di Pembimbing dan Komentator'],
-        ['• Sistem akan cek konflik jadwal (mahasiswa, dosen, ruangan)']
-      ];
-
+      // Sheet 2: Tips dan Info menggunakan helper function
+      const tipsData = createSeminarTipsAndInfoSheet('seminar-proposal');
       const tipsWs = XLSX.utils.aoa_to_sheet(tipsData);
       tipsWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
       XLSX.utils.book_append_sheet(wb, tipsWs, 'Tips dan Info');
@@ -774,139 +771,72 @@ export default function DetailNonBlokNonCSR() {
     if (!data) return;
 
     try {
-      const startDate = new Date(data.tanggal_mulai || '');
-      const endDate = new Date(data.tanggal_akhir || '');
-      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000));
-      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000));
-
-      // Template data untuk Sidang Skripsi
-      // Contoh data menggunakan nama mahasiswa untuk kemudahan membaca
-      // Penguji sekarang menggunakan 1 kolom dengan backslash separator (bukan 2 kolom terpisah)
-      const templateData = [
-        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
-        [
-          formatDateToISO(exampleDate1),
-          '07.20',
-          '2',
-          dosenList[0]?.name || 'Dosen 1',
-          dosenList[1]?.name && dosenList[2]?.name
-            ? `${dosenList[1].name}\\${dosenList[2].name}`
-            : dosenList[1]?.name || 'Dosen 2',
-          mahasiswaList[0]?.name && mahasiswaList[1]?.name
-            ? `${mahasiswaList[0].name}, ${mahasiswaList[1].name}`
-            : mahasiswaList[0]?.name
-              ? mahasiswaList[0].name
-              : 'Mahasiswa 1, Mahasiswa 2',
-          ruanganList[0]?.nama || 'Ruang 1'
-        ],
-        [
-          formatDateToISO(exampleDate2),
-          '08.20',
-          '3',
-          dosenList[0]?.name || 'Dosen 1',
-          dosenList[1]?.name || 'Dosen 2',
-          mahasiswaList[0]?.name
-            ? mahasiswaList[0].name
-            : 'Mahasiswa 3',
-          ruanganList[0]?.nama || 'Ruang 1'
-        ]
-      ];
-
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(templateData);
+
+      // Data sheet dengan data real yang tersedia
+      const startDate = data?.tanggal_mulai ? new Date(data.tanggal_mulai) : new Date();
+      const endDate = data?.tanggal_akhir ? new Date(data.tanggal_akhir) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      
+      // Generate contoh tanggal dalam rentang mata kuliah
+      const generateContohTanggal = () => {
+        const selisihHari = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const hari1 = Math.floor(selisihHari * 0.25);
+        const hari2 = Math.floor(selisihHari * 0.75);
+        
+        const tanggal1 = new Date(startDate.getTime() + hari1 * 24 * 60 * 60 * 1000);
+        const tanggal2 = new Date(startDate.getTime() + hari2 * 24 * 60 * 60 * 1000);
+        
+        return [
+          tanggal1.toISOString().split("T")[0],
+          tanggal2.toISOString().split("T")[0]
+        ];
+      };
+      
+      const [contohTanggal1, contohTanggal2] = generateContohTanggal();
+      
+      // Ambil contoh data real yang tersedia
+      const contohPembimbing = dosenList[0]?.name || "Nama Dosen Pembimbing";
+      const contohPenguji1 = dosenList[1]?.name || dosenList[0]?.name || "Nama Dosen Penguji 1";
+      const contohPenguji2 = dosenList[2]?.name || dosenList[1]?.name || dosenList[0]?.name || "Nama Dosen Penguji 2";
+      const contohRuangan = ruanganList[0]?.nama || "Nama Ruangan";
+      
+      // Data template dengan 2 contoh baris menggunakan data real
+      const sidangData = [
+        {
+          'Tanggal': contohTanggal1,
+          'Jam Mulai': '08.00',
+          'Sesi': 2,
+          'Pembimbing': contohPembimbing,
+          'Penguji': `${contohPenguji1}\\${contohPenguji2}`,
+          'Mahasiswa (Nama, dipisah koma)': 'Nama Mahasiswa 1, Nama Mahasiswa 2',
+          'Ruangan': contohRuangan
+        },
+        {
+          'Tanggal': contohTanggal2,
+          'Jam Mulai': '10.00',
+          'Sesi': 3,
+          'Pembimbing': contohPembimbing,
+          'Penguji': contohPenguji1,
+          'Mahasiswa (Nama, dipisah koma)': 'Nama Mahasiswa 3, Nama Mahasiswa 4',
+          'Ruangan': contohRuangan
+        }
+      ];
+      const ws = XLSX.utils.json_to_sheet(sidangData, {
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan']
+      });
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
-        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
-        { wch: 40 },
+        { wch: EXCEL_COLUMN_WIDTHS.MAHASISWA },
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
       ];
-      XLSX.utils.book_append_sheet(wb, ws, 'Template Sidang Skripsi');
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Sidang Skripsi');
 
-      // Sheet 2: Tips dan Info
-      const tipsData = [
-        ['TIPS DAN INFORMASI IMPORT JADWAL SIDANG SKRIPSI'],
-        [''],
-        ['📋 CARA UPLOAD FILE:'],
-        ['1. Download template ini dan isi dengan data jadwal Sidang Skripsi'],
-        ['2. Pastikan semua kolom wajib diisi dengan benar'],
-        ['3. Upload file Excel yang sudah diisi ke sistem'],
-        ['4. Periksa preview data dan perbaiki error jika ada'],
-        ['5. Klik "Import Data" untuk menyimpan jadwal'],
-        [''],
-        ['✏️ CARA EDIT DATA:'],
-        ['1. Klik pada kolom yang ingin diedit di tabel preview'],
-        ['2. Ketik atau paste data yang benar'],
-        ['3. Sistem akan otomatis validasi dan update error'],
-        ['4. Pastikan tidak ada error sebelum import'],
-        [''],
-        ['📊 KETERSEDIAAN DATA:'],
-        [''],
-        ['👨‍🏫 DOSEN YANG TERSEDIA:'],
-        ...(dosenList.length > 0 ?
-          dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]) :
-          [['• Belum ada data dosen']]
-        ),
-        [''],
-        ['🏢 RUANGAN YANG TERSEDIA:'],
-        ...(ruanganList.length > 0 ?
-          ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
-          [['• Belum ada data ruangan']]
-        ),
-        [''],
-        ['⚠️ VALIDASI SISTEM:'],
-        [''],
-        ['📅 VALIDASI TANGGAL:'],
-        ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
-        ['• Wajib dalam rentang mata kuliah:'],
-        [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
-        [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
-        [''],
-        ['⏰ VALIDASI JAM:'],
-        ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
-        ['• Jam mulai harus sesuai opsi yang tersedia'],
-        ['• Jam selesai akan dihitung otomatis:'],
-        ['  Jam selesai = Jam mulai + (Jumlah sesi × 50 menit)'],
-        ['  Contoh: 07:20 + (2 × 50 menit) = 09:00'],
-        [''],
-        ['🔢 VALIDASI SESI:'],
-        ['• Jumlah sesi: 1-6 (1 sesi = 50 menit)'],
-        ['• Digunakan untuk menghitung jam selesai otomatis'],
-        [''],
-        ['👨‍🏫 VALIDASI PEMBIMBING:'],
-        ['• Pembimbing wajib diisi (1 dosen)'],
-        ['• Nama dosen harus sesuai dengan data di sistem'],
-        [''],
-        ['👥 VALIDASI PENGUJI:'],
-        ['• Penguji minimal 1 dosen (bisa multiple dengan backslash separator)'],
-        ['• Untuk multiple penguji, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)'],
-        ['• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma'],
-        ['• ⚠️ Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Penguji'],
-        [''],
-        ['👨‍🎓 VALIDASI MAHASISWA:'],
-        ['• Mahasiswa minimal 1, tidak ada batasan maksimal'],
-        ['• Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
-        ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
-        [''],
-        ['🏢 VALIDASI RUANGAN:'],
-        ['• Ruangan opsional (boleh dikosongkan)'],
-        ['• Jika diisi, nama ruangan harus sesuai dengan data di sistem'],
-        ['• Sistem akan cek konflik jadwal ruangan'],
-        ['• Kapasitas ruangan harus mencukupi (Pembimbing + Penguji + Mahasiswa)'],
-        [''],
-        ['💡 TIPS PENTING:'],
-        ['• Gunakan data yang ada di list ketersediaan di atas'],
-        ['• Periksa preview sebelum import'],
-        ['• Edit langsung di tabel preview jika ada error'],
-        ['• Sistem akan highlight error dengan warna merah'],
-        ['• Tooltip akan menampilkan pesan error detail'],
-        ['• Pastikan tidak ada dosen yang sama di Pembimbing dan Penguji'],
-        ['• Sistem akan cek konflik jadwal (mahasiswa, dosen, ruangan)']
-      ];
-
+      // Sheet 2: Tips dan Info menggunakan helper function
+      const tipsData = createSeminarTipsAndInfoSheet('sidang-skripsi');
       const tipsWs = XLSX.utils.aoa_to_sheet(tipsData);
       tipsWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
       XLSX.utils.book_append_sheet(wb, tipsWs, 'Tips dan Info');
@@ -950,11 +880,6 @@ export default function DetailNonBlokNonCSR() {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-          if (jsonData.length < 2) {
-            reject(new Error('File Excel harus memiliki minimal 2 baris (header dan data)'));
-            return;
-          }
-
           const headers = jsonData[0] as string[];
           const dataRows = jsonData.slice(1) as any[][];
 
@@ -979,18 +904,18 @@ export default function DetailNonBlokNonCSR() {
 
       // Validasi tanggal
       if (!row.tanggal) {
-        errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal wajib diisi (Baris ${rowNum}, Kolom Tanggal)` });
+        errors.push({ row: rowNum, field: 'tanggal', message: `Baris ${rowNum}: Tanggal wajib diisi` });
       } else if (!/^\d{4}-\d{2}-\d{2}$/.test(row.tanggal)) {
-        errors.push({ row: rowNum, field: 'tanggal', message: `Format tanggal harus YYYY-MM-DD (Baris ${rowNum}, Kolom Tanggal)` });
+        errors.push({ row: rowNum, field: 'tanggal', message: `Baris ${rowNum}: Format tanggal harus YYYY-MM-DD` });
       } else {
         // Validasi tanggal yang valid (misal: 2026-02-30 tidak valid)
         const dateObj = new Date(row.tanggal);
         if (isNaN(dateObj.getTime()) || row.tanggal !== dateObj.toISOString().split('T')[0]) {
-          errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal tidak valid (Baris ${rowNum}, Kolom Tanggal)` });
+          errors.push({ row: rowNum, field: 'tanggal', message: `Baris ${rowNum}: Tanggal tidak valid` });
         } else {
           // Validasi rentang tanggal mata kuliah (WAJIB)
           if (!data || !data.tanggal_mulai || !data.tanggal_akhir) {
-            errors.push({ row: rowNum, field: 'tanggal', message: `Data mata kuliah tidak lengkap. Tidak dapat memvalidasi rentang tanggal (Baris ${rowNum}, Kolom Tanggal)` });
+            errors.push({ row: rowNum, field: 'tanggal', message: `Baris ${rowNum}: Data mata kuliah tidak lengkap. Tidak dapat memvalidasi rentang tanggal` });
           } else {
             const startDate = new Date(data.tanggal_mulai);
             const endDate = new Date(data.tanggal_akhir);
@@ -1007,7 +932,7 @@ export default function DetailNonBlokNonCSR() {
               errors.push({
                 row: rowNum,
                 field: 'tanggal',
-                message: `Tanggal di luar rentang mata kuliah (${startDateFormatted} - ${endDateFormatted}) (Baris ${rowNum}, Kolom Tanggal)`
+                message: `Baris ${rowNum}: Tanggal di luar rentang mata kuliah (${startDateFormatted} - ${endDateFormatted})`
               });
             }
           }
@@ -1016,30 +941,30 @@ export default function DetailNonBlokNonCSR() {
 
       // Validasi jam mulai
       if (!row.jam_mulai) {
-        errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai wajib diisi (Baris ${rowNum}, Kolom jam mulai)` });
+        errors.push({ row: rowNum, field: 'jam_mulai', message: `Baris ${rowNum}: Jam Mulai wajib diisi` });
       } else if (!/^\d{1,2}[.:]\d{2}$/.test(row.jam_mulai)) {
-        errors.push({ row: rowNum, field: 'jam_mulai', message: `Format jam mulai harus HH:MM atau HH.MM (Baris ${rowNum}, Kolom jam mulai)` });
+        errors.push({ row: rowNum, field: 'jam_mulai', message: `Baris ${rowNum}: Format Jam Mulai harus HH:MM atau HH.MM` });
       } else {
         const jamMulaiInput = row.jam_mulai.replace(':', '.');
         if (!jamOptions.includes(jamMulaiInput)) {
-          errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai "${row.jam_mulai}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')} (Baris ${rowNum}, Kolom jam mulai)` });
+          errors.push({ row: rowNum, field: 'jam_mulai', message: `Baris ${rowNum}: Jam Mulai "${row.jam_mulai}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')}` });
         }
       }
 
 
       // Validasi jenis baris sudah tidak diperlukan karena jadwal sudah dipisah (materi, agenda, seminar_proposal masing-masing punya tombol import sendiri)
 
-      // Validasi sesi
+      // Validasi jumlah sesi
       if (!row.jumlah_sesi) {
-        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Jumlah sesi wajib diisi (Baris ${rowNum}, Kolom SESI)` });
+        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Baris ${rowNum}: Sesi wajib diisi` });
       } else if (row.jumlah_sesi < MIN_SESSIONS || row.jumlah_sesi > MAX_SESSIONS) {
-        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Jumlah sesi harus antara ${MIN_SESSIONS}-${MAX_SESSIONS} (Baris ${rowNum}, Kolom SESI)` });
+        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Baris ${rowNum}: Sesi harus antara ${MIN_SESSIONS}-${MAX_SESSIONS}` });
       }
 
       // Validasi kelompok besar (hanya untuk materi dan agenda, bukan seminar_proposal atau sidang_skripsi)
       if (row.jenis_baris !== 'seminar_proposal' && row.jenis_baris !== 'sidang_skripsi') {
         if (!row.kelompok_besar_id || row.kelompok_besar_id === null) {
-          errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID wajib diisi (Baris ${rowNum}, Kolom KELOMPOK_BESAR_ID)` });
+          errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Baris ${rowNum}: Kelompok besar ID wajib diisi` });
         } else {
           // Gunakan options yang tepat berdasarkan jenis_baris
           const kelompokBesarOptions = row.jenis_baris === 'materi' ? kelompokBesarMateriOptions : kelompokBesarAgendaOptions;
@@ -1054,7 +979,7 @@ export default function DetailNonBlokNonCSR() {
           if (data && data.semester) {
             const mataKuliahSemester = parseInt(data.semester.toString());
             if (typeof mataKuliahSemester === 'number' && mataKuliahSemester > 0 && row.kelompok_besar_id !== mataKuliahSemester) {
-              errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak sesuai dengan semester mata kuliah (${mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester ${mataKuliahSemester}. (Baris ${rowNum}, Kolom KELOMPOK_BESAR_ID)` });
+              errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Baris ${rowNum}: Kelompok besar ID ${row.kelompok_besar_id} tidak sesuai dengan semester mata kuliah (${mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester ${mataKuliahSemester}` });
               hasSemesterError = true;
             }
           }
@@ -1062,7 +987,7 @@ export default function DetailNonBlokNonCSR() {
           // Validasi apakah kelompok besar ada di options yang tersedia (hanya jika belum ada error semester)
           if (!hasSemesterError && !validKelompokBesarIds.includes(row.kelompok_besar_id)) {
             const availableIds = kelompokBesarOptions.map(kb => kb.id).join(', ');
-            errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak ditemukan. ID yang tersedia: ${availableIds} (Baris ${rowNum}, Kolom KELOMPOK_BESAR_ID)` });
+            errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Baris ${rowNum}: Kelompok besar ID ${row.kelompok_besar_id} tidak ditemukan. ID yang tersedia: ${availableIds}` });
           }
         }
       }
@@ -1071,11 +996,11 @@ export default function DetailNonBlokNonCSR() {
       if (row.jenis_baris === 'materi') {
         // Validasi dosen - cek nama_dosen dulu, lalu cari ID-nya
         if (!row.nama_dosen || row.nama_dosen.trim() === '') {
-          errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen wajib diisi (Baris ${rowNum}, Kolom Dosen)` });
+          errors.push({ row: rowNum, field: 'dosen_id', message: `Baris ${rowNum}: Dosen wajib diisi` });
         } else {
           const dosenOption = dosenList.find(d => d.name === row.nama_dosen || `${d.name} (${d.nid})` === row.nama_dosen || d.name.includes(row.nama_dosen) || d.nid === row.nama_dosen);
           if (!dosenOption) {
-            errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen "${row.nama_dosen}" tidak ditemukan (Baris ${rowNum}, Kolom Dosen)` });
+            errors.push({ row: rowNum, field: 'dosen_id', message: `Baris ${rowNum}: Dosen "${row.nama_dosen}" tidak ditemukan` });
           } else if (!row.dosen_id || row.dosen_id === null) {
             // Update dosen_id jika belum di-set
             row.dosen_id = dosenOption.id;
@@ -1084,16 +1009,16 @@ export default function DetailNonBlokNonCSR() {
 
         // Validasi materi
         if (!row.materi || row.materi.trim() === '') {
-          errors.push({ row: rowNum, field: 'materi', message: `Materi wajib diisi (Baris ${rowNum}, Kolom MATERI)` });
+          errors.push({ row: rowNum, field: 'materi', message: `Baris ${rowNum}: Materi wajib diisi` });
         }
 
         // Validasi ruangan - cek nama_ruangan dulu, lalu cari ID-nya
         if (!row.nama_ruangan || row.nama_ruangan.trim() === '') {
-          errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNum}, Kolom Ruangan)` });
+          errors.push({ row: rowNum, field: 'ruangan_id', message: `Baris ${rowNum}: Ruangan wajib diisi` });
         } else {
           const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
           if (!ruanganOption) {
-            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Baris ${rowNum}: Ruangan "${row.nama_ruangan}" tidak ditemukan` });
           } else if (!row.ruangan_id || row.ruangan_id === null) {
             // Update ruangan_id jika belum di-set
             row.ruangan_id = ruanganOption.id;
@@ -1105,14 +1030,14 @@ export default function DetailNonBlokNonCSR() {
       if (row.jenis_baris === 'agenda') {
         // Validasi keterangan agenda
         if (!row.agenda || row.agenda.trim() === '') {
-          errors.push({ row: rowNum, field: 'agenda', message: `Keterangan agenda wajib diisi untuk jenis agenda (Baris ${rowNum}, Kolom Keterangan Agenda)` });
+          errors.push({ row: rowNum, field: 'agenda', message: `Baris ${rowNum}: Agenda wajib diisi untuk jenis agenda` });
         }
 
         // Validasi ruangan (opsional untuk agenda) - cek nama_ruangan dulu, lalu cari ID-nya
         if (row.nama_ruangan && row.nama_ruangan.trim() !== '') {
           const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
           if (!ruanganOption) {
-            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Baris ${rowNum}: Ruangan "${row.nama_ruangan}" tidak ditemukan` });
           } else if (!row.ruangan_id || row.ruangan_id === null) {
             // Update ruangan_id jika belum di-set
             row.ruangan_id = ruanganOption.id;
@@ -1124,7 +1049,7 @@ export default function DetailNonBlokNonCSR() {
       if (row.jenis_baris === 'seminar_proposal') {
         // Validasi pembimbing
         if (!row.nama_pembimbing || row.nama_pembimbing.trim() === '') {
-          errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNum}, Kolom Pembimbing)` });
+          errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Pembimbing wajib diisi` });
         } else {
           // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
           const pembimbingNames = typeof row.nama_pembimbing === 'string'
@@ -1132,7 +1057,7 @@ export default function DetailNonBlokNonCSR() {
             : [row.nama_pembimbing];
 
           if (pembimbingNames.length > 1) {
-            errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNum}, Kolom Pembimbing)` });
+            errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Pembimbing maksimal 1` });
           } else {
             const pembimbingOption = dosenList.find(d =>
               d.name.toLowerCase() === row.nama_pembimbing.toLowerCase() ||
@@ -1141,14 +1066,14 @@ export default function DetailNonBlokNonCSR() {
               d.id.toString() === row.nama_pembimbing
             );
             if (!pembimbingOption) {
-              errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing "${row.nama_pembimbing}" tidak ditemukan (Baris ${rowNum}, Kolom Pembimbing)` });
+              errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Pembimbing "${row.nama_pembimbing}" tidak ditemukan` });
             } else {
               if (!row.pembimbing_id || row.pembimbing_id === null) {
                 row.pembimbing_id = pembimbingOption.id;
               }
               // Validasi: Cek apakah pembimbing yang dipilih sudah ada di komentator
               if (row.komentator_ids && row.komentator_ids.includes(pembimbingOption.id)) {
-                errors.push({ row: rowNum, field: 'pembimbing_id', message: `Dosen "${pembimbingOption.name}" sudah dipilih sebagai Komentator. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator (Baris ${rowNum}, Kolom Pembimbing)` });
+                errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Dosen "${pembimbingOption.name}" sudah dipilih sebagai Komentator. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator` });
               }
             }
           }
@@ -1158,7 +1083,7 @@ export default function DetailNonBlokNonCSR() {
         // Parse nama_komentator - gunakan backslash sebagai pemisah karena beberapa dosen memiliki gelar dengan koma
         const namaKomentator = row.nama_komentator || '';
         if (!namaKomentator || (String(namaKomentator).trim() === '')) {
-          errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator wajib diisi minimal 1 (Baris ${rowNum}, Kolom Komentator)` });
+          errors.push({ row: rowNum, field: 'komentator_ids', message: `Baris ${rowNum}: Komentator wajib diisi minimal 1` });
         } else {
           // Parse dosen names dengan backslash separator
           const komentatorNames = (typeof namaKomentator === 'string' ? namaKomentator : String(namaKomentator))
@@ -1167,7 +1092,9 @@ export default function DetailNonBlokNonCSR() {
             .filter((n: string) => n !== '');
 
           if (komentatorNames.length === 0) {
-            errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator wajib diisi minimal 1 (Baris ${rowNum}, Kolom Komentator)` });
+            errors.push({ row: rowNum, field: 'komentator_ids', message: `Baris ${rowNum}: Komentator wajib diisi minimal 1` });
+          } else if (komentatorNames.length > 2) {
+            errors.push({ row: rowNum, field: 'komentator_ids', message: `Baris ${rowNum}: Komentator maksimal 2` });
           } else {
             const komentatorIds: number[] = [];
             const invalidKomentatorNames: string[] = [];
@@ -1187,18 +1114,43 @@ export default function DetailNonBlokNonCSR() {
             });
 
             if (invalidKomentatorNames.length > 0) {
-              errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator tidak valid: "${invalidKomentatorNames.join(', ')}". Pastikan semua nama komentator valid (Baris ${rowNum}, Kolom Komentator)` });
+              errors.push({ row: rowNum, field: 'komentator_ids', message: `Baris ${rowNum}: Komentator tidak valid: "${invalidKomentatorNames.join(', ')}". Pastikan semua nama komentator valid` });
             }
 
             if (komentatorIds.length === 0) {
-              errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator wajib diisi dengan minimal 1 komentator yang valid (Baris ${rowNum}, Kolom Komentator)` });
+              errors.push({ row: rowNum, field: 'komentator_ids', message: `Baris ${rowNum}: Komentator wajib diisi dengan minimal 1 komentator yang valid` });
             } else {
               // Set komentator_ids untuk digunakan saat submit
               (row as any).komentator_ids = komentatorIds;
+              
               // Validasi: Cek apakah ada dosen yang sama di pembimbing dan komentator
               if (row.pembimbing_id && komentatorIds.includes(row.pembimbing_id)) {
                 const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
-                errors.push({ row: rowNum, field: 'komentator_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator: ${pembimbingName} (Baris ${rowNum}, Kolom Komentator)` });
+                errors.push({ row: rowNum, field: 'komentator_ids', message: `Baris ${rowNum}: Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator: ${pembimbingName}` });
+              }
+              
+              // Validasi: Cek apakah ada duplikasi komentator
+              const uniqueKomentatorIds = [...new Set(komentatorIds)];
+              if (uniqueKomentatorIds.length < komentatorIds.length) {
+                // Cari nama komentator yang duplikat
+                const komentatorNamesMapped = komentatorNames.map((nama: string) => {
+                  const komentatorOption = dosenList.find(d =>
+                    d.name.toLowerCase() === nama.toLowerCase() ||
+                    `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+                    d.nid === nama ||
+                    d.id.toString() === nama
+                  );
+                  return komentatorOption ? komentatorOption.name : nama;
+                });
+                
+                const duplicates = komentatorNamesMapped.filter((name, index) => komentatorNamesMapped.indexOf(name) !== index);
+                const uniqueDuplicates = [...new Set(duplicates)];
+                
+                errors.push({ 
+                  row: rowNum, 
+                  field: 'komentator_ids', 
+                  message: `Baris ${rowNum}: Komentator tidak boleh duplikat: "${uniqueDuplicates.join(', ')}"` 
+                });
               }
             }
           }
@@ -1207,16 +1159,69 @@ export default function DetailNonBlokNonCSR() {
         // Validasi mahasiswa
         const mahasiswaNims = row.mahasiswa_nims || [];
         if (mahasiswaNims.length === 0) {
-          errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi minimal 1 (Baris ${rowNum}, Kolom Mahasiswa)` });
+          errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Baris ${rowNum}: Mahasiswa wajib diisi minimal 1` });
+        }
+
+        // Validasi nama mahasiswa (input user) - tambahan untuk memastikan error tetap muncul saat input invalid
+        if (row.nama_mahasiswa) {
+          const mahasiswaStr = Array.isArray(row.nama_mahasiswa) ? row.nama_mahasiswa.join(', ') : row.nama_mahasiswa;
+          if (mahasiswaStr.trim() !== '') {
+            // Parse string menjadi array untuk validasi
+            const mahasiswaInputs = mahasiswaStr.split(',').map((n: string) => n.trim()).filter(Boolean);
+
+            if (mahasiswaInputs.length > 0) {
+              // Validasi apakah semua input valid (nama atau NIM)
+              const invalidInputs: string[] = [];
+              mahasiswaInputs.forEach((input: string) => {
+                if (input && input.trim() !== '') {
+                  // Cek apakah input adalah nama yang valid atau NIM yang valid
+                  const mahasiswaByName = mahasiswaList.find(m =>
+                    m.name.toLowerCase() === input.toLowerCase()
+                  );
+                  const mahasiswaByNim = mahasiswaList.find(m =>
+                    m.nim.toLowerCase() === input.toLowerCase()
+                  );
+
+                  if (!mahasiswaByName && !mahasiswaByNim) {
+                    invalidInputs.push(input);
+                  }
+                }
+              });
+
+              if (invalidInputs.length > 0) {
+                errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Baris ${rowNum}: Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan` });
+              }
+              
+              // Validasi: Cek apakah ada duplikasi mahasiswa
+              const uniqueMahasiswaInputs = [...new Set(mahasiswaInputs)];
+              if (uniqueMahasiswaInputs.length < mahasiswaInputs.length) {
+                const duplicates = mahasiswaInputs.filter((input, index) => mahasiswaInputs.indexOf(input) !== index);
+                const uniqueDuplicates = [...new Set(duplicates)];
+                
+                errors.push({ 
+                  row: rowNum, 
+                  field: 'mahasiswa_nims', 
+                  message: `Baris ${rowNum}: Mahasiswa tidak boleh duplikat: "${uniqueDuplicates.join(', ')}"` 
+                });
+              }
+            }
+          }
         }
 
         // Validasi ruangan (opsional)
         if (row.nama_ruangan && row.nama_ruangan.trim() !== '') {
-          const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
-          if (!ruanganOption) {
-            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          // Cari ruangan yang cocok persis untuk validasi
+          const exactMatchRuangan = ruanganList.find(r => r.nama === row.nama_ruangan || r.id.toString() === row.nama_ruangan);
+          
+          // Cari ruangan yang cocok parsial untuk update ID (jika perlu)
+          const partialMatchRuangan = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
+          
+          // Validasi: hanya ruangan yang cocok persis yang dianggap valid
+          if (!exactMatchRuangan) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Baris ${rowNum}: Ruangan "${row.nama_ruangan}" tidak ditemukan` });
           } else if (!row.ruangan_id || row.ruangan_id === null) {
-            row.ruangan_id = ruanganOption.id;
+            // Update ruangan_id hanya jika ada exact match
+            row.ruangan_id = exactMatchRuangan.id;
           } else {
             // Validasi kapasitas ruangan untuk seminar proposal: pembimbing (1) + komentator + mahasiswa
             const jumlahPembimbing = row.pembimbing_id ? 1 : 0;
@@ -1224,7 +1229,7 @@ export default function DetailNonBlokNonCSR() {
             const jumlahMahasiswa = (row.mahasiswa_nims || []).length;
             const totalPeserta = jumlahPembimbing + jumlahKomentator + jumlahMahasiswa;
 
-            if (totalPeserta > 0 && ruanganOption.kapasitas < totalPeserta) {
+            if (totalPeserta > 0 && exactMatchRuangan.kapasitas < totalPeserta) {
               const detailPeserta = [];
               if (jumlahPembimbing > 0) detailPeserta.push(`${jumlahPembimbing} pembimbing`);
               if (jumlahKomentator > 0) detailPeserta.push(`${jumlahKomentator} komentator`);
@@ -1234,7 +1239,7 @@ export default function DetailNonBlokNonCSR() {
               errors.push({
                 row: rowNum,
                 field: 'ruangan_id',
-                message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNum}, Kolom Ruangan)`
+                message: `Baris ${rowNum}: Kapasitas ruangan ${exactMatchRuangan.nama} (${exactMatchRuangan.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr})`
               });
             }
           }
@@ -1245,7 +1250,7 @@ export default function DetailNonBlokNonCSR() {
       if (row.jenis_baris === 'sidang_skripsi') {
         // Validasi pembimbing
         if (!row.nama_pembimbing || row.nama_pembimbing.trim() === '') {
-          errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNum}, Kolom Pembimbing)` });
+          errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Pembimbing wajib diisi` });
         } else {
           // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
           const pembimbingNames = typeof row.nama_pembimbing === 'string'
@@ -1253,7 +1258,7 @@ export default function DetailNonBlokNonCSR() {
             : [row.nama_pembimbing];
 
           if (pembimbingNames.length > 1) {
-            errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNum}, Kolom Pembimbing)` });
+            errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Pembimbing maksimal 1` });
           } else {
             const pembimbingOption = dosenList.find(d =>
               d.name.toLowerCase() === row.nama_pembimbing.toLowerCase() ||
@@ -1262,14 +1267,14 @@ export default function DetailNonBlokNonCSR() {
               d.id.toString() === row.nama_pembimbing
             );
             if (!pembimbingOption) {
-              errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing "${row.nama_pembimbing}" tidak ditemukan (Baris ${rowNum}, Kolom Pembimbing)` });
+              errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Pembimbing "${row.nama_pembimbing}" tidak ditemukan` });
             } else {
               if (!row.pembimbing_id || row.pembimbing_id === null) {
                 row.pembimbing_id = pembimbingOption.id;
               }
               // Validasi: Cek apakah pembimbing yang dipilih sudah ada di penguji
               if (row.penguji_ids && row.penguji_ids.includes(pembimbingOption.id)) {
-                errors.push({ row: rowNum, field: 'pembimbing_id', message: `Dosen "${pembimbingOption.name}" sudah dipilih sebagai Penguji. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji (Baris ${rowNum}, Kolom Pembimbing)` });
+                errors.push({ row: rowNum, field: 'pembimbing_id', message: `Baris ${rowNum}: Dosen "${pembimbingOption.name}" sudah dipilih sebagai Penguji. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji` });
               }
             }
           }
@@ -1279,7 +1284,7 @@ export default function DetailNonBlokNonCSR() {
         // Parse nama_penguji - gunakan backslash sebagai pemisah karena beberapa dosen memiliki gelar dengan koma
         const namaPenguji = row.nama_penguji || '';
         if (!namaPenguji || (String(namaPenguji).trim() === '')) {
-          errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji wajib diisi minimal 1 (Baris ${rowNum}, Kolom Penguji)` });
+          errors.push({ row: rowNum, field: 'penguji_ids', message: `Baris ${rowNum}: Penguji wajib diisi minimal 1` });
         } else {
           // Parse dosen names dengan backslash separator
           const pengujiNames = (typeof namaPenguji === 'string' ? namaPenguji : String(namaPenguji))
@@ -1288,7 +1293,7 @@ export default function DetailNonBlokNonCSR() {
             .filter((n: string) => n !== '');
 
           if (pengujiNames.length === 0) {
-            errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji wajib diisi minimal 1 (Baris ${rowNum}, Kolom Penguji)` });
+            errors.push({ row: rowNum, field: 'penguji_ids', message: `Baris ${rowNum}: Penguji wajib diisi minimal 1` });
           } else {
             const pengujiIds: number[] = [];
             const invalidPengujiNames: string[] = [];
@@ -1308,18 +1313,43 @@ export default function DetailNonBlokNonCSR() {
             });
 
             if (invalidPengujiNames.length > 0) {
-              errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji tidak valid: "${invalidPengujiNames.join(', ')}". Pastikan semua nama penguji valid (Baris ${rowNum}, Kolom Penguji)` });
+              errors.push({ row: rowNum, field: 'penguji_ids', message: `Baris ${rowNum}: Penguji tidak valid: "${invalidPengujiNames.join(', ')}". Pastikan semua nama penguji valid` });
             }
 
             if (pengujiIds.length === 0) {
-              errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji wajib diisi dengan minimal 1 penguji yang valid (Baris ${rowNum}, Kolom Penguji)` });
+              errors.push({ row: rowNum, field: 'penguji_ids', message: `Baris ${rowNum}: Penguji wajib diisi dengan minimal 1 penguji yang valid` });
             } else {
               // Set penguji_ids untuk digunakan saat submit
               (row as any).penguji_ids = pengujiIds;
+              
               // Validasi: Cek apakah ada dosen yang sama di pembimbing dan penguji
               if (row.pembimbing_id && pengujiIds.includes(row.pembimbing_id)) {
                 const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
-                errors.push({ row: rowNum, field: 'penguji_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji: ${pembimbingName} (Baris ${rowNum}, Kolom Penguji)` });
+                errors.push({ row: rowNum, field: 'penguji_ids', message: `Baris ${rowNum}: Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji: ${pembimbingName}` });
+              }
+              
+              // Validasi: Cek apakah ada duplikasi penguji
+              const uniquePengujiIds = [...new Set(pengujiIds)];
+              if (uniquePengujiIds.length < pengujiIds.length) {
+                // Cari nama penguji yang duplikat
+                const pengujiNamesMapped = pengujiNames.map((nama: string) => {
+                  const pengujiOption = dosenList.find(d =>
+                    d.name.toLowerCase() === nama.toLowerCase() ||
+                    `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+                    d.nid === nama ||
+                    d.id.toString() === nama
+                  );
+                  return pengujiOption ? pengujiOption.name : nama;
+                });
+                
+                const duplicates = pengujiNamesMapped.filter((name, index) => pengujiNamesMapped.indexOf(name) !== index);
+                const uniqueDuplicates = [...new Set(duplicates)];
+                
+                errors.push({ 
+                  row: rowNum, 
+                  field: 'penguji_ids', 
+                  message: `Baris ${rowNum}: Penguji tidak boleh duplikat: "${uniqueDuplicates.join(', ')}"` 
+                });
               }
             }
           }
@@ -1328,16 +1358,69 @@ export default function DetailNonBlokNonCSR() {
         // Validasi mahasiswa
         const mahasiswaNims = row.mahasiswa_nims || [];
         if (mahasiswaNims.length === 0) {
-          errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi minimal 1 (Baris ${rowNum}, Kolom Mahasiswa)` });
+          errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Baris ${rowNum}: Mahasiswa wajib diisi minimal 1` });
+        }
+
+        // Validasi nama mahasiswa (input user) - tambahan untuk memastikan error tetap muncul saat input invalid
+        if (row.nama_mahasiswa) {
+          const mahasiswaStr = Array.isArray(row.nama_mahasiswa) ? row.nama_mahasiswa.join(', ') : row.nama_mahasiswa;
+          if (mahasiswaStr.trim() !== '') {
+            // Parse string menjadi array untuk validasi
+            const mahasiswaInputs = mahasiswaStr.split(',').map((n: string) => n.trim()).filter(Boolean);
+
+            if (mahasiswaInputs.length > 0) {
+              // Validasi apakah semua input valid (nama atau NIM)
+              const invalidInputs: string[] = [];
+              mahasiswaInputs.forEach((input: string) => {
+                if (input && input.trim() !== '') {
+                  // Cek apakah input adalah nama yang valid atau NIM yang valid
+                  const mahasiswaByName = mahasiswaList.find(m =>
+                    m.name.toLowerCase() === input.toLowerCase()
+                  );
+                  const mahasiswaByNim = mahasiswaList.find(m =>
+                    m.nim.toLowerCase() === input.toLowerCase()
+                  );
+
+                  if (!mahasiswaByName && !mahasiswaByNim) {
+                    invalidInputs.push(input);
+                  }
+                }
+              });
+
+              if (invalidInputs.length > 0) {
+                errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Baris ${rowNum}: Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan` });
+              }
+              
+              // Validasi: Cek apakah ada duplikasi mahasiswa
+              const uniqueMahasiswaInputs = [...new Set(mahasiswaInputs)];
+              if (uniqueMahasiswaInputs.length < mahasiswaInputs.length) {
+                const duplicates = mahasiswaInputs.filter((input, index) => mahasiswaInputs.indexOf(input) !== index);
+                const uniqueDuplicates = [...new Set(duplicates)];
+                
+                errors.push({ 
+                  row: rowNum, 
+                  field: 'mahasiswa_nims', 
+                  message: `Baris ${rowNum}: Mahasiswa tidak boleh duplikat: "${uniqueDuplicates.join(', ')}"` 
+                });
+              }
+            }
+          }
         }
 
         // Validasi ruangan (opsional)
         if (row.nama_ruangan && row.nama_ruangan.trim() !== '') {
-          const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
-          if (!ruanganOption) {
-            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          // Cari ruangan yang cocok persis untuk validasi
+          const exactMatchRuangan = ruanganList.find(r => r.nama === row.nama_ruangan || r.id.toString() === row.nama_ruangan);
+          
+          // Cari ruangan yang cocok parsial untuk update ID (jika perlu)
+          const partialMatchRuangan = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
+          
+          // Validasi: hanya ruangan yang cocok persis yang dianggap valid
+          if (!exactMatchRuangan) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Baris ${rowNum}: Ruangan "${row.nama_ruangan}" tidak ditemukan` });
           } else if (!row.ruangan_id || row.ruangan_id === null) {
-            row.ruangan_id = ruanganOption.id;
+            // Update ruangan_id hanya jika ada exact match
+            row.ruangan_id = exactMatchRuangan.id;
           } else {
             // Validasi kapasitas ruangan untuk sidang skripsi: pembimbing (1) + penguji + mahasiswa
             const jumlahPembimbing = row.pembimbing_id ? 1 : 0;
@@ -1345,7 +1428,7 @@ export default function DetailNonBlokNonCSR() {
             const jumlahMahasiswa = (row.mahasiswa_nims || []).length;
             const totalPeserta = jumlahPembimbing + jumlahPenguji + jumlahMahasiswa;
 
-            if (totalPeserta > 0 && ruanganOption.kapasitas < totalPeserta) {
+            if (totalPeserta > 0 && exactMatchRuangan.kapasitas < totalPeserta) {
               const detailPeserta = [];
               if (jumlahPembimbing > 0) detailPeserta.push(`${jumlahPembimbing} pembimbing`);
               if (jumlahPenguji > 0) detailPeserta.push(`${jumlahPenguji} penguji`);
@@ -1355,7 +1438,7 @@ export default function DetailNonBlokNonCSR() {
               errors.push({
                 row: rowNum,
                 field: 'ruangan_id',
-                message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNum}, Kolom Ruangan)`
+                message: `Baris ${rowNum}: Kapasitas ruangan ${exactMatchRuangan.nama} (${exactMatchRuangan.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr})`
               });
             }
           }
@@ -1495,7 +1578,13 @@ export default function DetailNonBlokNonCSR() {
       const headerMatch = expectedHeaders.every(header => headers.includes(header));
 
       if (!headerMatch) {
-        setMateriImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Materi Kuliah yang didownload.']);
+        setMateriImportErrors(['Template tidak valid. Pastikan menggunakan template dari aplikasi ini.']);
+        setMateriImportFile(file); // Set file untuk persistence
+        return;
+      }
+
+      if (excelData.length === 0) {
+        setMateriImportErrors(["File Excel kosong atau tidak memiliki data"]);
         setMateriImportFile(file); // Set file untuk persistence
         return;
       }
@@ -1555,11 +1644,17 @@ export default function DetailNonBlokNonCSR() {
       const { headers, data: excelData } = await readNonBlokExcelFile(file);
 
       // Validate headers untuk Agenda Khusus (tanpa kolom Jenis Baris, Dosen, Materi)
-      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Keterangan Agenda'];
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Agenda'];
       const headerMatch = expectedHeaders.every(header => headers.includes(header));
 
       if (!headerMatch) {
-        setAgendaImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Agenda Khusus yang didownload.']);
+        setAgendaImportErrors(['Template tidak valid. Pastikan menggunakan template dari aplikasi ini.']);
+        setAgendaImportFile(file); // Set file untuk persistence
+        return;
+      }
+
+      if (excelData.length === 0) {
+        setAgendaImportErrors(["File Excel kosong atau tidak memiliki data"]);
         setAgendaImportFile(file); // Set file untuk persistence
         return;
       }
@@ -1833,7 +1928,13 @@ export default function DetailNonBlokNonCSR() {
       const headerMatch = expectedHeaders.every(header => headers.includes(header)) && mahasiswaHeader !== undefined;
 
       if (!headerMatch) {
-        setSeminarImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Seminar Proposal yang didownload.']);
+        setSeminarImportErrors(['Template tidak valid. Pastikan menggunakan template dari aplikasi ini.']);
+        setSeminarImportFile(file);
+        return;
+      }
+
+      if (excelData.length === 0) {
+        setSeminarImportErrors(["File Excel kosong atau tidak memiliki data"]);
         setSeminarImportFile(file);
         return;
       }
@@ -2075,7 +2176,13 @@ export default function DetailNonBlokNonCSR() {
       const headerMatch = expectedHeaders.every(header => headers.includes(header)) && mahasiswaHeader !== undefined;
 
       if (!headerMatch) {
-        setSidangImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Sidang Skripsi yang didownload.']);
+        setSidangImportErrors(['Template tidak valid. Pastikan menggunakan template dari aplikasi ini.']);
+        setSidangImportFile(file);
+        return;
+      }
+
+      if (excelData.length === 0) {
+        setSidangImportErrors(["File Excel kosong atau tidak memiliki data"]);
         setSidangImportFile(file);
         return;
       }
@@ -2345,7 +2452,7 @@ export default function DetailNonBlokNonCSR() {
       if (!value || value.trim() === '') {
         setMateriCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'dosen_id', message: `Dosen wajib diisi (Baris ${rowNumber}, Kolom Dosen)` }
+          { row: rowNumber, field: 'dosen_id', message: `Baris ${rowNumber}: Dosen wajib diisi` }
         ]);
       } else {
         const dosenOption = dosenList.find(d =>
@@ -2356,7 +2463,7 @@ export default function DetailNonBlokNonCSR() {
         if (!dosenOption) {
           setMateriCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'dosen_id', message: `Dosen "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Dosen)` }
+            { row: rowNumber, field: 'dosen_id', message: `Baris ${rowNumber}: Dosen "${value}" tidak ditemukan` }
           ]);
         }
       }
@@ -2364,7 +2471,7 @@ export default function DetailNonBlokNonCSR() {
       if (!value || value.trim() === '') {
         setMateriCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom Ruangan)` }
+          { row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan wajib diisi` }
         ]);
       } else {
         const ruanganOption = ruanganList.find(r =>
@@ -2374,7 +2481,7 @@ export default function DetailNonBlokNonCSR() {
         if (!ruanganOption) {
           setMateriCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+            { row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan "${value}" tidak ditemukan` }
           ]);
         }
       }
@@ -2441,7 +2548,7 @@ export default function DetailNonBlokNonCSR() {
         if (!ruanganOption) {
           setAgendaCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+            { row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan "${value}" tidak ditemukan` }
           ]);
         }
       }
@@ -2570,7 +2677,7 @@ export default function DetailNonBlokNonCSR() {
       if (!value || value.trim() === '') {
         setSeminarCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNumber}, Kolom Pembimbing)` }
+          { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Pembimbing wajib diisi` }
         ]);
       } else {
         // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
@@ -2578,7 +2685,7 @@ export default function DetailNonBlokNonCSR() {
         if (pembimbingNames.length > 1) {
           setSeminarCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNumber}, Kolom Pembimbing)` }
+            { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Pembimbing maksimal 1` }
           ]);
         } else {
           const pembimbingOption = dosenList.find(d =>
@@ -2589,7 +2696,7 @@ export default function DetailNonBlokNonCSR() {
           if (!pembimbingOption) {
             setSeminarCellErrors((prev) => [
               ...prev,
-              { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Pembimbing)` }
+              { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Pembimbing "${value}" tidak ditemukan` }
             ]);
           } else {
             // Validasi: Cek apakah pembimbing yang dipilih sudah ada di komentator
@@ -2597,7 +2704,7 @@ export default function DetailNonBlokNonCSR() {
               const pembimbingName = pembimbingOption.name;
               setSeminarCellErrors((prev) => [
                 ...prev,
-                { row: rowNumber, field: 'pembimbing_id', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Komentator. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator (Baris ${rowNumber}, Kolom Pembimbing)` }
+                { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Dosen "${pembimbingName}" sudah dipilih sebagai Komentator. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator` }
               ]);
             }
           }
@@ -2612,12 +2719,12 @@ export default function DetailNonBlokNonCSR() {
       if (komentatorNames.length === 0) {
         setSeminarCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'komentator_ids', message: `Komentator wajib diisi minimal 1 (Baris ${rowNumber}, Kolom Komentator)` }
+          { row: rowNumber, field: 'komentator_ids', message: `Baris ${rowNumber}: Komentator wajib diisi minimal 1` }
         ]);
       } else if (komentatorNames.length > 2) {
         setSeminarCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'komentator_ids', message: `Komentator maksimal 2 (Baris ${rowNumber}, Kolom Komentator)` }
+          { row: rowNumber, field: 'komentator_ids', message: `Baris ${rowNumber}: Komentator maksimal 2` }
         ]);
       } else {
         // Validasi apakah setiap komentator valid (ada di dosenList)
@@ -2638,7 +2745,7 @@ export default function DetailNonBlokNonCSR() {
         if (invalidKomentators.length > 0) {
           setSeminarCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'komentator_ids', message: `Komentator "${invalidKomentators.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Komentator)` }
+            { row: rowNumber, field: 'komentator_ids', message: `Baris ${rowNumber}: Komentator "${invalidKomentators.join(', ')}" tidak ditemukan` }
           ]);
         } else {
           // Validasi: Cek apakah ada komentator yang sama dengan pembimbing
@@ -2661,7 +2768,7 @@ export default function DetailNonBlokNonCSR() {
             const pembimbingName = pembimbingDosen ? pembimbingDosen.name : 'N/A';
             setSeminarCellErrors((prev) => [
               ...prev,
-              { row: rowNumber, field: 'komentator_ids', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Pembimbing. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator (Baris ${rowNumber}, Kolom Komentator)` }
+              { row: rowNumber, field: 'komentator_ids', message: `Baris ${rowNumber}: Dosen "${pembimbingName}" sudah dipilih sebagai Pembimbing. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator` }
             ]);
           }
         }
@@ -2675,7 +2782,7 @@ export default function DetailNonBlokNonCSR() {
       if (mahasiswaInputs.length === 0) {
         setSeminarCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi minimal 1 (Baris ${rowNumber}, Kolom Mahasiswa)` }
+          { row: rowNumber, field: 'mahasiswa_nims', message: `Baris ${rowNumber}: Mahasiswa wajib diisi minimal 1` }
         ]);
       } else {
         // Validasi apakah semua input valid (nama atau NIM)
@@ -2699,7 +2806,7 @@ export default function DetailNonBlokNonCSR() {
         if (invalidInputs.length > 0) {
           setSeminarCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Mahasiswa)` }
+            { row: rowNumber, field: 'mahasiswa_nims', message: `Baris ${rowNumber}: Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan` }
           ]);
         }
       }
@@ -2712,7 +2819,7 @@ export default function DetailNonBlokNonCSR() {
         if (!ruanganOption) {
           setSeminarCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+            { row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan "${value}" tidak ditemukan` }
           ]);
         } else {
           // Validasi kapasitas ruangan untuk seminar proposal: pembimbing (1) + komentator + mahasiswa
@@ -2730,7 +2837,7 @@ export default function DetailNonBlokNonCSR() {
 
             setSeminarCellErrors((prev) => [
               ...prev,
-              { row: rowNumber, field: 'ruangan_id', message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNumber}, Kolom Ruangan)` }
+              { row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr})` }
             ]);
           }
         }
@@ -2867,7 +2974,7 @@ export default function DetailNonBlokNonCSR() {
       if (!value || value.trim() === '') {
         setSidangCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNumber}, Kolom Pembimbing)` }
+          { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Pembimbing wajib diisi` }
         ]);
       } else {
         // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
@@ -2875,7 +2982,7 @@ export default function DetailNonBlokNonCSR() {
         if (pembimbingNames.length > 1) {
           setSidangCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNumber}, Kolom Pembimbing)` }
+            { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Pembimbing maksimal 1` }
           ]);
         } else {
           const pembimbingOption = dosenList.find(d =>
@@ -2886,7 +2993,7 @@ export default function DetailNonBlokNonCSR() {
           if (!pembimbingOption) {
             setSidangCellErrors((prev) => [
               ...prev,
-              { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Pembimbing)` }
+              { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Pembimbing "${value}" tidak ditemukan` }
             ]);
           } else {
             // Validasi: Cek apakah pembimbing yang dipilih sudah ada di penguji
@@ -2894,7 +3001,7 @@ export default function DetailNonBlokNonCSR() {
               const pembimbingName = pembimbingOption.name;
               setSidangCellErrors((prev) => [
                 ...prev,
-                { row: rowNumber, field: 'pembimbing_id', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Penguji. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji (Baris ${rowNumber}, Kolom Pembimbing)` }
+                { row: rowNumber, field: 'pembimbing_id', message: `Baris ${rowNumber}: Dosen "${pembimbingName}" sudah dipilih sebagai Penguji. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji` }
               ]);
             }
           }
@@ -2927,17 +3034,17 @@ export default function DetailNonBlokNonCSR() {
       if (pengujiNames.length === 0) {
         setSidangCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'penguji_ids', message: `Penguji wajib diisi minimal 2 (Baris ${rowNumber}, Kolom Penguji)` }
+          { row: rowNumber, field: 'penguji_ids', message: `Baris ${rowNumber}: Penguji wajib diisi minimal 2` }
         ]);
       } else if (pengujiNames.length < 2) {
         setSidangCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'penguji_ids', message: `Penguji wajib diisi minimal 2 (Baris ${rowNumber}, Kolom Penguji)` }
+          { row: rowNumber, field: 'penguji_ids', message: `Baris ${rowNumber}: Penguji wajib diisi minimal 2` }
         ]);
       } else if (pengujiNames.length > 2) {
         setSidangCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'penguji_ids', message: `Penguji maksimal 2 (Baris ${rowNumber}, Kolom Penguji)` }
+          { row: rowNumber, field: 'penguji_ids', message: `Baris ${rowNumber}: Penguji maksimal 2` }
         ]);
       } else {
         // Validasi apakah setiap penguji valid (ada di dosenList)
@@ -2958,7 +3065,7 @@ export default function DetailNonBlokNonCSR() {
         if (invalidPengujis.length > 0) {
           setSidangCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'penguji_ids', message: `Penguji "${invalidPengujis.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Penguji)` }
+            { row: rowNumber, field: 'penguji_ids', message: `Baris ${rowNumber}: Penguji "${invalidPengujis.join(', ')}" tidak ditemukan` }
           ]);
         } else {
           // Validasi: Cek apakah ada penguji yang sama dengan pembimbing
@@ -2981,7 +3088,7 @@ export default function DetailNonBlokNonCSR() {
             const pembimbingName = pembimbingDosen ? pembimbingDosen.name : 'N/A';
             setSidangCellErrors((prev) => [
               ...prev,
-              { row: rowNumber, field: 'penguji_ids', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Pembimbing. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji (Baris ${rowNumber}, Kolom Penguji)` }
+              { row: rowNumber, field: 'penguji_ids', message: `Baris ${rowNumber}: Dosen "${pembimbingName}" sudah dipilih sebagai Pembimbing. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji` }
             ]);
           }
         }
@@ -3025,7 +3132,7 @@ export default function DetailNonBlokNonCSR() {
       if (mahasiswaInputs.length === 0) {
         setSidangCellErrors((prev) => [
           ...prev,
-          { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi (Baris ${rowNumber}, Kolom Mahasiswa)` }
+          { row: rowNumber, field: 'mahasiswa_nims', message: `Baris ${rowNumber}: Mahasiswa wajib diisi` }
         ]);
       } else {
         // Validasi apakah setiap mahasiswa valid (ada di mahasiswaList)
@@ -3048,7 +3155,7 @@ export default function DetailNonBlokNonCSR() {
         if (invalidInputs.length > 0) {
           setSidangCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Mahasiswa)` }
+            { row: rowNumber, field: 'mahasiswa_nims', message: `Baris ${rowNumber}: Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan` }
           ]);
         }
       }
@@ -3061,7 +3168,7 @@ export default function DetailNonBlokNonCSR() {
         if (!ruanganOption) {
           setSidangCellErrors((prev) => [
             ...prev,
-            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+            { row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Ruangan "${value}" tidak ditemukan` }
           ]);
         } else {
           // Validasi kapasitas ruangan untuk sidang skripsi: pembimbing (1) + penguji (2) + mahasiswa
@@ -3079,7 +3186,7 @@ export default function DetailNonBlokNonCSR() {
 
             setSidangCellErrors((prev) => [
               ...prev,
-              { row: rowNumber, field: 'ruangan_id', message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNumber}, Kolom Ruangan)` }
+              { row: rowNumber, field: 'ruangan_id', message: `Baris ${rowNumber}: Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr})` }
             ]);
           }
         }
@@ -3385,7 +3492,7 @@ export default function DetailNonBlokNonCSR() {
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.MATERI },
@@ -3409,28 +3516,24 @@ export default function DetailNonBlokNonCSR() {
         ['Tanggal Akhir', formatDateToISO(data?.tanggal_akhir)],
         ['Durasi Minggu', data?.durasi_minggu || ''],
         [''],
-        ['STATISTIK JADWAL'],
-        ['Total Jadwal Materi Kuliah', jadwalMateriKuliah.length],
+        [`TOTAL JADWAL MATERI KULIAH`, jadwalMateriKuliah.length],
         [''],
-        ['INFORMASI EXPORT'],
-        ['Tanggal Export', formatDateToISO(new Date())],
-        ['File ini berisi data jadwal Materi Kuliah yang dapat di-import kembali ke aplikasi'],
+        ['CATATAN:'],
+        ['• File ini berisi data jadwal Materi Kuliah yang dapat di-import kembali ke aplikasi'],
+        ['• Format tanggal: YYYY-MM-DD'],
+        ['• Format jam: HH.MM atau HH:MM'],
+        ['• Pastikan data dosen dan ruangan valid sebelum import'],
         [''],
         ['PANDUAN IMPORT KEMBALI:'],
         ['1. Pastikan format file sesuai dengan template aplikasi'],
-        ['2. Kolom wajib: Tanggal, Jam Mulai, Sesi, Kelompok Besar, Dosen, Materi, Ruangan'],
-        ['3. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
-        ['4. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
-        ['5. Sesi: 1-6 (1 sesi = 50 menit)'],
-        ['6. Pastikan data dosen, ruangan, dan kelompok besar valid'],
-        ['7. Sistem akan validasi kapasitas ruangan (mahasiswa + 1 dosen)'],
-        ['8. Sistem akan cek konflik jadwal (dosen, ruangan, kelompok besar)'],
-        [''],
-        ['CATATAN PENTING:'],
-        ['• File ini hanya berisi data Materi Kuliah'],
-        ['• Untuk import Agenda Khusus, gunakan file export Agenda Khusus'],
-        ['• Pastikan semua data valid sebelum import untuk menghindari error'],
-        ['• Sistem akan menampilkan preview dan error sebelum import']
+        ['2. Jangan mengubah nama kolom header'],
+        ['3. Kolom wajib: Tanggal, Jam Mulai, Sesi, Kelompok Besar, Dosen, Materi, Ruangan'],
+        ['4. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['5. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['6. Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['7. Pastikan data dosen, ruangan, dan kelompok besar valid'],
+        ['8. Sistem akan validasi kapasitas ruangan (mahasiswa + 1 dosen)'],
+        ['9. Sistem akan melakukan validasi data sebelum import'],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -3463,7 +3566,7 @@ export default function DetailNonBlokNonCSR() {
           'Sesi': row.jumlah_sesi,
           'Kelompok Besar': row.kelompok_besar_id || '',
           'Ruangan': ruangan?.nama || '',
-          'Keterangan Agenda': row.agenda || ''
+          'Agenda': row.agenda || ''
         };
       });
 
@@ -3472,12 +3575,12 @@ export default function DetailNonBlokNonCSR() {
 
       // Sheet 1: Data Agenda Khusus
       const ws = XLSX.utils.json_to_sheet(exportData, {
-        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Keterangan Agenda']
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Agenda']
       });
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
         { wch: EXCEL_COLUMN_WIDTHS.AGENDA }
@@ -3499,29 +3602,24 @@ export default function DetailNonBlokNonCSR() {
         ['Tanggal Akhir', formatDateToISO(data?.tanggal_akhir)],
         ['Durasi Minggu', data?.durasi_minggu || ''],
         [''],
-        ['STATISTIK JADWAL'],
-        ['Total Jadwal Agenda Khusus', jadwalAgendaKhusus.length],
+        [`TOTAL JADWAL AGENDA KHUSUS`, jadwalAgendaKhusus.length],
         [''],
-        ['INFORMASI EXPORT'],
-        ['Tanggal Export', formatDateToISO(new Date())],
-        ['File ini berisi data jadwal Agenda Khusus yang dapat di-import kembali ke aplikasi'],
+        ['CATATAN:'],
+        ['• File ini berisi data jadwal Agenda Khusus yang dapat di-import kembali ke aplikasi'],
+        ['• Format tanggal: YYYY-MM-DD'],
+        ['• Format jam: HH.MM atau HH:MM'],
+        ['• Pastikan data ruangan dan kelompok besar valid (jika diisi)'],
         [''],
         ['PANDUAN IMPORT KEMBALI:'],
         ['1. Pastikan format file sesuai dengan template aplikasi'],
-        ['2. Kolom wajib: Tanggal, Jam Mulai, Sesi, Kelompok Besar, Keterangan Agenda'],
-        ['3. Kolom opsional: Ruangan (boleh dikosongkan untuk agenda online)'],
-        ['4. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
-        ['5. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
-        ['6. Sesi: 1-6 (1 sesi = 50 menit)'],
-        ['7. Pastikan data ruangan dan kelompok besar valid (jika diisi)'],
-        ['8. Sistem akan cek konflik jadwal (ruangan, kelompok besar)'],
-        [''],
-        ['CATATAN PENTING:'],
-        ['• File ini hanya berisi data Agenda Khusus'],
-        ['• Untuk import Materi Kuliah, gunakan file export Materi Kuliah'],
-        ['• Ruangan boleh dikosongkan jika agenda tidak memerlukan ruangan'],
-        ['• Pastikan semua data valid sebelum import untuk menghindari error'],
-        ['• Sistem akan menampilkan preview dan error sebelum import']
+        ['2. Jangan mengubah nama kolom header'],
+        ['3. Kolom wajib: Tanggal, Jam Mulai, Sesi, Kelompok Besar, Agenda'],
+        ['4. Kolom opsional: Ruangan (boleh dikosongkan untuk agenda online)'],
+        ['5. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['6. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['7. Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['8. Pastikan data ruangan dan kelompok besar valid (jika diisi)'],
+        ['9. Sistem akan melakukan validasi data sebelum import'],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -3584,7 +3682,7 @@ export default function DetailNonBlokNonCSR() {
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: 40 },
@@ -3603,46 +3701,29 @@ export default function DetailNonBlokNonCSR() {
         ['Kurikulum', data?.kurikulum || ''],
         ['Jenis', data?.jenis || ''],
         ['Tipe Non-Blok', data?.tipe_non_block || ''],
-        ['Tanggal Mulai', data?.tanggal_mulai ? formatDateToISO(data.tanggal_mulai) : ''],
-        ['Tanggal Akhir', data?.tanggal_akhir ? formatDateToISO(data.tanggal_akhir) : ''],
+        ['Tanggal Mulai', formatDateToISO(data?.tanggal_mulai)],
+        ['Tanggal Akhir', formatDateToISO(data?.tanggal_akhir)],
         ['Durasi Minggu', data?.durasi_minggu || ''],
-        ['Keahlian Dibutuhkan', data?.keahlian_required && data.keahlian_required.length > 0 ? data.keahlian_required.join(', ') : '-'],
         [''],
-        ['STATISTIK JADWAL'],
-        ['Total Jadwal Seminar Proposal', jadwalSeminarProposal.length],
+        [`TOTAL JADWAL SEMINAR PROPOSAL`, jadwalSeminarProposal.length],
         [''],
-        ['INFORMASI EXPORT'],
-        ['Tanggal Export', formatDateToISO(new Date())],
-        ['File ini berisi data jadwal Seminar Proposal yang dapat di-import kembali ke aplikasi'],
+        ['CATATAN:'],
+        ['• File ini berisi data jadwal Seminar Proposal yang dapat di-import kembali ke aplikasi'],
+        ['• Format tanggal: YYYY-MM-DD'],
+        ['• Format jam: HH.MM atau HH:MM'],
+        ['• Pastikan data dosen, ruangan, dan mahasiswa valid sebelum import'],
         [''],
-        ['CATATAN PENTING:'],
-        ['• File ini hanya berisi data Seminar Proposal'],
-        ['• Kolom Mahasiswa menampilkan nama (bukan NIM) untuk kemudahan membaca'],
-        ['• Saat import kembali, bisa menggunakan nama atau NIM'],
-        ['• Sistem akan otomatis mengkonversi nama ke NIM saat import'],
-        ['• Pastikan nama mahasiswa/dosen sesuai dengan data di sistem'],
-        ['• Sistem akan menampilkan preview dan error validasi sebelum import'],
-        [''],
-        ['📊 FORMAT DATA:'],
-        ['• Tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
-        ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
-        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
-        ['• Pembimbing: Nama dosen (1 dosen, wajib)'],
-        ['• Komentator: Nama dosen, minimal 1 maksimal 2'],
-        ['• Mahasiswa: Nama mahasiswa, dipisah koma jika lebih dari 1'],
-        ['• Ruangan: Nama ruangan (opsional)'],
-        [''],
-        ['🚫 VALIDASI KONSTRAIN:'],
-        ['• Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Komentator'],
-        ['  Contoh: Jika Dosen A sudah dipilih sebagai Pembimbing,'],
-        ['  maka Dosen A tidak boleh dipilih sebagai Komentator, dan sebaliknya'],
-        [''],
-        ['🔍 VALIDASI KONFLIK JADWAL:'],
-        ['• Sistem akan mengecek konflik jadwal berdasarkan:'],
-        ['  - Mahasiswa yang dipilih vs kelompok besar/kecil di jadwal lain'],
-        ['  - Pembimbing/Komentator vs Dosen di jadwal lain (pada waktu yang sama)'],
-        ['  - Ruangan yang sama pada waktu yang sama'],
-        ['  - Kapasitas ruangan (Pembimbing + Komentator + Mahasiswa)']
+        ['PANDUAN IMPORT KEMBALI:'],
+        ['1. Pastikan format file sesuai dengan template aplikasi'],
+        ['2. Jangan mengubah nama kolom header'],
+        ['3. Pembimbing: Nama dosen (1 dosen, wajib)'],
+        ['4. Komentator: Nama dosen, minimal 1 maksimal 2'],
+        ['5. Mahasiswa: Nama mahasiswa, dipisah koma jika lebih dari 1'],
+        ['6. Ruangan: Nama ruangan (opsional, kosongkan untuk online)'],
+        ['7. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['8. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['9. Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Komentator'],
+        ['10. Sistem akan melakukan validasi data sebelum import'],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -3705,7 +3786,7 @@ export default function DetailNonBlokNonCSR() {
       ws['!cols'] = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.JUMLAH_SESI },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
@@ -3725,46 +3806,29 @@ export default function DetailNonBlokNonCSR() {
         ['Kurikulum', data?.kurikulum || ''],
         ['Jenis', data?.jenis || ''],
         ['Tipe Non-Blok', data?.tipe_non_block || ''],
-        ['Tanggal Mulai', data?.tanggal_mulai ? formatDateToISO(data.tanggal_mulai) : ''],
-        ['Tanggal Akhir', data?.tanggal_akhir ? formatDateToISO(data.tanggal_akhir) : ''],
+        ['Tanggal Mulai', formatDateToISO(data?.tanggal_mulai)],
+        ['Tanggal Akhir', formatDateToISO(data?.tanggal_akhir)],
         ['Durasi Minggu', data?.durasi_minggu || ''],
-        ['Keahlian Dibutuhkan', data?.keahlian_required && data.keahlian_required.length > 0 ? data.keahlian_required.join(', ') : '-'],
         [''],
-        ['STATISTIK JADWAL'],
-        ['Total Jadwal Sidang Skripsi', jadwalSidangSkripsi.length],
+        [`TOTAL JADWAL SIDANG SKRIPSI`, jadwalSidangSkripsi.length],
         [''],
-        ['INFORMASI EXPORT'],
-        ['Tanggal Export', formatDateToISO(new Date())],
-        ['File ini berisi data jadwal Sidang Skripsi yang dapat di-import kembali ke aplikasi'],
+        ['CATATAN:'],
+        ['• File ini berisi data jadwal Sidang Skripsi yang dapat di-import kembali ke aplikasi'],
+        ['• Format tanggal: YYYY-MM-DD'],
+        ['• Format jam: HH.MM atau HH:MM'],
+        ['• Pastikan data dosen, ruangan, dan mahasiswa valid sebelum import'],
         [''],
-        ['CATATAN PENTING:'],
-        ['• File ini hanya berisi data Sidang Skripsi'],
-        ['• Kolom Mahasiswa menampilkan nama (bukan NIM) untuk kemudahan membaca'],
-        ['• Saat import kembali, bisa menggunakan nama atau NIM'],
-        ['• Sistem akan otomatis mengkonversi nama ke NIM saat import'],
-        ['• Pastikan nama mahasiswa/dosen sesuai dengan data di sistem'],
-        ['• Sistem akan menampilkan preview dan error validasi sebelum import'],
-        [''],
-        ['📊 FORMAT DATA:'],
-        ['• Tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
-        ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
-        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
-        ['• Pembimbing: Nama dosen (1 dosen, wajib)'],
-        ['• Penguji: Nama dosen, minimal 1 maksimal 2'],
-        ['• Mahasiswa: Nama mahasiswa, dipisah koma jika lebih dari 1'],
-        ['• Ruangan: Nama ruangan (opsional)'],
-        [''],
-        ['🚫 VALIDASI KONSTRAIN:'],
-        ['• Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Penguji'],
-        ['  Contoh: Jika Dosen A sudah dipilih sebagai Pembimbing,'],
-        ['  maka Dosen A tidak boleh dipilih sebagai Penguji, dan sebaliknya'],
-        [''],
-        ['🔍 VALIDASI KONFLIK JADWAL:'],
-        ['• Sistem akan mengecek konflik jadwal berdasarkan:'],
-        ['  - Mahasiswa yang dipilih vs kelompok besar/kecil di jadwal lain'],
-        ['  - Pembimbing/Penguji vs Dosen di jadwal lain (pada waktu yang sama)'],
-        ['  - Ruangan yang sama pada waktu yang sama'],
-        ['  - Kapasitas ruangan (Pembimbing + Penguji + Mahasiswa)']
+        ['PANDUAN IMPORT KEMBALI:'],
+        ['1. Pastikan format file sesuai dengan template aplikasi'],
+        ['2. Jangan mengubah nama kolom header'],
+        ['3. Pembimbing: Nama dosen (1 dosen, wajib)'],
+        ['4. Penguji: Nama dosen, minimal 1 maksimal 2 (gunakan backslash \\ untuk multi-select)'],
+        ['5. Mahasiswa: Nama mahasiswa, dipisah koma jika lebih dari 1'],
+        ['6. Ruangan: Nama ruangan (opsional, kosongkan untuk online)'],
+        ['7. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['8. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['9. Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Penguji'],
+        ['10. Sistem akan melakukan validasi data sebelum import'],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -4123,7 +4187,7 @@ export default function DetailNonBlokNonCSR() {
               </thead>
               <tbody>
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <tr key={`skeleton-materi-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                  <tr key={`skeleton-materi-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                     <td className="px-4 py-4 text-center">
                       <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
                     </td>
@@ -4197,7 +4261,7 @@ export default function DetailNonBlokNonCSR() {
               </thead>
               <tbody>
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <tr key={`skeleton-agenda-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                  <tr key={`skeleton-agenda-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                     <td className="px-4 py-4 text-center">
                       <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
                     </td>
@@ -4269,7 +4333,7 @@ export default function DetailNonBlokNonCSR() {
               </thead>
               <tbody>
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <tr key={`skeleton-seminar-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                  <tr key={`skeleton-seminar-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                     <td className="px-4 py-4 text-center">
                       <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
                     </td>
@@ -4343,7 +4407,7 @@ export default function DetailNonBlokNonCSR() {
               </thead>
               <tbody>
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <tr key={`skeleton-sidang-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                  <tr key={`skeleton-sidang-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                     <td className="px-4 py-4 text-center">
                       <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
                     </td>
@@ -4610,7 +4674,7 @@ export default function DetailNonBlokNonCSR() {
                     materiPage,
                     materiPageSize
                   ).map((row, idx) => (
-                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
                           type="button"
@@ -4939,7 +5003,7 @@ export default function DetailNonBlokNonCSR() {
                     agendaPage,
                     agendaPageSize
                   ).map((row, idx) => (
-                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
                           type="button"
@@ -5256,7 +5320,7 @@ export default function DetailNonBlokNonCSR() {
                     seminarPage,
                     seminarPageSize
                   ).map((row, idx) => (
-                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
                           type="button"
@@ -5338,8 +5402,6 @@ export default function DetailNonBlokNonCSR() {
                             e.stopPropagation();
                             if (row.id) {
                               navigate(`/bimbingan-akhir/seminar-proposal/${row.id}`);
-                            } else {
-                              console.error("Row ID is missing:", row);
                             }
                           }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1" title="Detail Seminar Proposal">
                             <FontAwesomeIcon icon={faEye} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
@@ -5634,7 +5696,7 @@ export default function DetailNonBlokNonCSR() {
                     sidangPage,
                     sidangPageSize
                   ).map((row, idx) => (
-                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
                           type="button"
@@ -8882,7 +8944,7 @@ export default function DetailNonBlokNonCSR() {
                               >
                                 • {error.field === 'api'
                                   ? error.message
-                                  : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
+                                  : error.message}
                               </p>
                             ))}
                           </div>
@@ -8962,7 +9024,7 @@ export default function DetailNonBlokNonCSR() {
                                   return (
                                     <tr
                                       key={actualIndex}
-                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}`}
                                     >
                                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                       {renderEditableCell('tanggal', row.tanggal)}
@@ -9356,7 +9418,7 @@ export default function DetailNonBlokNonCSR() {
                               >
                                 • {error.field === 'api'
                                   ? error.message
-                                  : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
+                                  : error.message}
                               </p>
                             ))}
                           </div>
@@ -9388,7 +9450,7 @@ export default function DetailNonBlokNonCSR() {
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Besar</th>
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keterangan Agenda</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Agenda</th>
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
                               </tr>
                             </thead>
@@ -9462,7 +9524,7 @@ export default function DetailNonBlokNonCSR() {
                                   return (
                                     <tr
                                       key={actualIndex}
-                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}`}
                                     >
                                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                       {renderEditableCell('tanggal', row.tanggal)}
@@ -9796,7 +9858,7 @@ export default function DetailNonBlokNonCSR() {
                               >
                                 • {error.field === 'api'
                                   ? error.message
-                                  : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
+                                  : error.message}
                               </p>
                             ))}
                           </div>
@@ -9876,7 +9938,7 @@ export default function DetailNonBlokNonCSR() {
                                   return (
                                     <tr
                                       key={actualIndex}
-                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}`}
                                     >
                                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                       {renderEditableCell('tanggal', row.tanggal)}
@@ -10270,7 +10332,7 @@ export default function DetailNonBlokNonCSR() {
                               paginatedData.map((mahasiswa, idx) => {
                                 const actualIndex = (mahasiswaModalPage - 1) * mahasiswaModalPageSize + idx;
                                 return (
-                                  <tr key={mahasiswa.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                                  <tr key={mahasiswa.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
                                     <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                     <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.nim}</td>
                                     <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.name}</td>
@@ -10574,7 +10636,7 @@ export default function DetailNonBlokNonCSR() {
                               >
                                 • {error.field === 'api'
                                   ? error.message
-                                  : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
+                                  : error.message}
                               </p>
                             ))}
                           </div>
@@ -10654,7 +10716,7 @@ export default function DetailNonBlokNonCSR() {
                                   return (
                                     <tr
                                       key={actualIndex}
-                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}`}
                                     >
                                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                       {renderEditableCell('tanggal', row.tanggal)}

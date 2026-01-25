@@ -522,10 +522,13 @@ class JadwalPraktikumController extends Controller
 
         // Cek bentrok kelompok kecil
         if (isset($data['kelompok_kecil_ids'])) {
-            $commonGroups = $jadwalBentrok->kelompokKecil()->whereIn('kelompok_kecil.id', $data['kelompok_kecil_ids'])->get();
-            if ($commonGroups->isNotEmpty()) {
-                $groupNames = $commonGroups->pluck('nama_kelompok')->join(', ');
-                $reasons[] = "Kelompok: " . $groupNames;
+            // Hanya cek kelompok kecil jika jadwal yang bentrok memiliki relasi kelompokKecil
+            if (method_exists($jadwalBentrok, 'kelompokKecil')) {
+                $commonGroups = $jadwalBentrok->kelompokKecil()->whereIn('kelompok_kecil.id', $data['kelompok_kecil_ids'])->get();
+                if ($commonGroups->isNotEmpty()) {
+                    $groupNames = $commonGroups->pluck('nama_kelompok')->join(', ');
+                    $reasons[] = "Kelompok: " . $groupNames;
+                }
             }
         }
 

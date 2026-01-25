@@ -760,7 +760,7 @@ export default function Ruangan() {
                   {cellErrors.length > 0
                     ? cellErrors.map((err, idx) => (
                         <li key={idx}>
-                          {err.message} (Baris {err.row + 2}, Kolom {err.field.toUpperCase()}): {previewData[err.row]?.[err.field] || ''}
+                          {err.message}
                         </li>
                       ))
                     : validationErrors.map((err, idx) => (

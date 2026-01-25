@@ -745,10 +745,18 @@ class MataKuliahController extends Controller
             return response()->json(['message' => 'Tidak ada Tahun Ajaran aktif.'], 400);
         }
 
-        // Sync without detaching to add selected courses
-        $activeTA->mataKuliah()->syncWithoutDetaching($request->codes);
+        $codes = $request->codes;
 
-        return response()->json(['message' => 'Mata Kuliah berhasil ditambahkan ke Tahun Ajaran aktif.']);
+        DB::transaction(function () use ($activeTA, $codes) {
+            // Replace (sync) mata kuliah tahun ajaran aktif agar sesuai persis dengan payload
+            // Ini akan menambah yang belum ada dan menghapus yang tidak dipilih
+            $activeTA->mataKuliah()->sync($codes);
+        });
+
+        // Clear cache agar seluruh client mendapatkan data terbaru
+        Cache::flush();
+
+        return response()->json(['message' => 'Mata Kuliah berhasil diperbarui pada Tahun Ajaran aktif.']);
     }
 
     /**
