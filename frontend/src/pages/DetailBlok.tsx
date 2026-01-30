@@ -403,22 +403,22 @@ const createDetailedInfoMataKuliah = (data: any, jenisJadwal: string, totalJadwa
   return [
     [`TIPS DAN INFORMASI IMPORT JADWAL ${jenisJadwal.toUpperCase()}`],
     [""],
-    ["📋 CARA UPLOAD FILE:"],
+    ["CARA UPLOAD FILE:"],
     [`1. Download template ini dan isi dengan data jadwal ${jenisJadwal.toLowerCase()}`],
     ["2. Pastikan semua kolom wajib diisi dengan benar"],
     ["3. Upload file yang sudah diisi ke sistem"],
     ["4. Periksa preview data dan perbaiki error jika ada"],
     ['5. Klik "Import Data" untuk menyimpan jadwal'],
     [""],
-    ["✏️ CARA EDIT DATA:"],
+    ["CARA EDIT DATA:"],
     ["1. Klik pada kolom yang ingin diedit di tabel preview"],
     ["2. Ketik atau paste data yang benar"],
     ["3. Sistem akan otomatis validasi dan update error"],
     ["4. Pastikan tidak ada error sebelum import"],
     [""],
-    ["📊 KETERSEDIAAN DATA:"],
+    ["KETERSEDIAAN DATA:"],
     [""],
-    ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+    ["DOSEN YANG TERSEDIA:"],
     ["• Termasuk dosen standby yang tersedia untuk semua materi"],
     ...allDosenList.map((dosen) => {
       const keahlian = Array.isArray(dosen.keahlian)
@@ -427,10 +427,10 @@ const createDetailedInfoMataKuliah = (data: any, jenisJadwal: string, totalJadwa
       return [`• ${dosen.name} - Keahlian: ${keahlian.join(", ")}`];
     }),
     [""],
-    ["🏢 RUANGAN YANG TERSEDIA:"],
+    ["RUANGAN YANG TERSEDIA:"],
     ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
     [""],
-    ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
+    ["KELOMPOK KECIL YANG TERSEDIA:"],
     ...(() => {
       const kelompokMap = new Map<string, number>();
       kelompokKecilList.forEach((item) => {
@@ -455,15 +455,15 @@ const createDetailedInfoMataKuliah = (data: any, jenisJadwal: string, totalJadwa
         : [["• Belum ada kelompok kecil yang dibuat untuk semester ini"]];
     })(),
     [""],
-    ["⚠️ VALIDASI SISTEM:"],
+    ["VALIDASI SISTEM:"],
     [""],
-    ["📅 VALIDASI TANGGAL:"],
+    ["VALIDASI TANGGAL:"],
     ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
     ["• Wajib dalam rentang mata kuliah:"],
     [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
     [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
     [""],
-    ["⏰ VALIDASI JAM:"],
+    ["VALIDASI JAM:"],
     ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
     ["• Jam mulai harus sesuai opsi yang tersedia:"],
     [
@@ -471,15 +471,15 @@ const createDetailedInfoMataKuliah = (data: any, jenisJadwal: string, totalJadwa
     ],
     ["• Jam selesai akan dihitung otomatis berdasarkan sesi"],
     [""],
-    ["📝 VALIDASI TOPIK:"],
+    ["VALIDASI TOPIK:"],
     ["• Topik harus sesuai dengan materi yang tersedia"],
     ...materiJurnalList.map((materi) => [`• ${typeof materi === 'string' ? materi : materi.nama_materi || materi}`]),
     [""],
-    ["👥 VALIDASI KELOMPOK KECIL:"],
+    ["VALIDASI KELOMPOK KECIL:"],
     ["• Kelompok kecil harus sesuai dengan yang sudah dibuat"],
     ["• Mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
     [""],
-    ["📋 INFORMASI MATA KULIAH"],
+    ["INFORMASI MATA KULIAH"],
     [""],
     ["Kode Mata Kuliah", data?.kode || ""],
     ["Nama Mata Kuliah", data?.nama || ""],
@@ -4854,8 +4854,7 @@ export default function DetailBlok() {
       styleTipsAndInfoSheet(infoWs);
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Kuliah_Besar_Aplikasi_${data?.kode || "MataKuliah"
-        }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Export_KuliahBesar_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mengekspor data jadwal kuliah besar (Template Aplikasi)");
@@ -5196,8 +5195,7 @@ export default function DetailBlok() {
       styleTipsAndInfoSheet(infoWs);
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Praktikum_Aplikasi_${data?.kode || "MataKuliah"
-        }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Export_Praktikum_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mengekspor data jadwal praktikum (Template Aplikasi)");
@@ -5781,22 +5779,22 @@ export default function DetailBlok() {
       const infoData = [
         ["TIPS DAN INFORMASI IMPORT JADWAL PBL"],
         [""],
-        ["📋 CARA UPLOAD FILE:"],
+        ["CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal PBL"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
         ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["✏️ CARA EDIT DATA:"],
+        ["CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
         ["2. Ketik atau paste data yang benar"],
         ["3. Sistem akan otomatis validasi dan update error"],
         ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["📊 KETERSEDIAAN DATA:"],
+        ["KETERSEDIAAN DATA:"],
         [""],
-        ["📚 MODUL PBL YANG TERSEDIA:"],
+        ["MODUL PBL YANG TERSEDIA:"],
         ...modulPBLOptions
           .filter(
             (modul, index, self) =>
@@ -5813,7 +5811,7 @@ export default function DetailBlok() {
             return [`• ${namaModul}`];
           }),
         [""],
-        ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
+        ["KELOMPOK KECIL YANG TERSEDIA:"],
         ...(() => {
           const kelompokMap = new Map();
           kelompokKecilOptions.forEach((item) => {
@@ -5832,7 +5830,7 @@ export default function DetailBlok() {
           );
         })(),
         [""],
-        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+        ["DOSEN YANG TERSEDIA:"],
         [
           "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
@@ -5852,7 +5850,7 @@ export default function DetailBlok() {
             return [`• ${namaDosen}`];
           }),
         [""],
-        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ["RUANGAN YANG TERSEDIA:"],
         ...ruanganOptions
           .filter(
             (ruangan, index, self) =>
@@ -5870,15 +5868,15 @@ export default function DetailBlok() {
             return [`• ${namaRuangan} (Kapasitas: ${kapasitas} orang)`];
           }),
         [""],
-        ["⚠️ VALIDASI SISTEM:"],
+        ["VALIDASI SISTEM:"],
         [""],
-        ["📅 VALIDASI TANGGAL:"],
+        ["VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [`  - Mulai: ${tanggalMulai.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [`  - Akhir: ${tanggalAkhir.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
-        ["⏰ VALIDASI JAM:"],
+        ["VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 08:00 atau 08.00)"],
         ["• Jam mulai harus sesuai opsi yang tersedia:"],
         [
@@ -5893,33 +5891,33 @@ export default function DetailBlok() {
         ["• Nama modul harus ada di database"],
         ["• Gunakan nama modul yang tersedia di list di atas"],
         [""],
-        ["👥 VALIDASI KELOMPOK KECIL:"],
+        ["VALIDASI KELOMPOK KECIL:"],
         ["• Kelompok kecil wajib diisi"],
         ["• Nama kelompok kecil harus ada di database"],
         ["• Harus sesuai dengan semester mata kuliah"],
         ["• Mendukung lebih dari 1 kelompok (Contoh: Kelompok 1, Kelompok 2)"],
         ["• Penulisan fleksibel: \"Kelompok1\", \"Kelompok 1\", atau \"1\""],
         [""],
-        ["👨‍🏫 VALIDASI DOSEN:"],
+        ["VALIDASI DOSEN:"],
         ["• Dosen wajib diisi"],
         ["• Nama dosen harus ada di database"],
         ["• Dosen harus sudah di-assign untuk PBL mata kuliah ini"],
         [""],
-        ["🏢 VALIDASI RUANGAN:"],
+        ["VALIDASI RUANGAN:"],
         ["• Ruangan wajib diisi"],
         ["• Nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         [""],
-        ["🔢 VALIDASI PBL TIPE:"],
+        ["VALIDASI PBL TIPE:"],
         ["• Hanya boleh diisi: PBL 1 atau PBL 2"],
         ["• PBL 1 = 2 sesi (100 menit)"],
         ["• PBL 2 = 3 sesi (150 menit)"],
         [""],
-        ["📝 VALIDASI TOPIK:"],
+        ["VALIDASI TOPIK:"],
         ["• Topik opsional (boleh dikosongkan)"],
         ["• Jika diisi, pastikan relevan dengan modul PBL"],
         [""],
-        ["💡 TIPS PENTING:"],
+        ["TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Pastikan dosen sudah di-generate untuk blok dan semester ini"],
         ["• Periksa preview sebelum import"],
@@ -5935,8 +5933,7 @@ export default function DetailBlok() {
 
       // Download file
 
-      const fileName = `Template_Import_PBL_${data?.nama || "MataKuliah"}_${new Date().toISOString().split("T")[0]
-        }.xlsx`;
+      const fileName = `Template_Import_PBL_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]}.xlsx`;
 
       XLSX.writeFile(wb, fileName);
     } catch (error) {
@@ -6080,7 +6077,7 @@ export default function DetailBlok() {
       const infoData: string[][] = [
         ["TIPS DAN INFORMASI IMPORT JADWAL PRAKTIKUM"],
         [""],
-        ["📋 CARA UPLOAD FILE:"],
+        ["CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal praktikum"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Kolom 'Kelompok Kecil' mendukung lebih dari 1 kelompok (Contoh: 1, 2)"],
@@ -6088,15 +6085,15 @@ export default function DetailBlok() {
         ["5. Periksa preview data dan perbaiki error jika ada"],
         ['6. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["✏️ CARA EDIT DATA:"],
+        ["CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
         ["2. Ketik atau paste data yang benar"],
         ["3. Sistem akan otomatis validasi dan update error"],
         ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["📊 KETERSEDIAAN DATA:"],
+        ["KETERSEDIAAN DATA:"],
         [""],
-        ["👨‍🏫 DOSEN YANG TERSEDIA (sesuai keahlian praktikum):"],
+        ["DOSEN YANG TERSEDIA (sesuai keahlian praktikum):"],
         ["• Dosen yang tersedia adalah dosen yang memiliki keahlian sesuai materi praktikum"],
         ["• Termasuk dosen standby yang tersedia untuk semua materi"],
         ...pengampuPraktikumOptions.map((dosen) => {
@@ -6106,10 +6103,10 @@ export default function DetailBlok() {
           return [`• ${dosen.name} - Keahlian: ${keahlian.join(", ")}`];
         }),
         [""],
-        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ["RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-        ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
+        ["KELOMPOK KECIL YANG TERSEDIA:"],
         ...(() => {
           const kelompokMap = new Map<string, number>();
           kelompokKecilList.forEach((item) => {
@@ -6134,18 +6131,18 @@ export default function DetailBlok() {
             : [["• Belum ada kelompok kecil yang dibuat untuk semester ini"]];
         })(),
         [""],
-        ["📚 MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):"],
+        ["MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):"],
         ...(data?.keahlian_required || []).map((keahlian) => [`• ${keahlian}`]),
         [""],
-        ["⚠️ VALIDASI SISTEM:"],
+        ["VALIDASI SISTEM:"],
         [""],
-        ["📅 VALIDASI TANGGAL:"],
+        ["VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
-        ["⏰ VALIDASI JAM:"],
+        ["VALIDASI JAM:"],
         ["• Format: HH.MM atau HH:MM (contoh: 07.20 atau 07:20)"],
         ["• Jam mulai harus sesuai dengan opsi yang tersedia"],
         [
@@ -6153,32 +6150,32 @@ export default function DetailBlok() {
         ],
         ["• Jam selesai dihitung otomatis berdasarkan sesi"],
         [""],
-        ["📚 VALIDASI MATERI:"],
+        ["VALIDASI MATERI:"],
         ["• Materi wajib diisi"],
         ["• Harus sesuai dengan keahlian_required mata kuliah"],
         [""],
-        ["👥 VALIDASI KELOMPOK KECIL:"],
+        ["VALIDASI KELOMPOK KECIL:"],
         ["• Kelompok kecil wajib diisi"],
         ["• Nama kelompok kecil harus ada di database"],
         ["• Mendukung penulisan lebih dari 1 kelompok (Contoh: 1, 2)"],
         ["• Penulisan fleksibel: \"Kelompok1\", \"Kelompok 1\", atau \"1\""],
         ["• ⚠️ Kelompok kecil tidak boleh duplikat dalam satu baris"],
         [""],
-        ["👨‍🏫 VALIDASI DOSEN:"],
+        ["VALIDASI DOSEN:"],
         ["• Dosen wajib diisi (minimal 1 dosen, bisa multiple)"],
         ["• Untuk multiple dosen, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
         ["• Dosen harus sesuai dengan materi yang dipilih (kecuali dosen standby)"],
         ["• ⚠️ Dosen tidak boleh duplikat dalam satu baris"],
         [""],
-        ["🏢 VALIDASI RUANGAN:"],
+        ["VALIDASI RUANGAN:"],
         ["• Ruangan wajib diisi"],
         ["• Nama ruangan harus ada di database"],
         [""],
-        ["🔢 VALIDASI SESI:"],
+        ["VALIDASI SESI:"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
         [""],
-        ["💡 TIPS PENTING:"],
+        ["TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Pastikan tidak ada bentrok jadwal"],
         ["• Periksa preview sebelum import"],
@@ -6192,8 +6189,7 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_Praktikum_${data?.nama || "MataKuliah"
-        }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_Praktikum_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mendownload template Praktikum. Silakan coba lagi.");
@@ -6397,22 +6393,22 @@ export default function DetailBlok() {
       const infoData = [
         ["TIPS DAN INFORMASI IMPORT JADWAL KULIAH BESAR"],
         [""],
-        ["📋 CARA UPLOAD FILE:"],
+        ["CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal kuliah besar"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
         ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["✏️ CARA EDIT DATA:"],
+        ["CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
         ["2. Ketik atau paste data yang benar"],
         ["3. Sistem akan otomatis validasi dan update error"],
         ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["📊 KETERSEDIAAN DATA:"],
+        ["KETERSEDIAAN DATA:"],
         [""],
-        ["👨‍🏫 DOSEN YANG TERSEDIA (sesuai keahlian materi):"],
+        ["DOSEN YANG TERSEDIA (sesuai keahlian materi):"],
         ["• Dosen yang tersedia adalah dosen yang memiliki keahlian sesuai materi kuliah"],
         ["• Termasuk dosen standby yang tersedia untuk semua materi"],
         ...pengampuOptions.map((dosen) => {
@@ -6423,26 +6419,26 @@ export default function DetailBlok() {
           return [`• ${dosen.name} - Keahlian: ${keahlian.join(", ")}`];
         }),
         [""],
-        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ["RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-        ["👥 KELOMPOK BESAR YANG TERSEDIA:"],
+        ["KELOMPOK BESAR YANG TERSEDIA:"],
         ...kelompokBesarOptions.map((kelompok) => [
           `• ${kelompok.id} - ${kelompok.label}`,
         ]),
         [""],
-        ["📚 MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):"],
+        ["MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):"],
         ...(data?.keahlian_required || []).map((keahlian) => [`• ${keahlian}`]),
         [""],
-        ["⚠️ VALIDASI SISTEM:"],
+        ["VALIDASI SISTEM:"],
         [""],
-        ["📅 VALIDASI TANGGAL:"],
+        ["VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [`  - Mulai: ${tanggalMulai ? new Date(tanggalMulai).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Tidak tersedia"}`],
         [`  - Akhir: ${tanggalAkhir ? new Date(tanggalAkhir).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Tidak tersedia"}`],
         [""],
-        ["⏰ VALIDASI JAM:"],
+        ["VALIDASI JAM:"],
         ["• Format: HH:MM (contoh: 08:00)"],
         ["• Jam mulai harus sesuai opsi yang tersedia:"],
         [
@@ -6452,32 +6448,32 @@ export default function DetailBlok() {
         ["  Jam selesai = Jam mulai + (Sesi x 50 menit)"],
         ["  Contoh: 08:00 + (2 x 50 menit) = 09:40"],
         [""],
-        ["👨‍🏫 VALIDASI DOSEN:"],
+        ["VALIDASI DOSEN:"],
         ["• Nama dosen harus ada di database"],
         ["• Materi harus sesuai dengan keahlian dosen"],
         ["• Sistem akan cek kecocokan keahlian otomatis"],
         [""],
-        ["🏢 VALIDASI RUANGAN:"],
+        ["VALIDASI RUANGAN:"],
         ["• Nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         [""],
-        ["👥 VALIDASI KELOMPOK BESAR:"],
+        ["VALIDASI KELOMPOK BESAR:"],
         ["• ID kelompok besar harus berupa angka (1, 3, 5, 7, dst)"],
         ["• ID harus ada di database"],
         [
           "• Hanya boleh menggunakan kelompok besar di semester yang sama dengan mata kuliah",
         ],
         [""],
-        ["📚 VALIDASI MATERI:"],
+        ["VALIDASI MATERI:"],
         ["• Materi wajib diisi"],
         ["• Harus sesuai dengan keahlian_required mata kuliah"],
         ["• Topik boleh dikosongkan"],
         [""],
-        ["🔢 VALIDASI SESI:"],
+        ["VALIDASI SESI:"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
         [""],
-        ["💡 TIPS PENTING:"],
+        ["TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Pastikan materi sesuai dengan keahlian dosen"],
         ["• Periksa preview sebelum import"],
@@ -6495,7 +6491,8 @@ export default function DetailBlok() {
 
       XLSX.utils.book_append_sheet(wb, ws, "Template Kuliah Besar");
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
-      XLSX.writeFile(wb, "Template_Import_JadwalKuliahBesar.xlsx");
+      const fileName = `Template_Import_KuliahBesar_${data?.nama || "MataKuliah"}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mendownload template Kuliah Besar. Silakan coba lagi.");
     }
@@ -6606,38 +6603,38 @@ export default function DetailBlok() {
       const infoData: string[][] = [
         ["TIPS DAN INFORMASI IMPORT JADWAL AGENDA KHUSUS"],
         [""],
-        ["📋 CARA UPLOAD FILE:"],
+        ["CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal agenda khusus"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
         ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["✏️ CARA EDIT DATA:"],
+        ["CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
         ["2. Ketik atau paste data yang benar"],
         ["3. Sistem akan otomatis validasi dan update error"],
         ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["📊 KETERSEDIAAN DATA:"],
+        ["KETERSEDIAAN DATA:"],
         [""],
-        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ["RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-        ["👥 KELOMPOK BESAR YANG TERSEDIA:"],
+        ["KELOMPOK BESAR YANG TERSEDIA:"],
         ...kelompokBesarOptions.map((kelompok) => [
           `• ${kelompok.id} - ${kelompok.label}`,
         ]),
         [""],
-        ["⚠️ VALIDASI SISTEM:"],
+        ["VALIDASI SISTEM:"],
         [""],
-        ["📅 VALIDASI TANGGAL:"],
+        ["VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
-        ["⏰ VALIDASI JAM:"],
+        ["VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
         ["• Jam mulai harus sesuai opsi yang tersedia:"],
         [
@@ -6645,29 +6642,29 @@ export default function DetailBlok() {
         ],
         ["• Jam selesai akan dihitung otomatis berdasarkan sesi"],
         [""],
-        ["📝 VALIDASI AGENDA:"],
+        ["VALIDASI AGENDA:"],
         ["• Agenda wajib diisi"],
         ["• Isi dengan deskripsi agenda yang jelas"],
         [""],
-        ["🏢 VALIDASI RUANGAN:"],
+        ["VALIDASI RUANGAN:"],
         [
           "• Ruangan boleh dikosongkan untuk agenda online/tidak memerlukan ruangan",
         ],
         ["• Jika diisi, nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         [""],
-        ["👥 VALIDASI KELOMPOK BESAR:"],
+        ["VALIDASI KELOMPOK BESAR:"],
         ["• ID kelompok besar harus berupa angka (1, 3, 5, 7, dst)"],
         ["• ID harus ada di database"],
         [
           "• Hanya boleh menggunakan kelompok besar di semester yang sama dengan mata kuliah",
         ],
         [""],
-        ["🔢 VALIDASI SESI:"],
+        ["VALIDASI SESI:"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
         [""],
-        ["💡 TIPS PENTING:"],
+        ["TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Periksa preview sebelum import"],
         ["• Edit langsung di tabel preview jika ada error"],
@@ -6680,8 +6677,7 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_AgendaKhusus_${data?.nama || "MataKuliah"
-        }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_AgendaKhusus_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mendownload template Agenda Khusus. Silakan coba lagi.");
@@ -8075,14 +8071,14 @@ export default function DetailBlok() {
           tanggal: tanggal,
           jam_mulai: jamMulai,
           jam_selesai: hitungJamSelesai(jamMulai, jumlahSesi),
-          materi: siakadSubstansi || "Kosong (isi manual)", // Mapping dari kolom Substansi
+          materi: siakadSubstansi || "Kosong (isi manual)", 
           topik: topik,
-          sesi: "Kosong (isi manual)", // User isi manual di preview
+          sesi: "Kosong (isi manual)", 
           kelompok_kecil: matchedGroupsSiakad,
-          dosen_id: dosen?.id || null, // Mapping dari kolom NIP Pengajar (backward compatibility)
-          dosen_ids: dosenIds.length > 0 ? dosenIds : [], // Multi dosen support
+          dosen_id: dosen?.id || null, 
+          dosen_ids: dosenIds.length > 0 ? dosenIds : [], 
           nama_dosen: dosenNames.length > 0 ? dosenNames.join("\\") : (dosen?.name || "Kosong (isi manual)"), // Multi dosen display dengan backslash
-          dosen: dosenList, // Multi dosen support
+          dosen: dosenList, 
           ruangan_id: ruanganData?.id || 0,
           nama_ruangan: ruanganData?.nama || ruanganName || "Kosong (isi manual)",
           id_ruangan: ruanganData?.id_ruangan || ruanganName || "",
@@ -8091,8 +8087,8 @@ export default function DetailBlok() {
           siakad_kurikulum: rowObj["Kurikulum"] || "",
           siakad_kode_mk: rowObj["Kode MK"] || "",
           siakad_kelompok: kelompokValue,
-          siakad_jenis_pertemuan: "", // Kosongkan untuk SIAKAD
-          siakad_metode: "", // Kosongkan untuk SIAKAD
+          siakad_jenis_pertemuan: "",
+          siakad_metode: "", 
           siakad_dosen_pengganti: getValueFromMultipleFormats(
             "Dosen Pengganti\n(Y jika Ya)",
             rowObj
@@ -9366,23 +9362,12 @@ export default function DetailBlok() {
           }
         }
 
+        // Untuk template SIAKAD, gunakan dosen_ids yang sudah diparsing dari NIP saat membaca Excel
+        // Jangan coba parse ulang dari nama_dosen karena pengampuPraktikumOptions mungkin tidak memiliki dosen tersebut
+        // jika keahliannya tidak sesuai dengan materi praktikum
         if (selectedPraktikumTemplate === "SIAKAD") {
-          // Untuk SIAKAD, parse dosen dari nama_dosen dengan backslash separator
-          if (row.nama_dosen && row.nama_dosen.trim() !== "") {
-            const dosenNames = row.nama_dosen
-              .split("\\")
-              .map((n: string) => n.trim())
-              .filter((n: string) => n !== "");
-
-            dosenIds = [];
-            dosenNames.forEach((namaDosen: string) => {
-              const dosen = pengampuPraktikumOptions.find(
-                (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
-              );
-              if (dosen) dosenIds.push(dosen.id);
-            });
-          }
-
+          // dosenIds sudah diisi dari parsing NIP di atas, tidak perlu parse ulang
+          
           // Cari ruangan berdasarkan nama
           const ruangan = ruanganList.find((r) => r.nama === row.nama_ruangan);
           if (ruangan) ruanganId = ruangan.id;
@@ -9778,25 +9763,25 @@ export default function DetailBlok() {
       const infoData: string[][] = [
         ["TIPS DAN INFORMASI IMPORT JADWAL JURNAL READING"],
         [""],
-        ["📋 CARA UPLOAD FILE:"],
+        ["CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal jurnal reading"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
         ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["✏️ CARA EDIT DATA:"],
+        ["CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
         ["2. Ketik atau paste data yang benar"],
         ["3. Sistem akan otomatis validasi dan update error"],
         ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["📊 KETERSEDIAAN DATA:"],
+        ["KETERSEDIAAN DATA:"],
         [""],
-        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ["RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-        ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
+        ["KELOMPOK KECIL YANG TERSEDIA:"],
         ...(() => {
           // Kelompok data berdasarkan nama_kelompok dan hitung jumlah mahasiswa
           const kelompokMap = new Map();
@@ -9819,7 +9804,7 @@ export default function DetailBlok() {
           );
         })(),
         [""],
-        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+        ["DOSEN YANG TERSEDIA:"],
         [
           "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
@@ -9840,15 +9825,15 @@ export default function DetailBlok() {
             return [`• ${namaDosen}`];
           }),
         [""],
-        ["⚠️ VALIDASI SISTEM:"],
+        ["VALIDASI SISTEM:"],
         [""],
-        ["📅 VALIDASI TANGGAL:"],
+        ["VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [`  - Mulai: ${startDate.toLocaleDateString("id-ID")}`],
         [`  - Akhir: ${endDate.toLocaleDateString("id-ID")}`],
         [""],
-        ["⏰ VALIDASI JAM:"],
+        ["VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
         ["• Jam mulai harus sesuai opsi yang tersedia:"],
         [
@@ -9858,41 +9843,41 @@ export default function DetailBlok() {
         ["  Jam selesai = Jam mulai + (Sesi x 50 menit)"],
         ["  Contoh: 07:20 + (2 x 50 menit) = 09:00"],
         [""],
-        ["📝 VALIDASI TOPIK:"],
+        ["VALIDASI TOPIK:"],
         ["• Topik wajib diisi"],
         ["• Topik harus sesuai dengan daftar yang tersedia"],
         ["• Daftar topik yang tersedia:"],
         ...topikJurnalReadingList.map((topik) => [`  - ${topik}`]),
         [""],
-        ["👨‍🏫 VALIDASI DOSEN:"],
+        ["VALIDASI DOSEN:"],
         ["• Dosen wajib diisi"],
         [
           "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini atau dosen standby",
         ],
         ["• Nama dosen harus sesuai dengan yang ada di database"],
         [""],
-        ["🏢 VALIDASI RUANGAN:"],
+        ["VALIDASI RUANGAN:"],
         ["• Ruangan wajib diisi"],
         ["• Nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         [""],
-        ["👥 VALIDASI KELOMPOK KECIL:"],
+        ["VALIDASI KELOMPOK KECIL:"],
         ["• Nama kelompok kecil wajib diisi"],
         ["• Nama kelompok kecil harus ada di database"],
         ["• Harus sesuai dengan semester mata kuliah"],
         [""],
-        ["🔢 VALIDASI SESI:"],
+        ["VALIDASI SESI:"],
         ["• Sesi: HARUS 2 (2 x 50 menit = 100 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
         ["• 1 sesi = 50 menit"],
         [""],
-        ["📄 CATATAN PENTING:"],
+        ["CATATAN PENTING:"],
         [
           "• File jurnal reading akan diupload secara manual melalui modal edit aplikasi",
         ],
         ["• Template Excel ini hanya untuk jadwal, bukan untuk file jurnal"],
         [""],
-        ["💡 TIPS PENTING:"],
+        ["TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Periksa preview sebelum import"],
         ["• Edit langsung di tabel preview jika ada error"],
@@ -9905,8 +9890,7 @@ export default function DetailBlok() {
       XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
 
       // Download file
-      const fileName = `Template_Import_JurnalReading_${data?.nama || "MataKuliah"
-        }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const fileName = `Template_Import_JurnalReading_${data?.kode || "MataKuliah"}_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert("Gagal mendownload template Jurnal Reading. Silakan coba lagi.");
@@ -10500,25 +10484,25 @@ export default function DetailBlok() {
       const infoData: string[][] = [
         ["TIPS DAN INFORMASI IMPORT JADWAL PERSAMAAN PERSEPSI"],
         [""],
-        ["📋 CARA UPLOAD FILE:"],
+        ["CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal persamaan persepsi"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
         ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["✏️ CARA EDIT DATA:"],
+        ["CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
         ["2. Ketik atau paste data yang benar"],
         ["3. Sistem akan otomatis validasi dan update error"],
         ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["📊 KETERSEDIAAN DATA:"],
+        ["KETERSEDIAAN DATA:"],
         [""],
-        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ["RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+        ["DOSEN YANG TERSEDIA:"],
         ["• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini"],
         ...assignedDosenPBL
           .filter(
@@ -10535,15 +10519,15 @@ export default function DetailBlok() {
             return [`• ${namaDosen}`];
           }),
         [""],
-        ["⚠️ VALIDASI SISTEM:"],
+        ["VALIDASI SISTEM:"],
         [""],
-        ["📅 VALIDASI TANGGAL:"],
+        ["VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
-        ["⏰ VALIDASI JAM:"],
+        ["VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
         ["• Jam mulai harus sesuai opsi yang tersedia:"],
         [
@@ -10551,34 +10535,34 @@ export default function DetailBlok() {
         ],
         ["• Jam selesai akan dihitung otomatis berdasarkan sesi"],
         [""],
-        ["📝 VALIDASI TOPIK:"],
+        ["VALIDASI TOPIK:"],
         ["• Topik opsional (boleh dikosongkan)"],
         ["• Jika diisi, topik akan disimpan"],
         [""],
-        ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
+        ["VALIDASI KOORDINATOR DOSEN:"],
         ["• Koordinator Dosen wajib diisi (maksimal 1 orang)"],
         ["• Nama koordinator harus sesuai dengan yang ada di database"],
         ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
         [""],
-        ["👨‍🏫 VALIDASI PENGAMPU:"],
+        ["VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
         ["• Untuk multi-select, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
         ["• Nama dosen harus sesuai dengan yang ada di database"],
         ["• ⚠️ Pengampu tidak boleh duplikat dalam satu baris"],
         ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
         [""],
-        ["🏢 VALIDASI RUANGAN:"],
+        ["VALIDASI RUANGAN:"],
         ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
         ["• Jika diisi, nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
         ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
         [""],
-        ["🔢 VALIDASI SESI:"],
+        ["VALIDASI SESI:"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
         [""],
-        ["💡 TIPS PENTING:"],
+        ["TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Periksa preview sebelum import"],
         ["• Edit langsung di tabel preview jika ada error"],
@@ -11434,25 +11418,25 @@ export default function DetailBlok() {
       const infoData: string[][] = [
         ["TIPS DAN INFORMASI IMPORT JADWAL SEMINAR PLENO"],
         [""],
-        ["📋 CARA UPLOAD FILE:"],
+        ["CARA UPLOAD FILE:"],
         ["1. Download template ini dan isi dengan data jadwal seminar pleno"],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
         ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [""],
-        ["✏️ CARA EDIT DATA:"],
+        ["CARA EDIT DATA:"],
         ["1. Klik pada kolom yang ingin diedit di tabel preview"],
         ["2. Ketik atau paste data yang benar"],
         ["3. Sistem akan otomatis validasi dan update error"],
         ["4. Pastikan tidak ada error sebelum import"],
         [""],
-        ["📊 KETERSEDIAAN DATA:"],
+        ["KETERSEDIAAN DATA:"],
         [""],
-        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ["RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+        ["DOSEN YANG TERSEDIA:"],
         ["• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini"],
         ...assignedDosenPBL
           .filter(
@@ -11469,15 +11453,15 @@ export default function DetailBlok() {
             return [`• ${namaDosen}`];
           }),
         [""],
-        ["⚠️ VALIDASI SISTEM:"],
+        ["VALIDASI SISTEM:"],
         [""],
-        ["📅 VALIDASI TANGGAL:"],
+        ["VALIDASI TANGGAL:"],
         ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
         ["• Wajib dalam rentang mata kuliah:"],
         [`  - Mulai: ${startDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [`  - Akhir: ${endDate.toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [""],
-        ["⏰ VALIDASI JAM:"],
+        ["VALIDASI JAM:"],
         ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
         ["• Jam mulai harus sesuai opsi yang tersedia:"],
         [
@@ -11485,39 +11469,39 @@ export default function DetailBlok() {
         ],
         ["• Jam selesai akan dihitung otomatis berdasarkan sesi"],
         [""],
-        ["📝 VALIDASI TOPIK:"],
+        ["VALIDASI TOPIK:"],
         ["• Topik opsional (boleh dikosongkan)"],
         ["• Jika diisi, topik akan disimpan"],
         [""],
-        ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
+        ["VALIDASI KOORDINATOR DOSEN:"],
         ["• Koordinator Dosen wajib diisi (maksimal 1 orang)"],
         ["• Nama koordinator harus sesuai dengan yang ada di database"],
         ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
         [""],
-        ["👨‍🏫 VALIDASI PENGAMPU:"],
+        ["VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
         ["• Untuk multi-select, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
         ["• Nama dosen harus sesuai dengan yang ada di database"],
         ["• ⚠️ Pengampu tidak boleh duplikat dalam satu baris"],
         ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
         [""],
-        ["🏢 VALIDASI RUANGAN:"],
+        ["VALIDASI RUANGAN:"],
         ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
         ["• Jika diisi, nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
         ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
         [""],
-        ["👥 VALIDASI KELOMPOK BESAR:"],
+        ["VALIDASI KELOMPOK BESAR:"],
         ["• ID kelompok besar harus berupa angka (1, 3, 5, 7, dst)"],
         ["• ID harus ada di database"],
         ["• Hanya boleh menggunakan kelompok besar di semester yang sama dengan mata kuliah"],
         [""],
-        ["🔢 VALIDASI SESI:"],
+        ["VALIDASI SESI:"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         ["• Digunakan untuk menghitung jam selesai"],
         [""],
-        ["💡 TIPS PENTING:"],
+        ["TIPS PENTING:"],
         ["• Gunakan data yang ada di list ketersediaan di atas"],
         ["• Periksa preview sebelum import"],
         ["• Edit langsung di tabel preview jika ada error"],

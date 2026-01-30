@@ -388,25 +388,25 @@ export default function DetailNonBlokNonCSR() {
     return [
       [`TIPS DAN INFORMASI IMPORT JADWAL ${isMateri ? 'MATERI KULIAH' : 'AGENDA KHUSUS'}`],
       [''],
-      ['📋 CARA UPLOAD FILE:'],
+      ['CARA UPLOAD FILE:'],
       [`1. Download template ini dan isi dengan data jadwal ${isMateri ? 'Materi Kuliah' : 'Agenda Khusus'}`],
       ['2. Pastikan semua kolom wajib diisi dengan benar'],
       ['3. Upload file Excel yang sudah diisi ke sistem'],
       ['4. Periksa preview data dan perbaiki error jika ada'],
       ['5. Klik "Import Data" untuk menyimpan jadwal'],
       [''],
-      ['✏️ CARA EDIT DATA:'],
+      ['CARA EDIT DATA:'],
       ['1. Klik pada kolom yang ingin diedit di tabel preview'],
       ['2. Ketik atau paste data yang benar'],
       ['3. Sistem akan otomatis validasi dan update error'],
       ['4. Pastikan tidak ada error sebelum import'],
       [''],
-      ['📊 KETERSEDIAAN DATA:'],
+      ['KETERSEDIAAN DATA:'],
       [''],
-      ['⏰ JAM YANG TERSEDIA:'],
+      ['JAM YANG TERSEDIA:'],
       ...jamOptions.map(jam => [`• ${jam}`]),
       [''],
-      [`👥 KELOMPOK BESAR YANG TERSEDIA (Semester ${data.semester}):`],
+      [`KELOMPOK BESAR YANG TERSEDIA (Semester ${data.semester}):`],
       ...(isMateri ?
         (kelompokBesarMateriOptions.length > 0 ?
           kelompokBesarMateriOptions.map(kb => [`• ${kb.label} (${kb.jumlah_mahasiswa} mahasiswa)`]) :
@@ -419,54 +419,54 @@ export default function DetailNonBlokNonCSR() {
       ),
       ...(isMateri ? [
         [''],
-        ['👨‍🏫 DOSEN YANG TERSEDIA:'],
+        ['DOSEN YANG TERSEDIA:'],
         ...(dosenList.length > 0 ?
-          dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]) :
+          dosenList.map(dosen => [`• ${dosen.name}`]) :
           [['• Belum ada data dosen']]
         )
       ] : []),
       [''],
-      ['🏢 RUANGAN YANG TERSEDIA:'],
+      ['RUANGAN YANG TERSEDIA:'],
       ...(ruanganList.length > 0 ?
         ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
         [['• Belum ada data ruangan']]
       ),
       [''],
-      ['⚠️ VALIDASI SISTEM:'],
+      ['VALIDASI SISTEM:'],
       [''],
-      ['📅 VALIDASI TANGGAL:'],
+      ['VALIDASI TANGGAL:'],
       ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
       ['• Wajib dalam rentang mata kuliah:'],
       [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
       [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
       [''],
-      ['⏰ VALIDASI JAM:'],
+      ['VALIDASI JAM:'],
       ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
       ['• Jam mulai harus sesuai opsi yang tersedia'],
       ['• Jam selesai akan dihitung otomatis:'],
       ['  Jam selesai = Jam mulai + (Sesi × 50 menit)'],
       ['  Contoh: 07:20 + (2 × 50 menit) = 09:00'],
       [''],
-      ['🔢 VALIDASI SESI:'],
+      ['VALIDASI SESI:'],
       [`• Sesi: ${MIN_SESSIONS}-${MAX_SESSIONS} (1 sesi = 50 menit)`],
       ['• Digunakan untuk menghitung jam selesai otomatis'],
       [''],
       ...(isMateri ? [
-        ['📝 VALIDASI MATERI KULIAH:'],
+        ['VALIDASI MATERI KULIAH:'],
         ['• Untuk Materi Kuliah (wajib isi: Dosen, Materi, Ruangan)'],
         ['• Dosen, Materi, dan Ruangan tidak boleh kosong']
       ] : [
-        ['📝 VALIDASI AGENDA KHUSUS:'],
+        ['VALIDASI AGENDA KHUSUS:'],
         ['• Untuk Agenda Khusus (wajib isi: Agenda)'],
         ['• Ruangan opsional (boleh dikosongkan untuk agenda online)']
       ]),
       [''],
-      ['👥 VALIDASI KELOMPOK BESAR:'],
+      ['VALIDASI KELOMPOK BESAR:'],
       [`• Kelompok besar wajib diisi (harus semester ${data.semester})`],
       ['• ID kelompok besar harus sesuai dengan semester mata kuliah'],
       ['• Sistem akan validasi otomatis'],
       [''],
-      ['💡 TIPS PENTING:'],
+      ['TIPS PENTING:'],
       ['• Gunakan data yang ada di list ketersediaan di atas'],
       ['• Periksa preview sebelum import'],
       ['• Edit langsung di tabel preview jika ada error'],
@@ -493,74 +493,74 @@ export default function DetailNonBlokNonCSR() {
     return [
       [`TIPS DAN INFORMASI IMPORT JADWAL ${isSeminar ? 'SEMINAR PROPOSAL' : 'SIDANG SKRIPSI'}`],
       [''],
-      ['📋 CARA UPLOAD FILE:'],
+      ['CARA UPLOAD FILE:'],
       [`1. Download template ini dan isi dengan data jadwal ${isSeminar ? 'Seminar Proposal' : 'Sidang Skripsi'}`],
       ['2. Pastikan semua kolom wajib diisi dengan benar'],
       ['3. Upload file Excel yang sudah diisi ke sistem'],
       ['4. Periksa preview data dan perbaiki error jika ada'],
       ['5. Klik "Import Data" untuk menyimpan jadwal'],
       [''],
-      ['✏️ CARA EDIT DATA:'],
+      ['CARA EDIT DATA:'],
       ['1. Klik pada kolom yang ingin diedit di tabel preview'],
       ['2. Ketik atau paste data yang benar'],
       ['3. Sistem akan otomatis validasi dan update error'],
       ['4. Pastikan tidak ada error sebelum import'],
       [''],
-      ['📊 KETERSEDIAAN DATA:'],
+      ['KETERSEDIAAN DATA:'],
       [''],
-      ['👨‍🏫 DOSEN YANG TERSEDIA:'],
+      ['DOSEN YANG TERSEDIA:'],
       ...(dosenList.length > 0 ?
         dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]) :
         [['• Belum ada data dosen']]
       ),
       [''],
-      ['🏢 RUANGAN YANG TERSEDIA:'],
+      ['RUANGAN YANG TERSEDIA:'],
       ...(ruanganList.length > 0 ?
         ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
         [['• Belum ada data ruangan']]
       ),
       [''],
-      ['⚠️ VALIDASI SISTEM:'],
+      ['VALIDASI SISTEM:'],
       [''],
-      ['📅 VALIDASI TANGGAL:'],
+      ['VALIDASI TANGGAL:'],
       ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
       ['• Wajib dalam rentang mata kuliah:'],
       [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
       [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
       [''],
-      ['⏰ VALIDASI JAM:'],
+      ['VALIDASI JAM:'],
       ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
       ['• Jam mulai harus sesuai opsi yang tersedia'],
       ['• Jam selesai akan dihitung otomatis:'],
       ['  Jam selesai = Jam mulai + (Sesi × 50 menit)'],
       ['  Contoh: 07:20 + (2 × 50 menit) = 09:00'],
       [''],
-      ['🔢 VALIDASI SESI:'],
+      ['VALIDASI SESI:'],
       ['• Sesi: 1-6 (1 sesi = 50 menit)'],
       ['• Digunakan untuk menghitung jam selesai otomatis'],
       [''],
-      ['👨‍🏫 VALIDASI PEMBIMBING:'],
+      ['VALIDASI PEMBIMBING:'],
       ['• Pembimbing wajib diisi (1 dosen)'],
       ['• Nama dosen harus sesuai dengan data di sistem'],
       [''],
-      [`👥 VALIDASI ${roleType.toUpperCase()}:`],
+      [`VALIDASI ${roleType.toUpperCase()}:`],
       [`• ${roleType} minimal 1 dosen (bisa multiple dengan backslash separator)`],
       [`• Untuk multiple ${roleType.toLowerCase()}, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)`],
       ['• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma'],
-      [`• ⚠️ Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan ${roleType}`],
+      [`• Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan ${roleType}`],
       [''],
-      ['👨‍🎓 VALIDASI MAHASISWA:'],
+      ['VALIDASI MAHASISWA:'],
       ['• Mahasiswa minimal 1, tidak ada batasan maksimal'],
       ['• Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
       ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
       [''],
-      ['🏢 VALIDASI RUANGAN:'],
+      ['VALIDASI RUANGAN:'],
       ['• Ruangan opsional (boleh dikosongkan)'],
       ['• Jika diisi, nama ruangan harus sesuai dengan data di sistem'],
       ['• Sistem akan cek konflik jadwal ruangan'],
       [`• Kapasitas ruangan harus mencukupi (Pembimbing + ${roleType} + Mahasiswa)`],
       [''],
-      ['💡 TIPS PENTING:'],
+      ['TIPS PENTING:'],
       ['• Gunakan data yang ada di list ketersediaan di atas'],
       ['• Periksa preview sebelum import'],
       ['• Edit langsung di tabel preview jika ada error'],
@@ -623,7 +623,7 @@ export default function DetailNonBlokNonCSR() {
       infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
       XLSX.utils.book_append_sheet(wb, infoWs, 'Tips dan Info');
 
-      XLSX.writeFile(wb, `Template_Materi_Kuliah_${data.kode}.xlsx`);
+      XLSX.writeFile(wb, `Template_Import_MateriKuliah_${data.kode}_${formatDateToISO(new Date())}.xlsx`);
     } catch (error) {
       alert('Gagal mendownload template Materi Kuliah. Silakan coba lagi.');
     }
@@ -678,7 +678,7 @@ export default function DetailNonBlokNonCSR() {
       infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
       XLSX.utils.book_append_sheet(wb, infoWs, 'Tips dan Info');
 
-      XLSX.writeFile(wb, `Template_Agenda_Khusus_${data.kode}.xlsx`);
+      XLSX.writeFile(wb, `Template_Import_AgendaKhusus_${data.kode}_${formatDateToISO(new Date())}.xlsx`);
     } catch (error) {
       alert('Gagal mendownload template Agenda Khusus. Silakan coba lagi.');
     }
@@ -760,7 +760,7 @@ export default function DetailNonBlokNonCSR() {
       XLSX.utils.book_append_sheet(wb, tipsWs, 'Tips dan Info');
 
       // Template tidak perlu sheet Info Mata Kuliah, hanya untuk export
-      XLSX.writeFile(wb, `Template_Seminar_Proposal_${data.kode}.xlsx`);
+      XLSX.writeFile(wb, `Template_Import_SeminarProposal_${data.kode}_${formatDateToISO(new Date())}.xlsx`);
     } catch (error) {
       alert('Gagal mendownload template Seminar Proposal. Silakan coba lagi.');
     }
@@ -842,7 +842,7 @@ export default function DetailNonBlokNonCSR() {
       XLSX.utils.book_append_sheet(wb, tipsWs, 'Tips dan Info');
 
       // Template tidak perlu sheet Info Mata Kuliah, hanya untuk export
-      XLSX.writeFile(wb, `Template_Sidang_Skripsi_${data.kode}.xlsx`);
+      XLSX.writeFile(wb, `Template_Import_SidangSkripsi_${data.kode}_${formatDateToISO(new Date())}.xlsx`);
     } catch (error) {
       alert('Gagal mendownload template Sidang Skripsi. Silakan coba lagi.');
     }
@@ -3541,7 +3541,7 @@ export default function DetailNonBlokNonCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_Materi_Kuliah_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
+      const fileName = `Export_MateriKuliah_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert('Gagal mengekspor data Materi Kuliah');
@@ -3627,7 +3627,7 @@ export default function DetailNonBlokNonCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_Agenda_Khusus_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
+      const fileName = `Export_AgendaKhusus_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert('Gagal mengekspor data Agenda Khusus');
@@ -3657,7 +3657,7 @@ export default function DetailNonBlokNonCSR() {
         const mahasiswaNames = row.mahasiswa_nims
           ? row.mahasiswa_nims.map((nim: string) => {
             const mahasiswa = mahasiswaList.find(m => m.nim === nim);
-            return mahasiswa ? mahasiswa.name : nim;
+            return mahasiswa ? mahasiswa.name : null;
           }).filter(Boolean).join(', ')
           : '';
 
@@ -3731,7 +3731,7 @@ export default function DetailNonBlokNonCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_Seminar_Proposal_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
+      const fileName = `Export_SeminarProposal_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert('Gagal mengekspor data Seminar Proposal');
@@ -3761,7 +3761,7 @@ export default function DetailNonBlokNonCSR() {
         const mahasiswaNames = row.mahasiswa_nims
           ? row.mahasiswa_nims.map((nim: string) => {
             const mahasiswa = mahasiswaList.find(m => m.nim === nim);
-            return mahasiswa ? mahasiswa.name : nim;
+            return mahasiswa ? mahasiswa.name : null;
           }).filter(Boolean).join(', ')
           : '';
 
@@ -3836,7 +3836,7 @@ export default function DetailNonBlokNonCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_Sidang_Skripsi_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
+      const fileName = `Export_SidangSkripsi_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert('Gagal mengekspor data Sidang Skripsi');
@@ -4584,9 +4584,16 @@ export default function DetailNonBlokNonCSR() {
                 setErrorForm('');
                 setErrorBackend('');
               }}
-              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 flex items-center gap-2"
             >
-              Tambah Jadwal
+              {isSaving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                  Menyimpan...
+                </>
+              ) : (
+                'Tambah Jadwal'
+              )}
             </button>
           </div>
         </div>
@@ -4914,9 +4921,16 @@ export default function DetailNonBlokNonCSR() {
                 setErrorForm('');
                 setErrorBackend('');
               }}
-              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 flex items-center gap-2"
             >
-              Tambah Jadwal
+              {isSaving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                  Menyimpan...
+                </>
+              ) : (
+                'Tambah Jadwal'
+              )}
             </button>
           </div>
         </div>
@@ -5230,9 +5244,16 @@ export default function DetailNonBlokNonCSR() {
                 setErrorForm('');
                 setErrorBackend('');
               }}
-              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 flex items-center gap-2"
             >
-              Tambah Jadwal
+              {isSaving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                  Menyimpan...
+                </>
+              ) : (
+                'Tambah Jadwal'
+              )}
             </button>
           </div>
         </div>
@@ -5356,7 +5377,7 @@ export default function DetailNonBlokNonCSR() {
                           const mahasiswaNames = row.mahasiswa_nims
                             .map((nim: string) => {
                               const mahasiswa = mahasiswaList.find(m => m.nim === nim);
-                              return mahasiswa ? mahasiswa.name : nim;
+                              return mahasiswa ? mahasiswa.name : null;
                             })
                             .filter(Boolean);
 
@@ -5606,9 +5627,16 @@ export default function DetailNonBlokNonCSR() {
                 setErrorForm('');
                 setErrorBackend('');
               }}
-              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 flex items-center gap-2"
             >
-              Tambah Jadwal
+              {isSaving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                  Menyimpan...
+                </>
+              ) : (
+                'Tambah Jadwal'
+              )}
             </button>
           </div>
         </div>
@@ -5732,7 +5760,7 @@ export default function DetailNonBlokNonCSR() {
                           const mahasiswaNames = row.mahasiswa_nims
                             .map((nim: string) => {
                               const mahasiswa = mahasiswaList.find(m => m.nim === nim);
-                              return mahasiswa ? mahasiswa.name : nim;
+                              return mahasiswa ? mahasiswa.name : null;
                             })
                             .filter(Boolean);
 
@@ -6762,13 +6790,13 @@ export default function DetailNonBlokNonCSR() {
                           })
                           .map((d: DosenOption) => ({
                             value: d.id,
-                            label: `${d.name} (${d.nid})`,
+                            label: d.name,
                           }))}
                         value={
                           dosenList
                             .map((d: DosenOption) => ({
                               value: d.id,
-                              label: `${d.name} (${d.nid})`,
+                              label: d.name,
                             }))
                             .find((opt: any) => opt.value === form.pembimbing) || null
                         }
@@ -6892,13 +6920,13 @@ export default function DetailNonBlokNonCSR() {
                           })
                           .map((d: DosenOption) => ({
                             value: d.id,
-                            label: `${d.name} (${d.nid})`,
+                            label: d.name,
                           }))}
                         value={
                           dosenList
                             .map((d: DosenOption) => ({
                               value: d.id,
-                              label: `${d.name} (${d.nid})`,
+                              label: d.name,
                             }))
                             .filter((opt: any) => form.komentator.includes(opt.value)) || []
                         }
@@ -6975,23 +7003,18 @@ export default function DetailNonBlokNonCSR() {
                           }),
                           multiValue: (base) => ({
                             ...base,
-                            backgroundColor: document.documentElement.classList.contains("dark")
-                              ? "#334155"
-                              : "#e0e7ff",
+                            backgroundColor: "#3b82f6",
+                            color: "#fff",
                           }),
                           multiValueLabel: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains("dark")
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                           }),
                           multiValueRemove: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains("dark")
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                             "&:hover": {
-                              backgroundColor: "#ef4444",
+                              backgroundColor: "#2563eb",
                               color: "#fff",
                             },
                           }),
@@ -7104,23 +7127,18 @@ export default function DetailNonBlokNonCSR() {
                           }),
                           multiValue: (base) => ({
                             ...base,
-                            backgroundColor: document.documentElement.classList.contains("dark")
-                              ? "#334155"
-                              : "#e0e7ff",
+                            backgroundColor: "#3b82f6",
+                            color: "#fff",
                           }),
                           multiValueLabel: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains("dark")
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                           }),
                           multiValueRemove: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains("dark")
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                             "&:hover": {
-                              backgroundColor: "#ef4444",
+                              backgroundColor: "#2563eb",
                               color: "#fff",
                             },
                           }),
@@ -7527,13 +7545,13 @@ export default function DetailNonBlokNonCSR() {
                           })
                           .map((d: DosenOption) => ({
                             value: d.id,
-                            label: `${d.name} (${d.nid})`,
+                            label: d.name,
                           }))}
                         value={
                           dosenList
                             .map((d: DosenOption) => ({
                               value: d.id,
-                              label: `${d.name} (${d.nid})`,
+                              label: d.name,
                             }))
                             .find((opt: any) => opt.value === form.pembimbing) ||
                           null
@@ -7677,13 +7695,13 @@ export default function DetailNonBlokNonCSR() {
                           })
                           .map((d: DosenOption) => ({
                             value: d.id,
-                            label: `${d.name} (${d.nid})`,
+                            label: d.name,
                           }))}
                         value={
                           dosenList
                             .map((d: DosenOption) => ({
                               value: d.id,
-                              label: `${d.name} (${d.nid})`,
+                              label: d.name,
                             }))
                             .filter((opt: any) =>
                               form.penguji.includes(opt.value)
@@ -7774,28 +7792,18 @@ export default function DetailNonBlokNonCSR() {
                           }),
                           multiValue: (base) => ({
                             ...base,
-                            backgroundColor:
-                              document.documentElement.classList.contains("dark")
-                                ? "#334155"
-                                : "#e0e7ff",
+                            backgroundColor: "#3b82f6",
+                            color: "#fff",
                           }),
                           multiValueLabel: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains(
-                              "dark"
-                            )
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                           }),
                           multiValueRemove: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains(
-                              "dark"
-                            )
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                             "&:hover": {
-                              backgroundColor: "#ef4444",
+                              backgroundColor: "#2563eb",
                               color: "#fff",
                             },
                           }),
@@ -7928,28 +7936,18 @@ export default function DetailNonBlokNonCSR() {
                           }),
                           multiValue: (base) => ({
                             ...base,
-                            backgroundColor:
-                              document.documentElement.classList.contains("dark")
-                                ? "#334155"
-                                : "#e0e7ff",
+                            backgroundColor: "#3b82f6",
+                            color: "#fff",
                           }),
                           multiValueLabel: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains(
-                              "dark"
-                            )
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                           }),
                           multiValueRemove: (base) => ({
                             ...base,
-                            color: document.documentElement.classList.contains(
-                              "dark"
-                            )
-                              ? "#fff"
-                              : "#1f2937",
+                            color: "#fff",
                             "&:hover": {
-                              backgroundColor: "#ef4444",
+                              backgroundColor: "#2563eb",
                               color: "#fff",
                             },
                           }),
@@ -8266,8 +8264,8 @@ export default function DetailNonBlokNonCSR() {
                       </div>
                     ) : (
                       <Select
-                        options={(dosenList || []).map((d: any) => ({ value: d.id, label: `${d.name} (${d.nid})` }))}
-                        value={(dosenList || []).map((d: any) => ({ value: d.id, label: `${d.name} (${d.nid})` })).find((opt: any) => opt.value === form.pengampu) || null}
+                        options={(dosenList || []).map((d: any) => ({ value: d.id, label: d.name }))}
+                        value={(dosenList || []).map((d: any) => ({ value: d.id, label: d.name })).find((opt: any) => opt.value === form.pengampu) || null}
                         onChange={(opt: any) => {
                           setForm({ ...form, pengampu: opt?.value || null });
                           setErrorForm(''); // Reset error when selection changes
@@ -8544,7 +8542,7 @@ export default function DetailNonBlokNonCSR() {
                   setShowModal(false);
                   resetForm();
                 }} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
-                <button onClick={handleTambahJadwal} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled={!form.hariTanggal || (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.materi || !form.lokasi)) || (form.jenisBaris === 'agenda' && (!form.agenda || (form.useRuangan && !form.lokasi))) || !!errorForm || isSaving}>{editIndex !== null ? 'Simpan' : 'Tambah Jadwal'}</button>
+                <button onClick={handleTambahJadwal} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" disabled={!form.hariTanggal || (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.materi || !form.lokasi)) || (form.jenisBaris === 'agenda' && (!form.agenda || (form.useRuangan && !form.lokasi))) || !!errorForm || isSaving}>{isSaving ? (<><svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>Menyimpan...</>) : (editIndex !== null ? 'Simpan' : 'Tambah Jadwal')}</button>
               </div>
             </motion.div>
           </div>
@@ -10034,7 +10032,7 @@ export default function DetailNonBlokNonCSR() {
                                         const mahasiswaNames = row.mahasiswa_nims && row.mahasiswa_nims.length > 0
                                           ? row.mahasiswa_nims.map((nim: string) => {
                                             const mahasiswa = mahasiswaList.find(m => m.nim === nim);
-                                            return mahasiswa ? mahasiswa.name : nim;
+                                            return mahasiswa ? mahasiswa.name : null;
                                           }).filter(Boolean).join(', ')
                                           : '';
 
@@ -10815,7 +10813,7 @@ export default function DetailNonBlokNonCSR() {
                                         const mahasiswaNames = row.mahasiswa_nims && row.mahasiswa_nims.length > 0
                                           ? row.mahasiswa_nims.map((nim: string) => {
                                             const mahasiswa = mahasiswaList.find(m => m.nim === nim);
-                                            return mahasiswa ? mahasiswa.name : nim;
+                                            return mahasiswa ? mahasiswa.name : null;
                                           }).filter(Boolean).join(', ')
                                           : '';
 

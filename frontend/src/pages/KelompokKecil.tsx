@@ -162,10 +162,16 @@ const KelompokKecil: React.FC = () => {
     if (!semester) return;
     try {
       setLoading(true);
-      // Ambil mahasiswa dari kelompok besar menggunakan batchBySemester
-      const kelompokBesarResponse = await kelompokBesarApi.batchBySemester({ 
-        semesters: [String(mapSemesterToNumber(semester))] 
-      });
+      
+      // Fetch data kelompok besar dan kelompok kecil secara paralel untuk performa lebih baik
+      const [kelompokBesarResponse, kelompokKecilResponse] = await Promise.all([
+        kelompokBesarApi.batchBySemester({ 
+          semesters: [String(mapSemesterToNumber(semester))] 
+        }),
+        kelompokKecilApi.getBySemester(
+          String(mapSemesterToNumber(semester))
+        ).catch(() => ({ data: [] })) // Handle error gracefully
+      ]);
       
       // Ambil data mahasiswa dari response batchBySemester
       const kelompokBesarData = kelompokBesarResponse.data[String(mapSemesterToNumber(semester))] || [];
@@ -193,53 +199,40 @@ const KelompokKecil: React.FC = () => {
         gender: kb.mahasiswa.gender,
       }));
       
-      // Ambil kelompok kecil
-      let kelompokKecilData: any[] = [];
-      try {
-        const kelompokResponse = await kelompokKecilApi.getBySemester(
-          String(mapSemesterToNumber(semester))
-        );
-        kelompokKecilData = kelompokResponse.data;
-          const updatedMahasiswa = mahasiswaKelompokBesar.map((m) => {
-          const kelompokData = kelompokKecilData.find((kk) => {
-            const kkId = String(kk.mahasiswa_id);
-            const mId = String(m.id);
-            return kkId === mId;
-          });
-          return kelompokData
-            ? { ...m, kelompok: kelompokData.nama_kelompok }
-            : { ...m, kelompok: undefined };
+      // Ambil kelompok kecil dari response yang sudah di-fetch
+      const kelompokKecilData = kelompokKecilResponse.data || [];
+      
+      const updatedMahasiswa = mahasiswaKelompokBesar.map((m) => {
+        const kelompokData = kelompokKecilData.find((kk) => {
+          const kkId = String(kk.mahasiswa_id);
+          const mId = String(m.id);
+          return kkId === mId;
         });
-        setMahasiswa(updatedMahasiswa);
-        
-        // Auto-select all non-veteran students that are in Kelompok Besar
-        const nonVeteranStudents = updatedMahasiswa.filter(m => !m.is_veteran);
-        const nonVeteranIds = nonVeteranStudents.map(m => m.id);
-        setSelectedMahasiswa(nonVeteranIds);
-        
-        
-        setTimeout(() => {
-
-        }, 100);
-        setJumlahKelompok(
-          kelompokKecilData.length > 0
-            ? kelompokKecilData[0].jumlah_kelompok
-            : 3
-        );
-        setShowKelompok(kelompokKecilData.length > 0);
-        setHasSavedData(kelompokKecilData.length > 0);
-        setKelompokKecilData(kelompokKecilData);
-        setHasUnsavedChanges(false); // Pastikan tidak ada perubahan yang belum disimpan
-      } catch (err: any) {
-        console.error("Error loading kelompok kecil data:", err);
-        console.error("Error details:", handleApiError(err, "Memuat data kelompok kecil"));
-        setKelompokKecilData([]);
-        setMahasiswa(mahasiswaKelompokBesar);
-        setHasUnsavedChanges(false); // Pastikan tidak ada perubahan yang belum disimpan
-      }
+        return kelompokData
+          ? { ...m, kelompok: kelompokData.nama_kelompok }
+          : { ...m, kelompok: undefined };
+      });
+      setMahasiswa(updatedMahasiswa);
+      
+      // Auto-select all non-veteran students that are in Kelompok Besar
+      const nonVeteranStudents = updatedMahasiswa.filter(m => !m.is_veteran);
+      const nonVeteranIds = nonVeteranStudents.map(m => m.id);
+      setSelectedMahasiswa(nonVeteranIds);
+      
+      setJumlahKelompok(
+        kelompokKecilData.length > 0
+          ? kelompokKecilData[0].jumlah_kelompok
+          : 3
+      );
+      setShowKelompok(kelompokKecilData.length > 0);
+      setHasSavedData(kelompokKecilData.length > 0);
+      setKelompokKecilData(kelompokKecilData);
+      setHasUnsavedChanges(false); // Pastikan tidak ada perubahan yang belum disimpan
     } catch (err: any) {
       console.error("Error loading data:", err);
-      console.error("Error details:", handleApiError(err, "Memuat data mahasiswa"));
+      console.error("Error details:", handleApiError(err, "Memuat data kelompok kecil"));
+      setKelompokKecilData([]);
+      setHasUnsavedChanges(false); // Pastikan tidak ada perubahan yang belum disimpan
     } finally {
       setLoading(false);
       // Pastikan state konsisten setelah load data

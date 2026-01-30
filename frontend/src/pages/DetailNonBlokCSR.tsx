@@ -537,32 +537,32 @@ export default function DetailNonBlokCSR() {
       const infoData = [
         ['TIPS DAN INFORMASI IMPORT JADWAL CSR'],
         [''],
-        ['📋 CARA UPLOAD FILE:'],
+        ['CARA UPLOAD FILE:'],
         ['1. Download template ini dan isi dengan data jadwal CSR'],
         ['2. Pastikan semua kolom wajib diisi dengan benar'],
         ['3. Upload file Excel yang sudah diisi ke sistem'],
         ['4. Periksa preview data dan perbaiki error jika ada'],
         ['5. Klik "Import Data" untuk menyimpan jadwal'],
         [''],
-        ['✏️ CARA EDIT DATA:'],
+        ['CARA EDIT DATA:'],
         ['1. Klik pada kolom yang ingin diedit di tabel preview'],
         ['2. Ketik atau paste data yang benar'],
         ['3. Sistem akan otomatis validasi dan update error'],
         ['4. Pastikan tidak ada error sebelum import'],
         [''],
-        ['📊 KETERSEDIAAN DATA:'],
+        ['KETERSEDIAAN DATA:'],
         [''],
-        ['⏰ JAM YANG TERSEDIA:'],
+        ['JAM YANG TERSEDIA:'],
         ...jamOptions.map(jam => [`• ${jam}`]),
         [''],
-        ['👥 KELOMPOK KECIL YANG TERSEDIA:'],
+        ['KELOMPOK KECIL YANG TERSEDIA:'],
         ...(kelompokKecilWithCount && kelompokKecilWithCount.length > 0 ?
           kelompokKecilWithCount
             .map(kelompok => [`• Kelompok ${kelompok.nama_kelompok} (${kelompok.jumlah_anggota} mahasiswa)`]) :
           [['• Belum ada data kelompok kecil']]
         ),
         [''],
-        ['🎯 KEAHLIAN YANG TERSEDIA:'],
+        ['KEAHLIAN YANG TERSEDIA:'],
         ...(kategoriList.length > 0 ?
           kategoriList.flatMap(kategori =>
             (kategori.keahlian_required || []).slice(0, 3).map(keahlian => [`• ${keahlian} (${kategori.nomor_csr})`])
@@ -570,7 +570,7 @@ export default function DetailNonBlokCSR() {
           [['• Belum ada data keahlian']]
         ),
         [''],
-        ['👨‍🏫 DOSEN YANG TERSEDIA (berdasarkan keahlian):'],
+        ['DOSEN YANG TERSEDIA (berdasarkan keahlian):'],
         ['• Dosen ditampilkan per keahlian untuk memudahkan pemilihan'],
         ['• Pastikan keahlian dosen sesuai dengan kategori CSR yang dipilih'],
         [''],
@@ -588,7 +588,7 @@ export default function DetailNonBlokCSR() {
           // Generate output per keahlian
           const result: string[][] = [];
           dosenByKeahlian.forEach((dosenGroup, keahlian) => {
-            result.push([`📚 ${keahlian}:`]);
+            result.push([`${keahlian}:`]);
             dosenGroup.forEach(dosen => {
               result.push([`  • ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]);
             });
@@ -598,52 +598,52 @@ export default function DetailNonBlokCSR() {
           return result.length > 1 ? result : [['• Belum ada data dosen']];
         })(),
         [''],
-        ['🏢 RUANGAN YANG TERSEDIA:'],
+        ['RUANGAN YANG TERSEDIA:'],
         ...(ruanganList.length > 0 ?
           ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
           [['• Belum ada data ruangan']]
         ),
         [''],
-        ['⚠️ VALIDASI SISTEM:'],
+        ['VALIDASI SISTEM:'],
         [''],
-        ['📅 VALIDASI TANGGAL:'],
+        ['VALIDASI TANGGAL:'],
         ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
         ['• Wajib dalam rentang mata kuliah:'],
         [`  - Mulai: ${data?.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '-'}`],
         [`  - Akhir: ${data?.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '-'}`],
         [''],
-        ['⏰ VALIDASI JAM:'],
+        ['VALIDASI JAM:'],
         ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
         ['• Jam mulai harus sesuai opsi yang tersedia'],
         ['• Jam selesai akan dihitung otomatis berdasarkan jenis CSR:'],
         ['  - CSR Reguler: Jam mulai + (3 x 50 menit)'],
         ['  - CSR Responsi: Jam mulai + (2 x 50 menit)'],
         [''],
-        ['📝 VALIDASI JENIS CSR:'],
+        ['VALIDASI JENIS CSR:'],
         ['• Jenis CSR: "reguler" atau "responsi"'],
         [`• CSR Reguler = ${CSR_REGULER_SESSIONS} sesi (${CSR_REGULER_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
         [`• CSR Responsi = ${CSR_RESPONSI_SESSIONS} sesi (${CSR_RESPONSI_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
         [''],
-        ['👥 VALIDASI KELOMPOK KECIL:'],
+        ['VALIDASI KELOMPOK KECIL:'],
         ['• Kelompok kecil wajib diisi'],
         ['• Nama kelompok kecil harus ada di database'],
         [''],
-        ['🎯 VALIDASI KEAHLIAN:'],
+        ['VALIDASI KEAHLIAN:'],
         ['• Keahlian wajib diisi'],
         ['• Keahlian harus sesuai dengan dosen yang dipilih'],
         ['• Dosen harus memiliki keahlian yang sesuai'],
         [''],
-        ['👨‍🏫 VALIDASI DOSEN:'],
+        ['VALIDASI DOSEN:'],
         ['• Dosen wajib diisi (1 dosen)'],
         ['• Nama dosen harus ada di database'],
         ['• Dosen harus memiliki keahlian yang sesuai dengan keahlian yang dipilih'],
         [''],
-        ['🏢 VALIDASI RUANGAN:'],
+        ['VALIDASI RUANGAN:'],
         ['• Ruangan wajib diisi'],
         ['• Nama ruangan harus ada di database'],
         ['• Kapasitas ruangan harus mencukupi jumlah mahasiswa'],
         [''],
-        ['💡 TIPS PENTING:'],
+        ['TIPS PENTING:'],
         ['• Gunakan data yang ada di list ketersediaan di atas'],
         ['• Periksa preview sebelum import'],
         ['• Edit langsung di tabel preview jika ada error'],
@@ -657,7 +657,7 @@ export default function DetailNonBlokCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Tips dan Info');
 
       // Download file
-      XLSX.writeFile(wb, `Template_CSR_${data?.nama || 'MataKuliah'}.xlsx`);
+      XLSX.writeFile(wb, `Template_Import_CSR_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (error) {
       alert('Gagal mendownload template CSR. Silakan coba lagi.');
     }
@@ -2074,7 +2074,7 @@ export default function DetailNonBlokCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_CSR_Aplikasi_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Export_CSR_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert('Gagal mengekspor data CSR (Template Aplikasi)');
@@ -3197,11 +3197,11 @@ export default function DetailNonBlokCSR() {
                     <Select
                       options={filteredDosen.map(d => ({
                         value: d.id,
-                        label: `${d.name} (${d.nid}) - ${d.keahlian}`
+                        label: d.name
                       }))}
                       value={filteredDosen.map(d => ({
                         value: d.id,
-                        label: `${d.name} (${d.nid}) - ${d.keahlian}`
+                        label: d.name
                       })).find(opt => opt.value === form.dosen_id) || null}
                       onChange={opt => {
                         setForm(f => ({ ...f, dosen_id: opt?.value || null }));
@@ -3378,10 +3378,34 @@ export default function DetailNonBlokCSR() {
                 <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
                 <button
                   onClick={handleTambahJadwal}
-                  className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   disabled={!form.jenis_csr || !form.tanggal || !form.jam_mulai || !form.jam_selesai || !form.dosen_id || !form.ruangan_id || !form.kelompok_kecil_id || !form.kategori_id || !form.topik || isSaving}
                 >
-                  {isSaving ? 'Menyimpan...' : (editIndex !== null ? 'Simpan' : 'Tambah Jadwal')}
+                  {isSaving ? (
+                    <>
+                      <svg
+                        className="w-4 h-4 animate-spin text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        ></path>
+                      </svg>
+                      Menyimpan...
+                    </>
+                  ) : (editIndex !== null ? 'Simpan' : 'Tambah Jadwal')}
                 </button>
               </div>
             </div>
@@ -3933,7 +3957,7 @@ export default function DetailNonBlokCSR() {
                         </ul>
                       </div>
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                        💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan jenis CSR: reguler = 3x50 menit, responsi = 2x50 menit.
+                        <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan jenis CSR: reguler = 3x50 menit, responsi = 2x50 menit.
                       </div>
                     </div>
                   </div>

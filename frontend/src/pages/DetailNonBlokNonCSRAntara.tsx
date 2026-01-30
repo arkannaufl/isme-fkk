@@ -1622,7 +1622,7 @@ export default function DetailNonBlokNonCSRAntara() {
                     ) : (
                       <Select
                         isMulti
-                        options={dosenList.map(d => ({ value: d.id, label: `${d.name} (${d.nid})` }))}
+                        options={dosenList.map(d => ({ value: d.id, label: d.name }))}
                         isSearchable={true}
                         filterOption={(option, inputValue) => {
                           const label = option.label.toLowerCase();
@@ -1631,7 +1631,7 @@ export default function DetailNonBlokNonCSRAntara() {
                         }}
                         noOptionsMessage={() => "Tidak ada dosen yang ditemukan"}
                         loadingMessage={() => "Mencari dosen..."}
-                        value={form.pengampu.map(id => dosenList.find(d => d.id === id)).filter(Boolean).map(d => ({ value: d!.id, label: `${d!.name} (${d!.nid})` }))}
+                        value={form.pengampu.map(id => dosenList.find(d => d.id === id)).filter(Boolean).map(d => ({ value: d!.id, label: d!.name }))}
                         onChange={opts => {
                           const values = opts ? opts.map(opt => opt.value) : [];
                           setForm(f => ({ ...f, pengampu: values }));
