@@ -232,6 +232,25 @@ const CSRDetail: React.FC = () => {
         keahlian_required: updatedKeahlianList,
       });
 
+      // Sync keahlian ke tabel keahlian_csr untuk konsistensi data
+      try {
+        // Hapus existing keahlian_csr untuk CSR ini
+        await api.delete(`/keahlian-csr/csr/${csr.id}`);
+        
+        // Tambahkan keahlian baru ke tabel keahlian_csr
+        await Promise.all(
+          updatedKeahlianList.map(async (keahlian) => {
+            await api.post('/keahlian-csr', {
+              csr_id: csr.id,
+              keahlian: keahlian,
+            });
+          })
+        );
+      } catch (err) {
+        console.warn('Gagal sync keahlian ke keahlian_csr:', err);
+        // Lanjutkan proses meskipun sync keahlian_csr gagal
+      }
+
       // Reset dropdown
       setNewKeahlian("");
       setSuccess("Keahlian berhasil ditambahkan dan disimpan");
@@ -264,6 +283,25 @@ const CSRDetail: React.FC = () => {
         nama,
         keahlian_required: updatedKeahlianList,
       });
+
+      // Sync keahlian ke tabel keahlian_csr untuk konsistensi data
+      try {
+        // Hapus existing keahlian_csr untuk CSR ini
+        await api.delete(`/keahlian-csr/csr/${csr.id}`);
+        
+        // Tambahkan keahlian baru ke tabel keahlian_csr
+        await Promise.all(
+          updatedKeahlianList.map(async (keahlian) => {
+            await api.post('/keahlian-csr', {
+              csr_id: csr.id,
+              keahlian: keahlian,
+            });
+          })
+        );
+      } catch (err) {
+        console.warn('Gagal sync keahlian ke keahlian_csr:', err);
+        // Lanjutkan proses meskipun sync keahlian_csr gagal
+      }
 
       setSuccess("Keahlian berhasil dihapus dan disimpan");
     } catch (err) {
@@ -411,7 +449,7 @@ const CSRDetail: React.FC = () => {
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 animate-pulse"
+              className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-xl p-6 animate-pulse"
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700" />
@@ -427,12 +465,12 @@ const CSRDetail: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
           {/* Kiri: Keahlian yang Dibutuhkan */}
           <div className="md:col-span-6">
-            <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-8 animate-pulse">
+            <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-8 animate-pulse">
               <div className="h-7 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
               <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-6 mt-2" />
               <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-stretch mb-6">
-                <div className="h-[52px] bg-gray-200 dark:bg-gray-700 rounded-xl flex-1" />
-                <div className="h-[52px] w-[130px] bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                <div className="h-13 bg-gray-200 dark:bg-gray-700 rounded-xl flex-1" />
+                <div className="h-13 w-32.5 bg-gray-200 dark:bg-gray-700 rounded-lg" />
               </div>
               <ul className="space-y-5">
                 {Array.from({ length: 2 }).map((_, i) => (
@@ -445,7 +483,7 @@ const CSRDetail: React.FC = () => {
                       <div className="h-4 w-10 bg-gray-200 dark:bg-gray-700 rounded ml-auto" />
                       <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                     </div>
-                    <div className="border-2 border-dashed rounded-lg p-3 min-h-[60px] bg-white dark:bg-gray-900 flex gap-2">
+                    <div className="border-2 border-dashed rounded-lg p-3 min-h-15 bg-white dark:bg-gray-900 flex gap-2">
                       {Array.from({ length: 3 }).map((_, j) => (
                         <div
                           key={j}
@@ -463,7 +501,7 @@ const CSRDetail: React.FC = () => {
           </div>
           {/* Tengah: Dosen Sudah Dikelompokkan (PBL) */}
           <div className="md:col-span-3">
-            <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 animate-pulse">
+            <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 animate-pulse">
               <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
               <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded mb-6" />
               {/* Dosen Reguler/Standby Skeleton */}
@@ -472,7 +510,7 @@ const CSRDetail: React.FC = () => {
                   <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
                   <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
-                <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
+                <div className="space-y-3 max-h-125 overflow-y-auto hide-scroll">
                   {Array.from({ length: 2 }).map((_, i) => (
                     <div
                       key={i}
@@ -506,7 +544,7 @@ const CSRDetail: React.FC = () => {
                   <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
                   <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
-                <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
+                <div className="space-y-3 max-h-125 overflow-y-auto hide-scroll">
                   {Array.from({ length: 1 }).map((_, i) => (
                     <div
                       key={i}
@@ -528,7 +566,7 @@ const CSRDetail: React.FC = () => {
           </div>
           {/* Kanan: Dosen Tersedia */}
           <div className="md:col-span-3">
-            <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 animate-pulse">
+            <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 animate-pulse">
               <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
               <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded mb-6" />
               {/* Dosen Reguler Skeleton */}
@@ -537,7 +575,7 @@ const CSRDetail: React.FC = () => {
                   <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
                   <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
-                <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
+                <div className="space-y-3 max-h-125 overflow-y-auto hide-scroll">
                   {Array.from({ length: 2 }).map((_, i) => (
                     <div
                       key={i}
@@ -571,7 +609,7 @@ const CSRDetail: React.FC = () => {
                   <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
                   <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
-                <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
+                <div className="space-y-3 max-h-125 overflow-y-auto hide-scroll">
                   {Array.from({ length: 1 }).map((_, i) => (
                     <div
                       key={i}
@@ -648,7 +686,7 @@ const CSRDetail: React.FC = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
               <FontAwesomeIcon
@@ -666,7 +704,7 @@ const CSRDetail: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
               <FontAwesomeIcon
@@ -684,7 +722,7 @@ const CSRDetail: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-yellow-100 dark:bg-yellow-900/20 flex items-center justify-center">
               <FontAwesomeIcon
@@ -730,7 +768,7 @@ const CSRDetail: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         {/* Kiri: Keahlian yang Dibutuhkan */}
         <div className="md:col-span-6">
-          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-8 relative overflow-visible">
+          <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-8 relative overflow-visible">
             {/* Section Title and Description */}
             <h2 className="text-xl font-semibold mb-1 text-gray-800 dark:text-white flex items-center gap-2">
               Keahlian yang dibutuhkan CSR
@@ -763,7 +801,7 @@ const CSRDetail: React.FC = () => {
                 <select
                   value={newKeahlian}
                   onChange={(e) => setNewKeahlian(e.target.value)}
-                  className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium px-4 py-2 shadow-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 w-full transition-all duration-150 h-[52px] align-middle text-gray-800 dark:text-white"
+                  className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium px-4 py-2 shadow-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 w-full transition-all duration-150 h-13 align-middle text-gray-800 dark:text-white"
                   disabled={loadingKeahlianOptions}
                 >
                   <option value="">Pilih keahlian dari CSR...</option>
@@ -927,7 +965,7 @@ const CSRDetail: React.FC = () => {
                   </div>
                   {/* Slot for assigned dosen with drop area */}
                   <div
-                    className={`border-2 border-dashed rounded-lg p-3 min-h-[60px] flex flex-wrap items-center gap-2 transition-all duration-150 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 hover:border-brand-400`}
+                    className={`border-2 border-dashed rounded-lg p-3 min-h-15 flex flex-wrap items-center gap-2 transition-all duration-150 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 hover:border-brand-400`}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => {
                       if (draggedDosenId) {
@@ -1014,7 +1052,7 @@ const CSRDetail: React.FC = () => {
         </div>
         {/* Tengah: Dosen Sudah Dikelompokkan (PBL) */}
         <div className="md:col-span-3">
-          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 mb-8">
+          <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 mb-8">
             <h2 className="text-lg font-bold mb-4 text-brand-700 dark:text-brand-300">
               Dosen Sudah Dikelompokkan (PBL)
             </h2>
@@ -1153,7 +1191,7 @@ const CSRDetail: React.FC = () => {
         </div>
         {/* Kanan: Dosen Tersedia */}
         <div className="md:col-span-3">
-          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8">
+          <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8">
             <h2 className="text-lg font-semibold mb-4 text-brand-700 dark:text-brand-300">
               Dosen Tersedia (
               {filteredRegularDosen.length + filteredStandbyDosen.length})
@@ -1174,7 +1212,7 @@ const CSRDetail: React.FC = () => {
                   Dosen Reguler ({filteredRegularDosen.length})
                 </h4>
               </div>
-              <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
+              <div className="space-y-3 max-h-125 overflow-y-auto hide-scroll">
                 {filteredRegularDosen.length > 0 ? (
                   filteredRegularDosen.map((dosen) => {
                     const keahlianArr = Array.isArray(dosen.keahlian)
@@ -1270,7 +1308,7 @@ const CSRDetail: React.FC = () => {
                   Dosen Standby ({filteredStandbyDosen.length})
                 </h4>
               </div>
-              <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
+              <div className="space-y-3 max-h-125 overflow-y-auto hide-scroll">
                 {filteredStandbyDosen.length > 0 ? (
                   filteredStandbyDosen.map((dosen) => {
                     const keahlianArr = Array.isArray(dosen.keahlian)
@@ -1345,13 +1383,13 @@ const CSRDetail: React.FC = () => {
       {/* Modal Konfirmasi Hapus Keahlian */}
       <AnimatePresence>
         {showDeleteKeahlianModal && keahlianToDelete && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => {
                 setShowDeleteKeahlianModal(false);
                 setKeahlianToDelete(null);
@@ -1363,7 +1401,7 @@ const CSRDetail: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001"
             >
               {/* Close Button */}
               <button

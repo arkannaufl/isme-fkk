@@ -971,14 +971,51 @@ export default function MataKuliah() {
                       tanggal_akhir: toDateYMD(csr.tanggal_akhir),
                       keahlian_required: keahlianList,
                     });
+
+                    // Sync keahlian ke tabel keahlian_csr untuk konsistensi data
+                    try {
+                      // Hapus existing keahlian_csr untuk CSR ini
+                      await api.delete(`/keahlian-csr/csr/${csr.id}`);
+                      
+                      // Tambahkan keahlian baru ke tabel keahlian_csr
+                      await Promise.all(
+                        keahlianList.map(async (keahlian) => {
+                          await api.post('/keahlian-csr', {
+                            csr_id: csr.id,
+                            keahlian: keahlian,
+                          });
+                        })
+                      );
+                    } catch (err) {
+                      console.warn('Gagal sync keahlian ke keahlian_csr:', err);
+                      // Lanjutkan proses meskipun sync keahlian_csr gagal
+                    }
                   } else {
                     // POST - Create new CSR
-                    await api.post(`/mata-kuliah/${form.kode}/csrs`, {
+                    const newCsrResponse = await api.post(`/mata-kuliah/${form.kode}/csrs`, {
                       nomor_csr: csr.nomor_csr,
                       tanggal_mulai: toDateYMD(csr.tanggal_mulai),
                       tanggal_akhir: toDateYMD(csr.tanggal_akhir),
                       keahlian_required: keahlianList,
                     });
+
+                    // Sync keahlian ke tabel keahlian_csr untuk CSR baru
+                    try {
+                      const newCsrId = newCsrResponse.data.data?.id;
+                      if (newCsrId) {
+                        await Promise.all(
+                          keahlianList.map(async (keahlian) => {
+                            await api.post('/keahlian-csr', {
+                              csr_id: newCsrId,
+                              keahlian: keahlian,
+                            });
+                          })
+                        );
+                      }
+                    } catch (err) {
+                      console.warn('Gagal sync keahlian ke keahlian_csr untuk CSR baru:', err);
+                      // Lanjutkan proses meskipun sync keahlian_csr gagal
+                    }
                   }
                 })
               );
@@ -987,7 +1024,15 @@ export default function MataKuliah() {
               await Promise.all(
                 deletedCsrIds.map(async (id) => {
                   try {
+                    // Hapus CSR dari table csrs
                     await api.delete(`/csrs/${id}`);
+                    
+                    // Hapus juga keahlian_csr untuk CSR yang dihapus
+                    try {
+                      await api.delete(`/keahlian-csr/csr/${id}`);
+                    } catch (err) {
+                      console.warn('Gagal hapus keahlian_csr untuk CSR yang dihapus:', err);
+                    }
                   } catch (err) {
                   }
                 })
@@ -1058,11 +1103,10 @@ export default function MataKuliah() {
           form.semester !== "Antara" &&
           csrList.length > 0
         ) {
-          await Promise.all(
+          const csrResponses = await Promise.all(
             csrList.map((csr, index) => {
               const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
               const keahlianList = csrKeahlian[csrId] || [];
-
               return api.post(`/mata-kuliah/${form.kode}/csrs`, {
                 nomor_csr: csr.nomor_csr,
                 tanggal_mulai: toDateYMD(csr.tanggal_mulai),
@@ -1071,6 +1115,32 @@ export default function MataKuliah() {
               });
             })
           );
+
+          // Sync keahlian ke tabel keahlian_csr untuk CSR baru
+          try {
+            await Promise.all(
+              csrResponses.map(async (response, index) => {
+                const csr = csrList[index];
+                const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
+                const keahlianList = csrKeahlian[csrId] || [];
+                const newCsrId = response.data.data?.id;
+
+                if (newCsrId && keahlianList.length > 0) {
+                  await Promise.all(
+                    keahlianList.map(async (keahlian) => {
+                      await api.post('/keahlian-csr', {
+                        csr_id: newCsrId,
+                        keahlian: keahlian,
+                      });
+                    })
+                  );
+                }
+              })
+            );
+          } catch (err) {
+            console.warn('Gagal sync keahlian ke keahlian_csr untuk CSR baru:', err);
+            // Lanjutkan proses meskipun sync keahlian_csr gagal
+          }
         }
         if (form.jenis === "Blok" && pblList.length > 0) {
           await Promise.all(
@@ -2952,7 +3022,7 @@ export default function MataKuliah() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               />
             </div>
           </div>
@@ -3102,7 +3172,7 @@ export default function MataKuliah() {
               </div>
             )}
             {/* Table Preview */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
               <div
                 className="max-w-full overflow-x-auto"
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -3110,8 +3180,8 @@ export default function MataKuliah() {
                 <style>{`
                 .max-w-full::-webkit-scrollbar { display: none; }
               `}</style>
-                <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                  <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                  <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                     <tr>
                       {previewData[0] ? (
                         Object.keys(previewData[0]).map((colKey) => (
@@ -3139,7 +3209,7 @@ export default function MataKuliah() {
                             key={i}
                             className={
                               i % 2 === 1
-                                ? "bg-gray-50 dark:bg-white/[0.02]"
+                                ? "bg-gray-50 dark:bg-white/2"
                                 : ""
                             }
                           >
@@ -3290,7 +3360,7 @@ export default function MataKuliah() {
                 Batal
               </button>
               <button
-                className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs flex items-center justify-center min-w-[160px] transition
+                className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs flex items-center justify-center min-w-40 transition
                 ${isSaving || loading
                     ? "bg-emerald-800 text-white opacity-60 cursor-not-allowed"
                     : "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
@@ -3375,7 +3445,7 @@ export default function MataKuliah() {
       </div>
 
       {/* Tabel dengan scroll horizontal */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
         <div
           className="max-w-full overflow-x-auto hide-scroll"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -3390,8 +3460,8 @@ export default function MataKuliah() {
               display: none;
             }
           `}</style>
-          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+            <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-4">
                   <button
@@ -3491,7 +3561,7 @@ export default function MataKuliah() {
                   <tr
                     key={idx}
                     className={
-                      idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                      idx % 2 === 1 ? "bg-gray-50 dark:bg-white/2" : ""
                     }
                   >
                     <td className="px-4 py-4">
@@ -3557,7 +3627,7 @@ export default function MataKuliah() {
                   <tr
                     key={mk.kode}
                     className={
-                      idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                      idx % 2 === 1 ? "bg-gray-50 dark:bg-white/2" : ""
                     }
                   >
                     <td className="px-4 py-4">
@@ -3642,13 +3712,13 @@ export default function MataKuliah() {
                           : mk.tipe_non_block || "-"
                         : "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-pre-line text-gray-800 dark:text-white/90 align-middle min-w-[300px]">
+                    <td className="px-6 py-4 whitespace-pre-line text-gray-800 dark:text-white/90 align-middle min-w-75">
                       {Array.isArray(mk.peran_dalam_kurikulum) &&
                         mk.peran_dalam_kurikulum.length > 0
                         ? mk.peran_dalam_kurikulum.join(", ")
                         : "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-pre-line text-gray-800 dark:text-white/90 align-middle min-w-[200px]">
+                    <td className="px-6 py-4 whitespace-pre-line text-gray-800 dark:text-white/90 align-middle min-w-50">
                       {Array.isArray(mk.keahlian_required) &&
                         mk.keahlian_required.length > 0
                         ? mk.keahlian_required.join(", ")
@@ -3657,7 +3727,7 @@ export default function MataKuliah() {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
                       {mk.rps_file ? (
                         <div className="flex items-center space-x-2">
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
                               <svg
                                 className="w-4 h-4 text-blue-600 dark:text-blue-400"
@@ -3691,7 +3761,7 @@ export default function MataKuliah() {
                               File RPS
                             </p>
                           </div>
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             <button
                               onClick={() =>
                                 handleDownloadRps(mk.kode, mk.rps_file!)
@@ -3883,7 +3953,7 @@ export default function MataKuliah() {
 
             {/* Smart Pagination with Scroll */}
             <div
-              className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+              className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll"
               style={{
                 scrollbarWidth: "thin",
                 scrollbarColor: "#cbd5e1 #f1f5f9",
@@ -3998,13 +4068,13 @@ export default function MataKuliah() {
       {/* Modal Input/Edit Data */}
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
             ></motion.div>
             {/* Modal Content */}
             <motion.div
@@ -4012,7 +4082,7 @@ export default function MataKuliah() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -4046,7 +4116,7 @@ export default function MataKuliah() {
                   <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <div className="flex items-start gap-2">
                       <svg
-                        className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"
+                        className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -5171,7 +5241,7 @@ export default function MataKuliah() {
                             <div className="w-full max-w-sm bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3">
-                                  <div className="flex-shrink-0">
+                                  <div className="shrink-0">
                                     <div className="w-10 h-10 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center">
                                       <svg
                                         className="w-5 h-5 text-green-600 dark:text-green-400"
@@ -5219,7 +5289,7 @@ export default function MataKuliah() {
                                     e.stopPropagation();
                                     setRpsFile(null);
                                   }}
-                                  className="flex-shrink-0 p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 relative z-30 border border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
+                                  className="shrink-0 p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 relative z-30 border border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
                                   title="Hapus file RPS"
                                 >
                                   <svg
@@ -5242,7 +5312,7 @@ export default function MataKuliah() {
                             <div className="w-full max-w-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3">
-                                  <div className="flex-shrink-0">
+                                  <div className="shrink-0">
                                     <div className="w-10 h-10 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
                                       <svg
                                         className="w-5 h-5 text-blue-600 dark:text-blue-400"
@@ -5289,7 +5359,7 @@ export default function MataKuliah() {
                                     e.stopPropagation();
                                     setExistingRpsFile(null);
                                   }}
-                                  className="flex-shrink-0 p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 relative z-30 border border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
+                                  className="shrink-0 p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 relative z-30 border border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
                                   title="Hapus file RPS"
                                 >
                                   <svg
@@ -5310,7 +5380,7 @@ export default function MataKuliah() {
                             </div>
                           ) : (
                             <>
-                              <div className="flex-shrink-0">
+                              <div className="shrink-0">
                                 <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
                                   <svg
                                     className="w-6 h-6 text-gray-400 dark:text-gray-500"
@@ -5401,13 +5471,13 @@ export default function MataKuliah() {
       {/* Modal Delete Data */}
       <AnimatePresence>
         {showDeleteModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => {
                 setShowDeleteModal(false);
                 setSelectedDeleteKode(null);
@@ -5419,7 +5489,7 @@ export default function MataKuliah() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001"
             >
               {/* Close Button */}
               <button
@@ -5520,9 +5590,9 @@ export default function MataKuliah() {
       {/* Modal Bulk Delete */}
       <AnimatePresence>
         {showDeleteModalBulk && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <div
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowDeleteModalBulk(false)}
             ></div>
             <motion.div
@@ -5530,7 +5600,7 @@ export default function MataKuliah() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001"
             >
               <div className="flex items-center justify-between pb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">
@@ -5570,13 +5640,13 @@ export default function MataKuliah() {
       {/* Modal Upload Materi */}
       <AnimatePresence>
         {showUploadMateriModal && selectedMataKuliah && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowUploadMateriModal(false)}
             ></motion.div>
 
@@ -5586,7 +5656,7 @@ export default function MataKuliah() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto"
+              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-gray-700">
@@ -5748,7 +5818,7 @@ export default function MataKuliah() {
                                 >
                                   <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center space-x-3">
-                                      <div className="flex-shrink-0">
+                                      <div className="shrink-0">
                                         <div
                                           className={`w-10 h-10 rounded-full flex items-center justify-center ${(() => {
                                             // Cek apakah file ini duplikat
@@ -6018,7 +6088,7 @@ export default function MataKuliah() {
                                           )
                                         );
                                       }}
-                                      className="flex-shrink-0 p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 relative z-30 border border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
+                                      className="shrink-0 p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 relative z-30 border border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
                                       title="Hapus file ini"
                                     >
                                       <svg
@@ -6140,7 +6210,7 @@ export default function MataKuliah() {
                           </div>
                         ) : (
                           <>
-                            <div className="flex-shrink-0">
+                            <div className="shrink-0">
                               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
                                 <svg
                                   className="w-8 h-8 text-gray-400 dark:text-gray-500"
@@ -6193,7 +6263,7 @@ export default function MataKuliah() {
                         >
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center space-x-3">
-                              <div className="flex-shrink-0">
+                              <div className="shrink-0">
                                 <div
                                   className={`w-10 h-10 rounded-full flex items-center justify-center ${materiToDelete.includes(item.id)
                                     ? "bg-red-100 dark:bg-red-800"
@@ -6273,7 +6343,7 @@ export default function MataKuliah() {
                                   );
                                 }
                               }}
-                              className={`flex-shrink-0 p-2 rounded-lg transition-all duration-200 relative z-30 border ${materiToDelete.includes(item.id)
+                              className={`shrink-0 p-2 rounded-lg transition-all duration-200 relative z-30 border ${materiToDelete.includes(item.id)
                                 ? "text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 border-green-200 dark:border-green-700 hover:border-green-300 dark:hover:border-green-600"
                                 : "text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600"
                                 }`}
@@ -6418,7 +6488,7 @@ export default function MataKuliah() {
                   )) && (
                     <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                       <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           <svg
                             className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
                             fill="none"
@@ -6481,7 +6551,7 @@ export default function MataKuliah() {
                     return (
                       <div className="mb-6 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
                         <div className="flex items-start space-x-3">
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             <svg
                               className="w-5 h-5 text-orange-600 dark:text-orange-400 mt-0.5"
                               fill="none"
@@ -6581,7 +6651,7 @@ export default function MataKuliah() {
                     return (
                       <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                         <div className="flex items-start space-x-3">
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             <svg
                               className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
                               fill="none"
@@ -6653,7 +6723,7 @@ export default function MataKuliah() {
                     className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                   >
                     <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <svg
                           className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
                           fill="none"
@@ -6692,7 +6762,7 @@ export default function MataKuliah() {
                     className="mb-6 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
                   >
                     <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <svg
                           className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5"
                           fill="none"
@@ -7092,13 +7162,13 @@ export default function MataKuliah() {
       {/* Modal Lihat Materi */}
       <AnimatePresence>
         {showViewMateriModal && selectedMateriMataKuliah && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => {
                 setShowViewMateriModal(false);
                 // Reset download state saat modal ditutup
@@ -7113,7 +7183,7 @@ export default function MataKuliah() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto"
+              className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-gray-700">
@@ -7228,7 +7298,7 @@ export default function MataKuliah() {
                           className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                         >
                           <div className="flex items-center space-x-3">
-                            <div className="flex-shrink-0">
+                            <div className="shrink-0">
                               <div className="w-10 h-10 bg-green-100 dark:bg-green-800 rounded-lg flex items-center justify-center">
                                 <svg
                                   className="w-5 h-5 text-green-600 dark:text-green-400"
@@ -7371,12 +7441,12 @@ export default function MataKuliah() {
 
       <AnimatePresence>
         {showManageModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowManageModal(false)}
             ></motion.div>
 
@@ -7384,7 +7454,7 @@ export default function MataKuliah() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden z-[100001]"
+              className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden z-100001"
             >
               {/* Close Button */}
               <button
@@ -7425,7 +7495,7 @@ export default function MataKuliah() {
                 {/* Semester Filter Info */}
                 <div className="mt-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                    <div className="shrink-0 w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
                       <svg className="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
@@ -7458,7 +7528,7 @@ export default function MataKuliah() {
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center flex-1 min-w-[140px]">
+                  <div className="flex items-center flex-1 min-w-35">
                     <select
                       value={manageYearFilter}
                       onChange={(e) => setManageYearFilter(e.target.value)}
@@ -7470,7 +7540,7 @@ export default function MataKuliah() {
                       ))}
                     </select>
                   </div>
-                  <div className="flex items-center flex-1 min-w-[140px]">
+                  <div className="flex items-center flex-1 min-w-35">
                     <select
                       value={manageSemesterFilter}
                       onChange={(e) => setManageSemesterFilter(e.target.value)}
@@ -7482,7 +7552,7 @@ export default function MataKuliah() {
                       ))}
                     </select>
                   </div>
-                  <div className="flex items-center flex-1 min-w-[140px]">
+                  <div className="flex items-center flex-1 min-w-35">
                     <select
                       value={manageBlokFilter}
                       onChange={(e) => setManageBlokFilter(e.target.value)}
@@ -7645,7 +7715,7 @@ export default function MataKuliah() {
                           onClick={() => toggleManageCode(mk.kode)}
                           className={`group relative p-5 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-full ${isSelected
                             ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20 ring-1 ring-indigo-500 shadow-lg shadow-indigo-500/10'
-                            : 'border-white dark:border-gray-800 hover:border-indigo-300 dark:hover:border-indigo-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-xl hover:translate-y-[-2px]'
+                            : 'border-white dark:border-gray-800 hover:border-indigo-300 dark:hover:border-indigo-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-xl hover:-translate-y-0.5'
                             }`}
                         >
                           {/* Selection Indicator */}
@@ -7696,7 +7766,7 @@ export default function MataKuliah() {
                   <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <div className="flex items-start gap-2">
                       <svg
-                        className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5"
+                        className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0 mt-0.5"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -7735,7 +7805,7 @@ export default function MataKuliah() {
                   <button
                     onClick={handleSaveManageModal}
                     disabled={isSaving}
-                    className="flex-1 sm:flex-none px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-theme-xs flex items-center justify-center gap-2 min-w-[160px]"
+                    className="flex-1 sm:flex-none px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-theme-xs flex items-center justify-center gap-2 min-w-40"
                   >
                     {isSaving ? (
                       <>

@@ -14437,7 +14437,7 @@ export default function DetailBlok() {
                     Lokasi
                   </th>
 
-                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap min-w-[180px]">
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap min-w-45">
                     Aksi
                   </th>
                 </tr>
@@ -14667,7 +14667,7 @@ export default function DetailBlok() {
               </select>
             </div>
 
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
@@ -15304,7 +15304,7 @@ export default function DetailBlok() {
                 ))}
               </select>
             </div>
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <button
                 onClick={() => setSeminarPlenoPage((p) => Math.max(1, p - 1))}
                 disabled={seminarPlenoPage === 1}
@@ -15656,7 +15656,7 @@ export default function DetailBlok() {
                     Lokasi
                   </th>
 
-                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap min-w-[180px]">
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap min-w-45">
                     Aksi
                   </th>
                 </tr>
@@ -15925,7 +15925,7 @@ export default function DetailBlok() {
               </select>
             </div>
 
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
@@ -16459,7 +16459,7 @@ export default function DetailBlok() {
               </select>
             </div>
 
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
@@ -24919,13 +24919,13 @@ export default function DetailBlok() {
         {/* Modal Import SIAKAD */}
         <AnimatePresence>
           {showSIAKADImportModal && (
-            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div className="fixed inset-0 z-100000 flex items-center justify-center">
               {/* Overlay */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
                 onClick={handleSIAKADCloseImportModal}
               />
 
@@ -24935,7 +24935,7 @@ export default function DetailBlok() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+                className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
               >
                 {/* Close Button */}
                 <button
@@ -25647,7 +25647,7 @@ export default function DetailBlok() {
 
                           {/* Smart Pagination with Scroll */}
                           <div
-                            className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                            className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll"
                             style={{
                               scrollbarWidth: "thin",
                               scrollbarColor: "#cbd5e1 #f1f5f9",
@@ -26160,7 +26160,7 @@ export default function DetailBlok() {
               </select>
             </div>
 
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
@@ -26768,7 +26768,7 @@ export default function DetailBlok() {
                 ))}
               </select>
             </div>
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <button
                 onClick={() =>
                   setPersamaanPersepsiPage((p) => Math.max(1, p - 1))
@@ -27468,7 +27468,7 @@ export default function DetailBlok() {
               </select>
             </div>
 
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
@@ -27633,7 +27633,7 @@ export default function DetailBlok() {
 
       <AnimatePresence>
         {showDeleteModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -27698,7 +27698,7 @@ export default function DetailBlok() {
 
       <AnimatePresence>
         {showDeleteAgendaModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -27745,7 +27745,7 @@ export default function DetailBlok() {
 
       <AnimatePresence>
         {showDeletePraktikumModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -27792,7 +27792,7 @@ export default function DetailBlok() {
 
       <AnimatePresence>
         {showDeleteJurnalReadingModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -27840,13 +27840,13 @@ export default function DetailBlok() {
       {/* Modal Pilihan Template */}
       <AnimatePresence>
         {showTemplateSelectionModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowTemplateSelectionModal(false)}
             />
 
@@ -27856,7 +27856,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -27966,14 +27966,14 @@ export default function DetailBlok() {
 
       <AnimatePresence>
         {showImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
 
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handleCloseImportModal}
             />
 
@@ -27984,7 +27984,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
 
@@ -28837,7 +28837,7 @@ export default function DetailBlok() {
                             {/* Smart Pagination with Scroll */}
 
                             <div
-                              className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                              className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll"
                               style={{
                                 scrollbarWidth: "thin",
 
@@ -29046,13 +29046,13 @@ export default function DetailBlok() {
       <AnimatePresence>
         {/* PBL Template Selection Modal */}
         {showPBLTemplateSelectionModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handlePBLCloseTemplateSelectionModal}
             />
 
@@ -29062,7 +29062,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -29168,14 +29168,14 @@ export default function DetailBlok() {
         )}
 
         {showPBLImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
 
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handlePBLCloseImportModal}
             />
 
@@ -29186,7 +29186,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
 
@@ -30127,13 +30127,13 @@ export default function DetailBlok() {
       {/* MODAL TEMPLATE SELECTION PRAKTIKUM */}
       <AnimatePresence>
         {showPraktikumTemplateSelectionModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handlePraktikumCloseTemplateSelectionModal}
             />
 
@@ -30143,7 +30143,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -30252,13 +30252,13 @@ export default function DetailBlok() {
       {/* MODAL IMPORT EXCEL PRAKTIKUM */}
       <AnimatePresence>
         {showPraktikumImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handlePraktikumCloseImportModal}
             />
             {/* Modal Content */}
@@ -30267,7 +30267,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -31020,13 +31020,13 @@ export default function DetailBlok() {
       {/* MODAL IMPORT EXCEL AGENDA KHUSUS */}
       <AnimatePresence>
         {showAgendaKhususImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handleAgendaKhususCloseImportModal}
             />
             {/* Modal Content */}
@@ -31035,7 +31035,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -31378,13 +31378,13 @@ export default function DetailBlok() {
       {/* MODAL IMPORT EXCEL JURNAL READING */}
       <AnimatePresence>
         {showJurnalReadingImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handleJurnalReadingCloseImportModal}
             />
             {/* Modal Content */}
@@ -31393,7 +31393,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -31756,13 +31756,13 @@ export default function DetailBlok() {
       {/* MODAL IMPORT EXCEL PERSAMAAN PERSEPSI */}
       <AnimatePresence>
         {showPersamaanPersepsiImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handlePersamaanPersepsiCloseImportModal}
             />
             {/* Modal Content */}
@@ -31771,7 +31771,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -32139,9 +32139,9 @@ export default function DetailBlok() {
       {/* Modal Konfirmasi Bulk Delete */}
       <AnimatePresence>
         {showBulkDeleteModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <div
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowBulkDeleteModal(false)}
             ></div>
             <motion.div
@@ -32149,7 +32149,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001"
             >
               <div className="flex items-center justify-between pb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">
@@ -32257,13 +32257,13 @@ export default function DetailBlok() {
       {/* Modal Export Kuliah Besar */}
       <AnimatePresence>
         {showKuliahBesarExportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowKuliahBesarExportModal(false)}
             />
 
@@ -32273,7 +32273,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -32442,13 +32442,13 @@ export default function DetailBlok() {
       {/* Modal Export Praktikum */}
       <AnimatePresence>
         {showPraktikumExportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowPraktikumExportModal(false)}
             />
 
@@ -32458,7 +32458,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -32627,13 +32627,13 @@ export default function DetailBlok() {
       {/* Modal Export PBL */}
       <AnimatePresence>
         {showPBLExportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowPBLExportModal(false)}
             />
 
@@ -32643,7 +32643,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -32808,13 +32808,13 @@ export default function DetailBlok() {
       {/* Modal Import Excel Seminar Pleno */}
       <AnimatePresence>
         {showSeminarPlenoImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={handleSeminarPlenoCloseImportModal}
             />
             {/* Modal Content */}
@@ -32823,7 +32823,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -33364,7 +33364,7 @@ export default function DetailBlok() {
       {/* Modal Konfirmasi Hapus Persamaan Persepsi */}
       <AnimatePresence>
         {showDeletePersamaanPersepsiModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -33419,7 +33419,7 @@ export default function DetailBlok() {
       {/* Modal Konfirmasi Hapus Seminar Pleno */}
       <AnimatePresence>
         {showDeleteSeminarPlenoModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

@@ -2270,7 +2270,7 @@ export default function DetailNonBlokCSR() {
       <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
 
       {/* Info Mata Kuliah skeleton */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8">
+      <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i}>
@@ -2284,7 +2284,7 @@ export default function DetailNonBlokCSR() {
       {/* Info Tambahan skeleton */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+          <div key={i} className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
             <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
             <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
@@ -2386,7 +2386,7 @@ export default function DetailNonBlokCSR() {
       <p className="text-gray-500 dark:text-gray-400 text-base mb-8">Informasi lengkap mata kuliah non blok CSR</p>
 
       {/* Card Info Utama */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-8 mb-8 shadow">
+      <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 mb-8 shadow">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Kode Mata Kuliah</div>
@@ -2429,15 +2429,15 @@ export default function DetailNonBlokCSR() {
 
       {/* Section Info Tambahan */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Mulai</div>
           <div className="text-base text-gray-800 dark:text-white">{data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : '-'}</div>
         </div>
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Akhir</div>
           <div className="text-base text-gray-800 dark:text-white">{data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : '-'}</div>
         </div>
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Durasi Minggu</div>
           <div className="text-base text-gray-800 dark:text-white">{data.durasi_minggu || '-'}</div>
         </div>
@@ -2677,7 +2677,7 @@ export default function DetailNonBlokCSR() {
               </select>
             </div>
 
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+            <div className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll">
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
@@ -3414,7 +3414,7 @@ export default function DetailNonBlokCSR() {
       )}
       <AnimatePresence>
         {showDeleteModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50">
               <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">Konfirmasi Hapus</h2>
@@ -3432,13 +3432,13 @@ export default function DetailNonBlokCSR() {
       {/* Modal Pilihan Template CSR */}
       <AnimatePresence>
         {showCSRTemplateSelectionModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowCSRTemplateSelectionModal(false)}
             />
 
@@ -3448,7 +3448,7 @@ export default function DetailNonBlokCSR() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -3541,13 +3541,13 @@ export default function DetailNonBlokCSR() {
       {/* Modal Import Excel CSR - Template Aplikasi */}
       <AnimatePresence>
         {showCSRImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowCSRImportModal(false)}
             />
             {/* Modal Content */}
@@ -3556,7 +3556,7 @@ export default function DetailNonBlokCSR() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -3881,13 +3881,13 @@ export default function DetailNonBlokCSR() {
       {/* Modal Import Excel CSR - Template SIAKAD */}
       <AnimatePresence>
         {showCSRSIAKADImportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowCSRSIAKADImportModal(false)}
             />
             {/* Modal Content */}
@@ -3896,7 +3896,7 @@ export default function DetailNonBlokCSR() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -3927,7 +3927,7 @@ export default function DetailNonBlokCSR() {
               {/* Info Box untuk Template SIAKAD */}
               <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-5 h-5 mt-0.5">
+                  <div className="shrink-0 w-5 h-5 mt-0.5">
                     <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
@@ -4344,9 +4344,9 @@ export default function DetailNonBlokCSR() {
       {/* Modal Konfirmasi Bulk Delete CSR */}
       <AnimatePresence>
         {showCSRBulkDeleteModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <div
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowCSRBulkDeleteModal(false)}
             ></div>
             <motion.div
@@ -4354,7 +4354,7 @@ export default function DetailNonBlokCSR() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001"
             >
               <div className="flex items-center justify-between pb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
@@ -4396,13 +4396,13 @@ export default function DetailNonBlokCSR() {
       {/* Modal Export CSR */}
       <AnimatePresence>
         {showCSRExportModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowCSRExportModal(false)}
             />
 
@@ -4412,7 +4412,7 @@ export default function DetailNonBlokCSR() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button

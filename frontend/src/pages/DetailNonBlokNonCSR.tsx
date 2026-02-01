@@ -4134,7 +4134,7 @@ export default function DetailNonBlokNonCSR() {
       <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
 
       {/* Info Mata Kuliah skeleton */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-8 mb-8 shadow">
+      <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 mb-8 shadow">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i}>
@@ -4148,7 +4148,7 @@ export default function DetailNonBlokNonCSR() {
       {/* Info Tambahan skeleton */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+          <div key={i} className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
             <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
             <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
@@ -4166,10 +4166,10 @@ export default function DetailNonBlokNonCSR() {
             <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
@@ -4241,10 +4241,10 @@ export default function DetailNonBlokNonCSR() {
             <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
@@ -4312,10 +4312,10 @@ export default function DetailNonBlokNonCSR() {
             <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
@@ -4386,10 +4386,10 @@ export default function DetailNonBlokNonCSR() {
             <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
@@ -4471,7 +4471,7 @@ export default function DetailNonBlokNonCSR() {
       <p className="text-gray-500 dark:text-gray-400 text-base mb-8">Informasi lengkap mata kuliah non blok Non-CSR</p>
 
       {/* Card Info Utama */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-8 mb-8 shadow">
+      <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 mb-8 shadow">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Kode Mata Kuliah</div>
@@ -4514,15 +4514,15 @@ export default function DetailNonBlokNonCSR() {
 
       {/* Section Info Tambahan */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Mulai</div>
           <div className="text-base text-gray-800 dark:text-white">{data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : '-'}</div>
         </div>
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Akhir</div>
           <div className="text-base text-gray-800 dark:text-white">{data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : '-'}</div>
         </div>
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+        <div className="bg-white dark:bg-white/3 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Durasi Minggu</div>
           <div className="text-base text-gray-800 dark:text-white">{data.durasi_minggu || '-'}</div>
         </div>
@@ -4633,10 +4633,10 @@ export default function DetailNonBlokNonCSR() {
         </AnimatePresence>
 
         {/* Tabel Materi Kuliah */}
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <button
@@ -4970,10 +4970,10 @@ export default function DetailNonBlokNonCSR() {
         </AnimatePresence>
 
         {/* Tabel Agenda Khusus */}
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <button
@@ -5293,10 +5293,10 @@ export default function DetailNonBlokNonCSR() {
         </AnimatePresence>
 
         {/* Tabel Seminar Proposal */}
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <button
@@ -5676,10 +5676,10 @@ export default function DetailNonBlokNonCSR() {
         </AnimatePresence>
 
         {/* Tabel Sidang Skripsi */}
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
           <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     <button
@@ -8964,10 +8964,10 @@ export default function DetailNonBlokNonCSR() {
                         </div>
                       </div>
 
-                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
                         <div className="max-w-full overflow-x-auto hide-scroll">
-                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                               <tr>
                                 <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
@@ -9438,10 +9438,10 @@ export default function DetailNonBlokNonCSR() {
                         </div>
                       </div>
 
-                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
                         <div className="max-w-full overflow-x-auto hide-scroll">
-                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                               <tr>
                                 <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
@@ -9878,10 +9878,10 @@ export default function DetailNonBlokNonCSR() {
                         </div>
                       </div>
 
-                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
                         <div className="max-w-full overflow-x-auto hide-scroll">
-                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                               <tr>
                                 <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
@@ -10309,10 +10309,10 @@ export default function DetailNonBlokNonCSR() {
                     )}
 
                     {/* Table */}
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
                       <div className="max-w-full overflow-x-auto hide-scroll">
-                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                             <tr>
                               <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
@@ -10656,10 +10656,10 @@ export default function DetailNonBlokNonCSR() {
                         </div>
                       </div>
 
-                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
                         <div className="max-w-full overflow-x-auto hide-scroll">
-                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                               <tr>
                                 <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
