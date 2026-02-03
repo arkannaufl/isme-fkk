@@ -281,7 +281,7 @@ class PBLGenerateController extends Controller
                 if ($activeSemester === 'Ganjil') {
                     $mataKuliahQuery->whereIn('semester', [1, 3, 5, 7]);
                 } elseif ($activeSemester === 'Genap') {
-                    $mataKuliahQuery->whereIn('semester', [2, 4, 6, 8]);
+                    $mataKuliahQuery->whereIn('semester', [2, 4, 6]);
                 }
             }
 

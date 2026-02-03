@@ -23,6 +23,13 @@ type UserMahasiswa = {
   semester?: number;
   password?: string;
   role?: string;
+  is_veteran?: boolean;
+  veteran_status?: string;
+  veteran_semesters?: string[];
+  veteran_notes?: string;
+  veteran_set_at?: string;
+  semester_saat_lulus?: number;
+  veteran_semester_count?: number;
 };
 
 function handleNumberInput(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -363,7 +370,9 @@ export default function Mahasiswa() {
         'ipk': m.ipk,
         'status': m.status,
         'angkatan': m.angkatan,
-        'semester': m.status === 'lulus' ? 'Lulus' : (m.semester || 1)
+        'semester': m.status === 'lulus' ? `Lulus: ${m.semester}` : 
+                   (m.is_veteran && m.veteran_status === 'aktif') ? `Veteran: ${m.semester}` :
+                   `Semester ${m.semester || 1}`
       })) : [];
 
       // Buat workbook baru
@@ -447,14 +456,15 @@ export default function Mahasiswa() {
         ['Perempuan', dataToExport.filter(d => d.gender === 'Perempuan').length],
         [''],
         ['Data per Semester:'],
-        ['Semester 1', dataToExport.filter(d => d.semester === 1).length],
-        ['Semester 2', dataToExport.filter(d => d.semester === 2).length],
-        ['Semester 3', dataToExport.filter(d => d.semester === 3).length],
-        ['Semester 4', dataToExport.filter(d => d.semester === 4).length],
-        ['Semester 5', dataToExport.filter(d => d.semester === 5).length],
-        ['Semester 6', dataToExport.filter(d => d.semester === 6).length],
-        ['Semester 7', dataToExport.filter(d => d.semester === 7).length],
-        ['Semester 8', dataToExport.filter(d => d.semester === 8).length],
+        ['Semester 1', dataToExport.filter(d => d.semester && d.semester.toString().includes('Semester 1')).length],
+        ['Semester 2', dataToExport.filter(d => d.semester && d.semester.toString().includes('Semester 2')).length],
+        ['Semester 3', dataToExport.filter(d => d.semester && d.semester.toString().includes('Semester 3')).length],
+        ['Semester 4', dataToExport.filter(d => d.semester && d.semester.toString().includes('Semester 4')).length],
+        ['Semester 5', dataToExport.filter(d => d.semester && d.semester.toString().includes('Semester 5')).length],
+        ['Semester 6', dataToExport.filter(d => d.semester && d.semester.toString().includes('Semester 6')).length],
+        ['Semester 7', dataToExport.filter(d => d.semester && d.semester.toString().includes('Semester 7')).length],
+        ['Veteran', dataToExport.filter(d => d.semester && d.semester.toString().includes('Veteran')).length],
+        ['Lulus', dataToExport.filter(d => d.semester && d.semester.toString().includes('Lulus')).length],
         [''],
         ['Data per Angkatan:'],
         ...angkatanOptions.slice(0, 10).map(angkatan => [
@@ -733,9 +743,9 @@ export default function Mahasiswa() {
         errors.push(`Angkatan harus diisi dengan angka (Baris ${rowNum})`);
         newCellErrors.push({ row: index, field: 'angkatan', message: `Angkatan harus diisi dengan angka`, nim: rowNim });
       }
-      if (!row.semester || isNaN(Number(row.semester)) || Number(row.semester) < 1) {
-        errors.push(`Semester harus diisi dengan angka minimal 1 (Baris ${rowNum})`);
-        newCellErrors.push({ row: index, field: 'semester', message: `Semester harus diisi dengan angka minimal 1`, nim: rowNim });
+      if (!row.semester || isNaN(Number(row.semester)) || Number(row.semester) < 1 || Number(row.semester) > 7) {
+        errors.push(`Semester harus diisi dengan angka antara 1-7 (Baris ${rowNum})`);
+        newCellErrors.push({ row: index, field: 'semester', message: `Semester harus diisi dengan angka antara 1-7`, nim: rowNim });
       }
 
       // Duplikat dalam file Excel
@@ -1359,7 +1369,11 @@ export default function Mahasiswa() {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 align-middle">{m.ipk}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 align-middle capitalize">{m.status}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 align-middle">{m.angkatan}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 align-middle">{m.status === 'lulus' ? 'Lulus' : (m.semester ?? '-')}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 align-middle">
+                      {m.status === 'lulus' ? `Lulus: ${m.semester ?? '?'}` : 
+                       (m.is_veteran && m.veteran_status === 'aktif') ? `Veteran: ${m.semester ?? '?'}` :
+                       `Semester ${m.semester ?? '-'}`}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center align-middle">
                       <div className="flex items-center justify-center gap-2">
                         <button

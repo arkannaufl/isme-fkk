@@ -90,6 +90,24 @@ class MahasiswaVeteranController extends Controller
                 $user->veteran_set_at = now();
                 $user->veteran_set_by = Auth::id();
 
+                // Handle mahasiswa yang sudah lulus
+                if ($user->status === 'lulus') {
+                    // Simpan semester saat lulus sebelum jadi veteran
+                    $user->semester_saat_lulus = $user->semester;
+                    
+                    // Set semester veteran dimulai dari +1 dari semester lulus
+                    $user->veteran_semester_count = 1;
+                    $user->semester = $user->semester_saat_lulus + 1; // Semester 8 jika lulus di 7
+                    
+                    // Ubah status jadi aktif
+                    $user->status = 'aktif';
+                    $user->veteran_status = 'aktif';
+                } else {
+                    // Mahasiswa aktif yang jadi veteran
+                    $user->veteran_semester_count = 0;
+                    $user->veteran_status = 'aktif';
+                }
+
                 // Hanya set status veteran, veteran_semesters kosong dulu
                 // Semester akan diisi saat dipilih di Kelompok Besar/Kecil
                 if ($request->veteran_semester) {
@@ -112,6 +130,16 @@ class MahasiswaVeteranController extends Controller
                 $user->veteran_set_at = null;
                 $user->veteran_set_by = null;
                 $user->veteran_notes = null;
+
+                // Handle hapus veteran status
+                if ($user->veteran_status === 'aktif') {
+                    // Jika veteran yang dihapus
+                    $user->status = 'lulus';
+                    $user->veteran_status = 'non_veteran';
+                    
+                    // Semester saat lulus adalah semester veteran terakhir
+                    $user->semester = $user->semester; // Tetap semester veteran terakhir
+                }
 
                 // Hapus veteran_semesters (status aktif)
                 $user->veteran_semesters = [];

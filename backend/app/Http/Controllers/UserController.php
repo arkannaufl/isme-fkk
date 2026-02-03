@@ -190,7 +190,7 @@ class UserController extends Controller
             'password' => 'required|string|min:6',
             'kompetensi' => 'nullable',
             'keahlian' => 'nullable',
-            'semester' => 'nullable|integer|min:1|max:8',
+            'semester' => 'nullable|integer|min:1|max:7',
             'dosen_peran' => 'nullable|array', // array of peran
         ]);
         $validated['password'] = Hash::make($validated['password']);
@@ -411,7 +411,7 @@ class UserController extends Controller
             'password' => 'nullable|string|min:6',
             'kompetensi' => 'nullable',
             'keahlian' => 'nullable',
-            'semester' => 'nullable|integer|min:1|max:8',
+            'semester' => 'nullable|integer|min:1|max:7',
             // Tidak boleh update dosen_peran dari sini
         ]);
         if (!empty($validated['password'])) {

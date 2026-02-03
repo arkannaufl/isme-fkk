@@ -1500,7 +1500,7 @@ class JadwalSeminarPlenoController extends Controller
                     } elseif ($semesterType === 'ganjil') {
                         $q->whereIn('semester', [1, 3, 5, 7]);
                     } elseif ($semesterType === 'genap') {
-                        $q->whereIn('semester', [2, 4, 6, 8]);
+                        $q->whereIn('semester', [2, 4, 6]);
                     }
                 });
             }

@@ -58,22 +58,41 @@ class SemesterService
             $graduatedStudents = [];
 
             foreach ($students as $student) {
-                // PENTING: Mahasiswa Veteran tidak ikut naik semester
+                // PENTING: Mahasiswa Veteran tidak ikut naik semester regular
                 if ($student->is_veteran) {
-                    $updatedCount++; // Tetap dihitung sebagai ter-update (status-quo)
+                    // TAPI veteran bisa naik semester tanpa batas
+                    if ($student->veteran_status === 'aktif') {
+                        $oldSemesterNumber = $student->semester ?? 1;
+                        $newSemesterNumber = $oldSemesterNumber + 1; // Veteran naik 1 semester
+                        
+                        $student->update(['semester' => $newSemesterNumber]);
+                        $updatedCount++;
+                        
+                        // Log veteran semester progression
+                        activity()
+                            ->performedOn($student)
+                            ->withProperties([
+                                'old_semester' => $oldSemesterNumber,
+                                'new_semester' => $newSemesterNumber,
+                                'veteran_status' => 'aktif'
+                            ])
+                            ->log("Veteran semester progression: {$oldSemesterNumber} → {$newSemesterNumber}");
+                    } else {
+                        $updatedCount++; // Tetap dihitung sebagai ter-update (status-quo)
+                    }
                     continue;
                 }
 
                 $oldSemesterNumber = $student->semester ?? 1;
                 $newSemesterNumber = $this->calculateStudentSemester($student, $newSemester);
 
-                // Pastikan semester tidak kurang dari 1 dan tidak lebih dari 8
-                $finalSemesterNumber = max(1, min($newSemesterNumber, 8));
+                // Pastikan semester tidak kurang dari 1 dan tidak lebih dari 7
+                $finalSemesterNumber = max(1, min($newSemesterNumber, 7));
                 
-                // Jika semester baru melebihi 8, mahasiswa lulus
-                if ($newSemesterNumber > 8) {
+                // Jika semester baru melebihi 7, mahasiswa lulus
+                if ($newSemesterNumber > 7) {
                     $student->update([
-                        'semester' => 8,
+                        'semester' => $oldSemesterNumber, // Simpan semester saat lulus
                         'status' => 'lulus'
                     ]);
                     $graduatedCount++;

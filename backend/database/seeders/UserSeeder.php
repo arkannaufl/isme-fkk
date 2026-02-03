@@ -142,8 +142,8 @@ class UserSeeder extends Seeder
         $nimStart = 20210001;
         $statusList = ['aktif']; // Hanya aktif saja
         foreach ($mahasiswaData as $i => &$mhs) {
-            // Sebagian besar semester 1-7, tapi sediakan beberapa semester 8 untuk test kelulusan
-            $mhs['semester'] = ($i < 10) ? 8 : rand(1, 7); 
+            // Sebagian besar semester 1-6, tapi sediakan beberapa semester 7 untuk test kelulusan
+            $mhs['semester'] = ($i < 10) ? 7 : rand(1, 6); 
             $mhs['nim'] = (string)($nimStart + $i);
             $mhs['gender'] = rand(0, 1) ? 'L' : 'P';
             $mhs['ipk'] = number_format(rand(200, 400) / 100, 2);

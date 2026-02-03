@@ -676,7 +676,9 @@ const MahasiswaVeteran: React.FC = () => {
                   </p>
                   <div className="mt-1 mb-2 flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                      {mahasiswa.status === 'lulus' ? 'Lulus' : `Semester ${mahasiswa.semester || '?'}`}
+                      {mahasiswa.status === 'lulus' ? `Lulus: ${mahasiswa.semester || '?'}` : 
+                       (mahasiswa.is_veteran && mahasiswa.veteran_status === 'aktif') ? `Veteran: ${mahasiswa.semester || '?'}` :
+                       `Semester ${mahasiswa.semester || '?'}`}
                     </span>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
                       {mahasiswa.nim}

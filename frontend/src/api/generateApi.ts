@@ -22,6 +22,9 @@ export interface Mahasiswa {
   semester_asli?: number;
   is_locked?: boolean;
   is_available?: boolean;
+  veteran_status?: string;
+  semester_saat_lulus?: number;
+  veteran_semester_count?: number;
   veteranSetBy?: {
     id: number;
     name: string;

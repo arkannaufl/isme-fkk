@@ -48,7 +48,7 @@ class UserFactory extends Factory
                 'angkatan' => fake()->numberBetween(2019, 2024),
                 'email' => fake()->unique()->safeEmail(),
                 'telp' => fake()->numerify('08##########'),
-                'semester' => fake()->numberBetween(1, 8),
+                'semester' => fake()->numberBetween(1, 7),
                 // Tahun ajaran masuk dan semester masuk akan diatur otomatis oleh SemesterService
             ];
         });
