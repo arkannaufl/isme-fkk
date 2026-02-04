@@ -7,8 +7,8 @@ import {
   faBookOpen,
   faUsers,
   faGraduationCap,
-  faEdit,
   faTrash,
+  faExclamationTriangle,
 } from "@fortawesome/free-solid-svg-icons";
 
 interface CSR {
@@ -74,14 +74,19 @@ const CSRDetail: React.FC = () => {
 
   // Drag state - using HTML5 Drag API like KelompokKecil.tsx
 
-  // Keahlian edit states
-  const [editKeahlian, setEditKeahlian] = useState<string | null>(null);
-  const [editKeahlianValue, setEditKeahlianValue] = useState("");
 
   // Delete modal states
   const [showDeleteKeahlianModal, setShowDeleteKeahlianModal] = useState(false);
   const [keahlianToDelete, setKeahlianToDelete] = useState<string | null>(null);
   const [isDeletingKeahlian, setIsDeletingKeahlian] = useState(false);
+
+  // Warning modal states untuk jadwal CSR yang menggunakan keahlian/dosen
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningData, setWarningData] = useState<{
+    type: 'keahlian' | 'dosen';
+    name: string;
+    jadwalList: any[];
+  } | null>(null);
 
   // PBL states
   const [dosenPBLBySemester, setDosenPBLBySemester] = useState<{
@@ -261,8 +266,74 @@ const CSRDetail: React.FC = () => {
     }
   };
 
+  // Fungsi helper untuk format waktu tanpa detik
+  const formatTime = (timeString: string): string => {
+    if (!timeString) return '-';
+    
+    // Jika format sudah HH:mm, kembalikan langsung
+    if (timeString.match(/^\d{1,2}:\d{2}$/)) {
+      return timeString;
+    }
+    
+    // Jika format HH:mm:ss atau HH:mm:ss.000, ambil hanya HH:mm
+    const timeMatch = timeString.match(/^(\d{1,2}):(\d{2}):/);
+    if (timeMatch) {
+      const hours = timeMatch[1].padStart(2, '0');
+      const minutes = timeMatch[2];
+      return `${hours}:${minutes}`;
+    }
+    
+    // Fallback: replace . dengan : dan ambil 5 karakter pertama
+    return timeString.replace('.', ':').substring(0, 5);
+  };
+
+  // Fungsi untuk mengecek apakah keahlian digunakan di jadwal CSR
+  const checkKeahlianInJadwalCSR = async (keahlian: string): Promise<any[]> => {
+    try {
+      const response = await api.get(`/csr/${csr?.id}/jadwal/check-keahlian/${encodeURIComponent(keahlian)}`);
+      return response.data.jadwalList || [];
+    } catch (error) {
+      console.error('Error checking keahlian in jadwal CSR:', error);
+      return [];
+    }
+  };
+
+  // Fungsi untuk mengecek apakah dosen digunakan di jadwal CSR
+  const checkDosenInJadwalCSR = async (dosenId: number, keahlian: string): Promise<any[]> => {
+    try {
+      const response = await api.get(`/csr/${csr?.id}/jadwal/check-dosen/${dosenId}/${encodeURIComponent(keahlian)}`);
+      return response.data.jadwalList || [];
+    } catch (error) {
+      console.error('Error checking dosen in jadwal CSR:', error);
+      return [];
+    }
+  };
+
   // Hapus keahlian
   const handleRemoveKeahlian = async (k: string) => {
+    if (!csr) return;
+
+    // Cek apakah keahlian digunakan di jadwal CSR
+    const jadwalList = await checkKeahlianInJadwalCSR(k);
+    
+    if (jadwalList.length > 0) {
+      // Tampilkan warning modal
+      setWarningData({
+        type: 'keahlian',
+        name: k,
+        jadwalList: jadwalList
+      });
+      setShowWarningModal(true);
+      return;
+    }
+
+    // Tampilkan modal konfirmasi hapus jika tidak digunakan di jadwal CSR
+    setKeahlianToDelete(k);
+    setShowDeleteKeahlianModal(true);
+  };
+
+  // Fungsi untuk eksekusi hapus keahlian (dipanggil dari modal konfirmasi)
+  const executeRemoveKeahlian = async (k: string) => {
     if (!csr) return;
 
     try {
@@ -283,6 +354,14 @@ const CSRDetail: React.FC = () => {
         nama,
         keahlian_required: updatedKeahlianList,
       });
+
+      // Hapus semua mappings untuk keahlian yang dihapus
+      try {
+        await api.delete(`/csr/${csr.id}/mappings/keahlian/${encodeURIComponent(k)}`);
+      } catch (err) {
+        console.warn('Gagal hapus mappings untuk keahlian:', err);
+        // Lanjutkan proses, tapi log warning
+      }
 
       // Sync keahlian ke tabel keahlian_csr untuk konsistensi data
       try {
@@ -383,6 +462,25 @@ const CSRDetail: React.FC = () => {
     keahlian
   ) => {
     if (!csr) return;
+
+    // Cek apakah dosen digunakan di jadwal CSR
+    const jadwalList = await checkDosenInJadwalCSR(dosenId, keahlian);
+    if (jadwalList.length > 0) {
+      // Cari nama dosen
+      const dosen = regularDosen.find(d => d.id === dosenId);
+      const dosenName = dosen?.name || 'Dosen tidak diketahui';
+      
+      // Tampilkan warning modal
+      setWarningData({
+        type: 'dosen',
+        name: dosenName,
+        jadwalList: jadwalList
+      });
+      setShowWarningModal(true);
+      return;
+    }
+
+    // Lanjutkan proses unassign jika tidak digunakan di jadwal CSR
     try {
       await api.delete(
         `/csr/${csr.id}/mappings/${dosenId}/${encodeURIComponent(keahlian)}`
@@ -854,114 +952,25 @@ const CSRDetail: React.FC = () => {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="flex-1 font-semibold text-brand-700 dark:text-brand-300 text-base">
-                      {editKeahlian === k ? (
-                        <input
-                          type="text"
-                          value={editKeahlianValue}
-                          onChange={(e) => setEditKeahlianValue(e.target.value)}
-                          className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-sm"
-                          autoFocus
-                        />
-                      ) : (
-                        k
-                      )}
+                      {k}
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-300">
                       {mapping[k]?.length || 0} dosen
                     </span>
-                    {editKeahlian === k ? (
-                      <>
-                        <button
+                    <>
+                      <button
                           onClick={async () => {
-                            if (!csr) return;
-                            if (
-                              !editKeahlianValue.trim() ||
-                              editKeahlianValue === k
-                            ) {
-                              setEditKeahlian(null);
-                              setEditKeahlianValue("");
-                              return;
-                            }
-                            // Validasi duplikat (case-insensitive, trim), kecuali dirinya sendiri
-                            const newK = editKeahlianValue.trim().toLowerCase();
-                            const exists = csr.keahlian_required.some(
-                              (x) => x !== k && x.trim().toLowerCase() === newK
-                            );
-                            if (exists) {
-                              setError(
-                                "Keahlian sudah ada, tidak boleh duplikat."
-                              );
-                              return;
-                            }
-                            // Update array keahlian_required
-                            const updated = csr.keahlian_required.map((x) =>
-                              x === k ? editKeahlianValue.trim() : x
-                            );
-                            // Pastikan nama tidak null
-                            const nama =
-                              csr.nama ||
-                              (csr.mata_kuliah && csr.mata_kuliah.nama) ||
-                              "";
-                            if (!nama) {
-                              setError(
-                                "Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu."
-                              );
-                              return;
-                            }
-                            try {
-                              await api.put(`/csr/${csr.id}`, {
-                                ...csr,
-                                nama,
-                                keahlian_required: updated,
-                              });
-                              setSuccess("Keahlian berhasil diubah");
-                              setEditKeahlian(null);
-                              setEditKeahlianValue("");
-                              await fetchBatchData();
-                            } catch {
-                              setError("Gagal mengubah keahlian");
-                            }
-                          }}
-                          className="ml-2 px-2 py-1 rounded bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition"
-                        >
-                          Simpan
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditKeahlian(null);
-                            setEditKeahlianValue("");
-                          }}
-                          className="ml-1 px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-medium hover:bg-gray-300 transition"
-                        >
-                          Batal
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => {
-                            setEditKeahlian(k);
-                            setEditKeahlianValue(k);
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 bg-transparent rounded-lg transition"
-                          title="Edit Keahlian"
-                        >
-                          <FontAwesomeIcon icon={faEdit} className="w-4 h-4" />
-                          <span className="hidden sm:inline">Edit</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setKeahlianToDelete(k);
-                            setShowDeleteKeahlianModal(true);
+                            await handleRemoveKeahlian(k);
                           }}
                           className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 bg-transparent rounded-lg transition"
                           title="Hapus Kategori"
                         >
-                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
-                          <span className="hidden sm:inline">Hapus</span>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Hapus
                         </button>
                       </>
-                    )}
                   </div>
                   {/* Slot for assigned dosen with drop area */}
                   <div
@@ -1383,13 +1392,13 @@ const CSRDetail: React.FC = () => {
       {/* Modal Konfirmasi Hapus Keahlian */}
       <AnimatePresence>
         {showDeleteKeahlianModal && keahlianToDelete && (
-          <div className="fixed inset-0 z-100000 flex items-center justify-center">
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => {
                 setShowDeleteKeahlianModal(false);
                 setKeahlianToDelete(null);
@@ -1401,7 +1410,7 @@ const CSRDetail: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001"
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -1411,81 +1420,281 @@ const CSRDetail: React.FC = () => {
                 }}
                 className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
                   <path
                     fillRule="evenodd"
                     clipRule="evenodd"
-                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L6.04289 16.5413Z"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
                     fill="currentColor"
                   />
                 </svg>
               </button>
+
               <div>
-                <div className="flex items-center justify-between pb-6">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
                     Hapus Kategori Keahlian
                   </h2>
                 </div>
-                <div>
-                  <p className="mb-6 text-gray-500 dark:text-gray-400">
-                    Apakah Anda yakin ingin menghapus kategori keahlian{" "}
-                    <span className="font-semibold text-gray-800 dark:text-white">
-                      {keahlianToDelete}
-                    </span>
-                    ? Data yang dihapus tidak dapat dikembalikan.
-                  </p>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      onClick={() => {
-                        setShowDeleteKeahlianModal(false);
-                        setKeahlianToDelete(null);
-                      }}
-                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!keahlianToDelete) return;
-                        setIsDeletingKeahlian(true);
-                        await handleRemoveKeahlian(keahlianToDelete);
-                        setIsDeletingKeahlian(false);
-                        setShowDeleteKeahlianModal(false);
-                        setKeahlianToDelete(null);
-                      }}
-                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
-                      disabled={isDeletingKeahlian}
-                    >
-                      {isDeletingKeahlian ? (
-                        <>
-                          <svg
-                            className="w-5 h-5 mr-2 animate-spin text-white"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            ></circle>
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                            ></path>
-                          </svg>
-                          Menghapus...
-                        </>
-                      ) : (
-                        "Hapus"
-                      )}
-                    </button>
+
+                <div className="mb-6">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-red-600 dark:text-red-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        Konfirmasi Hapus
+                      </h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Tindakan ini tidak dapat dibatalkan!
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <svg
+                        className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                          Peringatan!
+                        </p>
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          Apakah Anda yakin ingin menghapus kategori keahlian{" "}
+                          <span className="font-semibold">
+                            {keahlianToDelete}
+                          </span>
+                          ? Data yang dihapus tidak dapat dikembalikan.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={() => {
+                      setShowDeleteKeahlianModal(false);
+                      setKeahlianToDelete(null);
+                    }}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!keahlianToDelete) return;
+                      setIsDeletingKeahlian(true);
+                      await executeRemoveKeahlian(keahlianToDelete);
+                      setIsDeletingKeahlian(false);
+                      setShowDeleteKeahlianModal(false);
+                      setKeahlianToDelete(null);
+                    }}
+                    disabled={isDeletingKeahlian}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-red-600 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-red-700 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
+                  >
+                    {isDeletingKeahlian ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Menghapus...
+                      </>
+                    ) : (
+                      "Hapus"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Warning untuk Keahlian/Dosen yang Digunakan di Jadwal CSR */}
+      <AnimatePresence>
+        {showWarningModal && warningData && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowWarningModal(false)}
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowWarningModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/20">
+                  <FontAwesomeIcon
+                    icon={faExclamationTriangle}
+                    className="text-orange-500 text-2xl"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    {warningData.type === 'keahlian' ? 'Keahlian Sedang Digunakan dalam Jadwal' : 'Dosen Sedang Digunakan dalam Jadwal'}
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    {warningData.type === 'keahlian' 
+                      ? `Keahlian "${warningData.name}" tidak dapat dihapus karena sedang digunakan dalam jadwal CSR berikut:`
+                      : `${warningData.name} tidak dapat di-unassign karena sedang mengajar dalam jadwal CSR berikut:`
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Jadwal List */}
+              <div className="mt-6">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Jadwal CSR terkait:</p>
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <div className="max-h-80 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tanggal</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Waktu</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Jenis</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Kelompok</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Topik</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                            {warningData.type === 'keahlian' ? 'Keahlian' : 'Mata Kuliah'}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {warningData.jadwalList.map((jadwal, index) => (
+                          <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {new Date(jadwal.tanggal).toLocaleDateString('id-ID', {
+                                weekday: 'short',
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {formatTime(jadwal.jam_mulai)}–{formatTime(jadwal.jam_selesai)}
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                jadwal.jenis_csr === 'reguler' 
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                  : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                              }`}>
+                                {jadwal.jenis_csr === 'reguler' ? 'CSR Reguler' : 'CSR Responsi'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {jadwal.kelompok_kecil?.nama_kelompok 
+                                ? `Kelompok ${jadwal.kelompok_kecil.nama_kelompok}`
+                                : '-'
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200 max-w-xs truncate" title={jadwal.topik || '-'}>
+                              {jadwal.topik || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {warningData.type === 'keahlian'
+                                ? (jadwal.kategori?.keahlian_required && jadwal.kategori.keahlian_required.length > 0
+                                    ? jadwal.kategori.keahlian_required[0]
+                                    : '-'
+                                  )
+                                : (jadwal.kategori?.nama || '-')
+                              }
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setShowWarningModal(false)}
+                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-xl transition-colors duration-200"
+                >
+                  Tutup
+                </button>
               </div>
             </motion.div>
           </div>

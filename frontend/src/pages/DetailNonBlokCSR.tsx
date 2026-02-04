@@ -2610,7 +2610,23 @@ export default function DetailNonBlokCSR() {
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.ruangan?.nama || '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` : '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap max-w-xs truncate" title={row.topik || '-'}>{row.topik || '-'}</td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.kategori?.nama || '-'}</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {(() => {
+                          const kategori = row.kategori;
+                          if (!kategori) return '-';
+                          
+                          // Cari keahlian yang sesuai dengan jadwal ini
+                          // Jika ada keahlian_required, tampilkan format yang sama dengan modal
+                          if (kategori.keahlian_required && kategori.keahlian_required.length > 0) {
+                            // Untuk CSR, kita ambil keahlian pertama atau cari yang sesuai
+                            const keahlian = kategori.keahlian_required[0];
+                            return `${keahlian} (${kategori.nomor_csr})`;
+                          }
+                          
+                          // Fallback ke nama kategori jika tidak ada keahlian
+                          return `${kategori.nama} (${kategori.nomor_csr})`;
+                        })()}
+                      </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
                           <button onClick={() => handleOpenAbsensi(row)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0" title="Buka Absensi">

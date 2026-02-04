@@ -335,6 +335,27 @@ export default function PBL() {
     mk: MataKuliah;
   } | null>(null);
 
+  // State untuk modal warning dosen usage
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningData, setWarningData] = useState<{
+    type: 'dosen';
+    name: string;
+    jadwalList: any[];
+  } | null>(null);
+
+  // Fungsi untuk mengecek apakah dosen digunakan di jadwal blok
+  const checkDosenInJadwalBlok = async (dosenId: number, semester: number, blok: number): Promise<any[]> => {
+    try {
+      const response = await api.get(
+        `/jadwal-blok/check-dosen/${dosenId}?semester=${semester}&blok=${blok}`
+      );
+      return response.data.jadwalList || [];
+    } catch (error) {
+      console.error('Error checking dosen in jadwal blok:', error);
+      return [];
+    }
+  };
+
 
   // HTML5 Drag API handlers - same as KelompokKecil.tsx
   const handleDragStart = (e: React.DragEvent, dosen: Dosen) => {
@@ -4451,6 +4472,20 @@ export default function PBL() {
                                                       return;
                                                     }
 
+                                                    // CEK PENGGUNAAN DOSEN DI JADWAL BLOK
+                                                    const jadwalList = await checkDosenInJadwalBlok(dosen.id, mk.semester, mk.blok);
+                                                    
+                                                    if (jadwalList.length > 0) {
+                                                      // Tampilkan modal warning
+                                                      setWarningData({
+                                                        type: 'dosen',
+                                                        name: dosen.name,
+                                                        jadwalList: jadwalList
+                                                      });
+                                                      setShowWarningModal(true);
+                                                      return;
+                                                    }
+
                                                     try {
                                                       // PERBAIKAN: Cari PBL dalam semester DAN blok yang sama (bukan semua blok dalam semester)
                                                       const currentSemester =
@@ -5741,6 +5776,144 @@ export default function PBL() {
           </motion.div>
         </div>
       )}
+
+      {/* Modal Warning Dosen Usage */}
+      <AnimatePresence>
+        {showWarningModal && warningData && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowWarningModal(false)}
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowWarningModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/20">
+                  <FontAwesomeIcon
+                    icon={faExclamationTriangle}
+                    className="text-orange-500 text-2xl"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    Dosen Sedang Digunakan dalam Jadwal
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    {warningData.name} tidak dapat di-unassign karena sedang mengajar dalam jadwal berikut:
+                  </p>
+                </div>
+              </div>
+
+              {/* Jadwal List */}
+              <div className="mt-6">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Jadwal terkait:</p>
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <div className="max-h-80 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tanggal</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Waktu</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Jenis</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Kelompok</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Topik</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Ruangan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {warningData.jadwalList.map((jadwal, index) => (
+                          <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {jadwal.tanggal ? new Date(jadwal.tanggal).toLocaleDateString('id-ID', {
+                                weekday: 'short',
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric'
+                              }) : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {jadwal.jam_mulai && jadwal.jam_selesai 
+                                ? `${jadwal.jam_mulai.slice(0, 5)}–${jadwal.jam_selesai.slice(0, 5)}`
+                                : '-'
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                jadwal.jenis === 'PBL' 
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                  : jadwal.jenis === 'Jurnal Reading'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                  : jadwal.jenis === 'Persamaan Persepsi'
+                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                                  : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'
+                              }`}>
+                                {jadwal.jenis}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {jadwal.kelompok_kecil?.nama_kelompok 
+                                ? `Kelompok ${jadwal.kelompok_kecil.nama_kelompok}`
+                                : '-'
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200 max-w-xs truncate" title={jadwal.topik || '-'}>
+                              {jadwal.topik || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {jadwal.ruangan?.nama || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setShowWarningModal(false)}
+                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-xl transition-colors duration-200"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

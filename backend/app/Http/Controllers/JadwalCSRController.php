@@ -283,6 +283,13 @@ class JadwalCSRController extends Controller
     {
         try {
             $jadwalCSR = JadwalCSR::where('mata_kuliah_kode', $kode)->findOrFail($id);
+            
+            // Decrement csr_assignment_count untuk dosen yang terpengaruh
+            $dosen = User::find($jadwalCSR->dosen_id);
+            if ($dosen && $dosen->csr_assignment_count > 0) {
+                $dosen->decrement('csr_assignment_count');
+            }
+            
             $jadwalCSR->delete();
 
             return response()->json(['message' => 'Jadwal CSR berhasil dihapus']);
@@ -1584,6 +1591,103 @@ class JadwalCSRController extends Controller
             \Log::info("Notifikasi jadwal CSR berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
         } catch (\Exception $e) {
             \Log::error("Gagal mengirim notifikasi jadwal CSR ke dosen {$dosenId}: " . $e->getMessage());
+        }
+    }
+
+    // Cek apakah keahlian digunakan di jadwal CSR
+    public function checkKeahlianUsage($csrId, $keahlian): JsonResponse
+    {
+        try {
+            // Decode URL encoded keahlian
+            $decodedKeahlian = urldecode($keahlian);
+            
+            // Ambil CSR untuk mendapatkan mata_kuliah_kode
+            $csr = \App\Models\CSR::find($csrId);
+            if (!$csr) {
+                return response()->json([
+                    'jadwalList' => [],
+                    'count' => 0
+                ]);
+            }
+            
+            // Query langsung ke database untuk mencari jadwal CSR yang menggunakan keahlian ini
+            // Cari jadwal yang topiknya sesuai dengan keahlian
+            $jadwalList = \DB::table('jadwal_csr as j')
+                ->join('csrs as c', 'j.kategori_id', '=', 'c.id')
+                ->where('j.kategori_id', $csrId)
+                ->where('j.topik', $decodedKeahlian) // Cek topik jadwal sesuai keahlian
+                ->select('j.*')
+                ->get();
+            
+            // Load relations manual
+            $jadwalList->each(function ($jadwal) {
+                $jadwal->dosen = \App\Models\User::find($jadwal->dosen_id);
+                $jadwal->ruangan = \App\Models\Ruangan::find($jadwal->ruangan_id);
+                $kelompokKecil = \App\Models\KelompokKecil::find($jadwal->kelompok_kecil_id);
+                $jadwal->kelompok_kecil = $kelompokKecil; // Set dengan nama yang sama seperti di frontend
+                $jadwal->kategori = \App\Models\CSR::find($jadwal->kategori_id);
+            });
+
+            return response()->json([
+                'jadwalList' => $jadwalList,
+                'count' => $jadwalList->count()
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error checking keahlian usage: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengecek penggunaan keahlian',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Cek apakah dosen digunakan di jadwal CSR
+    public function checkDosenUsage($csrId, $dosenId, $keahlian): JsonResponse
+    {
+        try {
+            // Decode URL encoded keahlian
+            $decodedKeahlian = urldecode($keahlian);
+            
+            // Ambil CSR untuk mendapatkan mata_kuliah_kode
+            $csr = \App\Models\CSR::find($csrId);
+            if (!$csr) {
+                return response()->json([
+                    'jadwalList' => [],
+                    'count' => 0
+                ]);
+            }
+            
+            // Query langsung ke database untuk mencari jadwal CSR yang menggunakan dosen ini pada keahlian tertentu
+            // Cari jadwal yang menggunakan dosen ini dan topiknya sesuai dengan keahlian
+            $jadwalList = \DB::table('jadwal_csr as j')
+                ->join('csrs as c', 'j.kategori_id', '=', 'c.id')
+                ->where('j.kategori_id', $csrId)
+                ->where('j.dosen_id', $dosenId)
+                ->where('j.topik', $decodedKeahlian) // Cek topik jadwal sesuai keahlian
+                ->select('j.*')
+                ->get();
+            
+            // Load relations manual
+            $jadwalList->each(function ($jadwal) {
+                $jadwal->dosen = \App\Models\User::find($jadwal->dosen_id);
+                $jadwal->ruangan = \App\Models\Ruangan::find($jadwal->ruangan_id);
+                $kelompokKecil = \App\Models\KelompokKecil::find($jadwal->kelompok_kecil_id);
+                $jadwal->kelompok_kecil = $kelompokKecil; // Set dengan nama yang sama seperti di frontend
+                $jadwal->kategori = \App\Models\CSR::find($jadwal->kategori_id);
+            });
+
+            return response()->json([
+                'jadwalList' => $jadwalList,
+                'count' => $jadwalList->count()
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error checking dosen usage: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengecek penggunaan dosen',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }

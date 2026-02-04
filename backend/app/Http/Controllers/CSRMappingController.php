@@ -96,6 +96,55 @@ class CSRMappingController extends Controller
         return response()->json(['message' => 'Mapping dihapus']);
     }
 
+    // Hapus semua mappings untuk keahlian tertentu dalam CSR
+    public function destroyByKeahlian($csrId, $keahlian)
+    {
+        try {
+            // Decode URL encoded keahlian parameter
+            $decodedKeahlian = urldecode($keahlian);
+
+            // Get all mappings for this keahlian to decrement counters
+            $mappings = CSRMapping::where('csr_id', $csrId)
+                ->where('keahlian', $decodedKeahlian)
+                ->get();
+
+            // Jika tidak ada mapping, ini bukan error - mungkin keahlian ini tidak ada dosen yang diassign
+            if ($mappings->isEmpty()) {
+                Log::info("No CSR mappings found for keahlian '{$decodedKeahlian}' in CSR {$csrId} - nothing to delete");
+                return response()->json([
+                    'message' => "Tidak ada mapping untuk keahlian '{$decodedKeahlian}'",
+                    'deleted_count' => 0
+                ]);
+            }
+
+            // Decrement csr_assignment_count for all affected dosen
+            foreach ($mappings as $mapping) {
+                $user = \App\Models\User::find($mapping->dosen_id);
+                if ($user && $user->csr_assignment_count > 0) {
+                    $user->decrement('csr_assignment_count');
+                }
+            }
+
+            // Delete all mappings for this keahlian
+            $deletedCount = CSRMapping::where('csr_id', $csrId)
+                ->where('keahlian', $decodedKeahlian)
+                ->delete();
+
+            Log::info("Deleted {$deletedCount} CSR mappings for keahlian '{$decodedKeahlian}' in CSR {$csrId}");
+
+            return response()->json([
+                'message' => "Berhasil menghapus {$deletedCount} mapping untuk keahlian '{$decodedKeahlian}'",
+                'deleted_count' => $deletedCount
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error deleting CSR mappings by keahlian: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat menghapus mapping keahlian',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     // Auto-delete CSR assignments saat dosen dihapus dari PBL berdasarkan semester dan blok
     public function deleteByDosenSemesterBlok(Request $request, $dosenId)
     {

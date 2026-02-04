@@ -746,4 +746,99 @@ class DetailBlokController extends Controller
             '17.15'
         ];
     }
+
+    /**
+     * Cek apakah dosen digunakan di jadwal blok (PBL, Jurnal Reading, Persamaan Persepsi, Seminar Pleno)
+     */
+    public function checkDosenUsageInBlok($dosenId, \Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $semester = $request->query('semester');
+            $blok = $request->query('blok');
+            
+            if (!$semester || !$blok) {
+                return response()->json([
+                    'message' => 'Parameter semester dan blok harus disertakan'
+                ], 400);
+            }
+            
+            $jadwalList = collect();
+            
+            // 1. Cek di PBL
+            $pblJadwal = \DB::table('jadwal_pbl as j')
+                ->join('mata_kuliah as mk', 'j.mata_kuliah_kode', '=', 'mk.kode')
+                ->where('j.dosen_id', $dosenId)
+                ->where('mk.semester', $semester)
+                ->where('mk.blok', $blok)
+                ->select('j.*', 'mk.nama as mata_kuliah_nama', \DB::raw("'PBL' as jenis"))
+                ->get();
+                
+            // 2. Cek di Jurnal Reading
+            $jurnalJadwal = \DB::table('jadwal_jurnal_reading as j')
+                ->join('mata_kuliah as mk', 'j.mata_kuliah_kode', '=', 'mk.kode')
+                ->where('j.dosen_id', $dosenId)
+                ->where('mk.semester', $semester)
+                ->where('mk.blok', $blok)
+                ->select('j.*', 'mk.nama as mata_kuliah_nama', \DB::raw("'Jurnal Reading' as jenis"))
+                ->get();
+                
+            // 3. Cek di Persamaan Persepsi (multiple dosen)
+            $persepsiJadwal = \DB::table('jadwal_persamaan_persepsi as j')
+                ->join('mata_kuliah as mk', 'j.mata_kuliah_kode', '=', 'mk.kode')
+                ->whereJsonContains('j.dosen_ids', $dosenId)
+                ->where('mk.semester', $semester)
+                ->where('mk.blok', $blok)
+                ->select('j.*', 'mk.nama as mata_kuliah_nama', \DB::raw("'Persamaan Persepsi' as jenis"))
+                ->get();
+                
+            // 4. Cek di Seminar Pleno (multiple dosen)
+            $seminarJadwal = \DB::table('jadwal_seminar_pleno as j')
+                ->join('mata_kuliah as mk', 'j.mata_kuliah_kode', '=', 'mk.kode')
+                ->whereJsonContains('j.dosen_ids', $dosenId)
+                ->where('mk.semester', $semester)
+                ->where('mk.blok', $blok)
+                ->select('j.*', 'mk.nama as mata_kuliah_nama', \DB::raw("'Seminar Pleno' as jenis"))
+                ->get();
+                
+            $allJadwal = $pblJadwal->merge($jurnalJadwal)
+                              ->merge($persepsiJadwal)
+                              ->merge($seminarJadwal);
+                              
+            // Load relations manual
+            $allJadwal->each(function ($jadwal) {
+                // Load dosen
+                if (isset($jadwal->dosen_id)) {
+                    $jadwal->dosen = \App\Models\User::find($jadwal->dosen_id);
+                }
+                
+                // Load ruangan
+                if (isset($jadwal->ruangan_id)) {
+                    $jadwal->ruangan = \App\Models\Ruangan::find($jadwal->ruangan_id);
+                }
+                
+                // Load kelompok kecil
+                if (isset($jadwal->kelompok_kecil_id)) {
+                    $kelompokKecil = \App\Models\KelompokKecil::find($jadwal->kelompok_kecil_id);
+                    $jadwal->kelompok_kecil = $kelompokKecil;
+                }
+                
+                // Load mata kuliah
+                if (isset($jadwal->mata_kuliah_kode)) {
+                    $jadwal->mata_kuliah = \App\Models\MataKuliah::find($jadwal->mata_kuliah_kode);
+                }
+            });
+            
+            return response()->json([
+                'jadwalList' => $allJadwal,
+                'count' => $allJadwal->count()
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error checking dosen usage in blok: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengecek penggunaan dosen',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

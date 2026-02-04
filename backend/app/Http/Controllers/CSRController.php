@@ -179,6 +179,18 @@ class CSRController extends Controller
     {
         try {
             $mataKuliahKode = $csr->mata_kuliah_kode;
+            
+            // Get all jadwal CSR untuk update counters sebelum delete
+            $jadwalCSRList = \App\Models\JadwalCSR::where('kategori_id', $csr->id)->get();
+            
+            // Update csr_assignment_count untuk semua dosen yang terpengaruh
+            foreach ($jadwalCSRList as $jadwal) {
+                $dosen = \App\Models\User::find($jadwal->dosen_id);
+                if ($dosen && $dosen->csr_assignment_count > 0) {
+                    $dosen->decrement('csr_assignment_count');
+                }
+            }
+            
             $csr->delete();
 
             // Clear cache untuk mata kuliah terkait

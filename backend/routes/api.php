@@ -189,7 +189,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/csrs', [CSRController::class, 'batch']);
     Route::get('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'index']);
     Route::post('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'store']);
+    
+    // Route spesifik harus di ATAS route umum untuk menghindari conflict
+    Route::delete('/csr/{csr}/mappings/keahlian/{keahlian}', [\App\Http\Controllers\CSRMappingController::class, 'destroyByKeahlian']);
     Route::delete('/csr/{csr}/mappings/{dosen}/{keahlian}', [\App\Http\Controllers\CSRMappingController::class, 'destroy']);
+
+    // Route untuk mengecek penggunaan di jadwal CSR
+    Route::get('/csr/{csr}/jadwal/check-keahlian/{keahlian}', [\App\Http\Controllers\JadwalCSRController::class, 'checkKeahlianUsage']);
+    Route::get('/csr/{csr}/jadwal/check-dosen/{dosen}/{keahlian}', [\App\Http\Controllers\JadwalCSRController::class, 'checkDosenUsage']);
+    Route::get('/jadwal-blok/check-dosen/{dosen}', [\App\Http\Controllers\DetailBlokController::class, 'checkDosenUsageInBlok']);
 
     // Route untuk auto-delete CSR assignments saat dosen dihapus dari PBL
     Route::delete('/dosen/{dosenId}/csr-assignments', [\App\Http\Controllers\CSRMappingController::class, 'deleteByDosenSemesterBlok']);
