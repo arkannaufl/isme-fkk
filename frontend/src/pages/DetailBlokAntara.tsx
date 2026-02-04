@@ -86,6 +86,29 @@ type JadwalPBLType = {
   [key: string]: any;
 };
 
+type JadwalSeminarPlenoType = {
+  id?: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  topik: string;
+  ruangan_id: number | null;
+  kelompok_besar_antara_id: number | null;
+  jumlah_sesi: number;
+  [key: string]: any;
+};
+
+type JadwalPersamaanPersepsiType = {
+  id?: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  topik: string;
+  ruangan_id: number | null;
+  jumlah_sesi: number;
+  [key: string]: any;
+};
+
 export default function DetailBlokAntara() {
   const { kode } = useParams();
   const navigate = useNavigate();
@@ -148,6 +171,8 @@ export default function DetailBlokAntara() {
   const [jadwalKuliahBesar, setJadwalKuliahBesar] = useState<JadwalKuliahBesarType[]>([]);
   const [jadwalAgendaKhusus, setJadwalAgendaKhusus] = useState<JadwalAgendaKhususType[]>([]);
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<JadwalJurnalReadingType[]>([]);
+  const [jadwalSeminarPleno, setJadwalSeminarPleno] = useState<JadwalSeminarPlenoType[]>([]);
+  const [jadwalPersamaanPersepsi, setJadwalPersamaanPersepsi] = useState<JadwalPersamaanPersepsiType[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
 
   // Pagination state for all schedule types
@@ -875,6 +900,8 @@ export default function DetailBlokAntara() {
       setJadwalKuliahBesar(Array.isArray(batchData.jadwal_kuliah_besar) ? batchData.jadwal_kuliah_besar : []);
       setJadwalAgendaKhusus(Array.isArray(batchData.jadwal_agenda_khusus) ? batchData.jadwal_agenda_khusus : []);
       setJadwalJurnalReading(Array.isArray(batchData.jadwal_jurnal_reading) ? batchData.jadwal_jurnal_reading : []);
+      setJadwalSeminarPleno(Array.isArray(batchData.jadwal_seminar_pleno) ? batchData.jadwal_seminar_pleno : []);
+      setJadwalPersamaanPersepsi(Array.isArray(batchData.jadwal_persamaan_persepsi) ? batchData.jadwal_persamaan_persepsi : []);
 
       // Set reference data
       setModulPBLList(Array.isArray(batchData.modul_pbl) ? batchData.modul_pbl : []);
