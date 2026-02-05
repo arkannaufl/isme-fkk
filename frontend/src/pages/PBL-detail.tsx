@@ -343,6 +343,15 @@ export default function PBL() {
     jadwalList: any[];
   } | null>(null);
 
+  // Pagination untuk modal warning
+  const [warningPage, setWarningPage] = useState(1);
+  const WARNING_PAGE_SIZE = 5;
+  const warningTotalPages = warningData ? Math.ceil(warningData.jadwalList.length / WARNING_PAGE_SIZE) : 1;
+  const warningPaginatedData = warningData ? warningData.jadwalList.slice(
+    (warningPage - 1) * WARNING_PAGE_SIZE,
+    warningPage * WARNING_PAGE_SIZE
+  ) : [];
+
   // Fungsi untuk mengecek apakah dosen digunakan di jadwal blok
   const checkDosenInJadwalBlok = async (dosenId: number, semester: number, blok: number): Promise<any[]> => {
     try {
@@ -354,6 +363,13 @@ export default function PBL() {
       console.error('Error checking dosen in jadwal blok:', error);
       return [];
     }
+  };
+
+  const formatJamTanpaDetik = (jam?: string) => {
+    if (!jam) return "-";
+    const cleaned = String(jam).trim().replace(".", ":");
+    if (cleaned.length >= 5) return cleaned.slice(0, 5);
+    return cleaned;
   };
 
 
@@ -4473,15 +4489,23 @@ export default function PBL() {
                                                     }
 
                                                     // CEK PENGGUNAAN DOSEN DI JADWAL BLOK
-                                                    const jadwalList = await checkDosenInJadwalBlok(dosen.id, mk.semester, mk.blok);
-                                                    
-                                                    if (jadwalList.length > 0) {
+                                                    const jadwalList = await checkDosenInJadwalBlok(
+                                                      dosen.id,
+                                                      mk.semester,
+                                                      mk.blok
+                                                    );
+                                                    const filteredJadwalList = (jadwalList || []).filter(
+                                                      (jadwal) => jadwal?.jenis !== "Persamaan Persepsi"
+                                                    );
+
+                                                    if (filteredJadwalList.length > 0) {
                                                       // Tampilkan modal warning
                                                       setWarningData({
                                                         type: 'dosen',
-                                                        name: dosen.name,
-                                                        jadwalList: jadwalList
+                                                        name: dosen.name || 'Dosen',
+                                                        jadwalList: filteredJadwalList
                                                       });
+                                                      setWarningPage(1); // Reset ke halaman 1 saat modal dibuka
                                                       setShowWarningModal(true);
                                                       return;
                                                     }
@@ -5795,7 +5819,7 @@ export default function PBL() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto"
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -5839,20 +5863,22 @@ export default function PBL() {
               <div className="mt-6">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Jadwal terkait:</p>
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-96 overflow-hidden">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tanggal</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Hari/Tanggal</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Pukul</th>
                           <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Waktu</th>
                           <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Jenis</th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Peran</th>
                           <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Kelompok</th>
                           <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Topik</th>
                           <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Ruangan</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {warningData.jadwalList.map((jadwal, index) => (
+                        {warningPaginatedData.map((jadwal, index) => (
                           <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                             <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
                               {jadwal.tanggal ? new Date(jadwal.tanggal).toLocaleDateString('id-ID', {
@@ -5863,10 +5889,12 @@ export default function PBL() {
                               }) : '-'}
                             </td>
                             <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
-                              {jadwal.jam_mulai && jadwal.jam_selesai 
-                                ? `${jadwal.jam_mulai.slice(0, 5)}–${jadwal.jam_selesai.slice(0, 5)}`
-                                : '-'
-                              }
+                              {jadwal.jam_mulai && jadwal.jam_selesai
+                                ? `${formatJamTanpaDetik(jadwal.jam_mulai)}–${formatJamTanpaDetik(jadwal.jam_selesai)}`
+                                : "-"}
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {`${jadwal.jumlah_sesi || 1} x 50 menit`}
                             </td>
                             <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -5874,24 +5902,22 @@ export default function PBL() {
                                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
                                   : jadwal.jenis === 'Jurnal Reading'
                                   ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                  : jadwal.jenis === 'Persamaan Persepsi'
-                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
                                   : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'
                               }`}>
                                 {jadwal.jenis}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
-                              {jadwal.kelompok_kecil?.nama_kelompok 
-                                ? `Kelompok ${jadwal.kelompok_kecil.nama_kelompok}`
-                                : '-'
-                              }
+                              {jadwal.peran_dosen || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
+                              {jadwal.kelompok_display || (jadwal.kelompok_kecil?.nama_kelompok ? `Kelompok ${jadwal.kelompok_kecil.nama_kelompok}` : '-')}
                             </td>
                             <td className="px-4 py-3 text-gray-800 dark:text-gray-200 max-w-xs truncate" title={jadwal.topik || '-'}>
                               {jadwal.topik || '-'}
                             </td>
                             <td className="px-4 py-3 text-gray-800 dark:text-gray-200">
-                              {jadwal.ruangan?.nama || '-'}
+                              {jadwal.use_ruangan === false ? '-' : (jadwal.ruangan?.nama || '-')}
                             </td>
                           </tr>
                         ))}
@@ -5899,6 +5925,137 @@ export default function PBL() {
                     </table>
                   </div>
                 </div>
+
+                {/* Pagination */}
+                {warningTotalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 py-4">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Menampilkan {warningPaginatedData.length} dari {warningData.jadwalList.length} data
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 justify-center sm:justify-end">
+                      <button
+                        onClick={() => setWarningPage((p) => Math.max(1, p - 1))}
+                        disabled={warningPage === 1}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Prev
+                      </button>
+
+                      {/* Smart Pagination with Scroll */}
+                      <div
+                        className="flex items-center gap-1 max-w-100 overflow-x-auto pagination-scroll"
+                        style={{
+                          scrollbarWidth: "thin",
+                          scrollbarColor: "#cbd5e1 #f1f5f9",
+                        }}
+                      >
+                        <style
+                          dangerouslySetInnerHTML={{
+                            __html: `
+                            .pagination-scroll::-webkit-scrollbar {
+                              height: 6px;
+                            }
+                            .pagination-scroll::-webkit-scrollbar-track {
+                              background: #f1f5f9;
+                              border-radius: 3px;
+                            }
+                            .pagination-scroll::-webkit-scrollbar-thumb {
+                              background: #cbd5e1;
+                              border-radius: 3px;
+                            }
+                            .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                              background: #94a3b8;
+                            }
+                            .dark .pagination-scroll::-webkit-scrollbar-track {
+                              background: #1e293b;
+                            }
+                            .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                              background: #475569;
+                            }
+                            .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                              background: #64748b;
+                            }
+                          `,
+                          }}
+                        />
+
+                        {/* Always show first page */}
+                        <button
+                          onClick={() => setWarningPage(1)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${warningPage === 1
+                            ? "bg-brand-500 text-white"
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
+                        >
+                          1
+                        </button>
+
+                        {/* Show ellipsis if current page is far from start */}
+                        {warningPage > 4 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">
+                            ...
+                          </span>
+                        )}
+
+                        {/* Show pages around current page */}
+                        {Array.from({ length: warningTotalPages }, (_, i) => {
+                          const pageNum = i + 1;
+                          // Show pages around current page (2 pages before and after)
+                          const shouldShow =
+                            pageNum > 1 &&
+                            pageNum < warningTotalPages &&
+                            pageNum >= warningPage - 2 &&
+                            pageNum <= warningPage + 2;
+
+                          if (!shouldShow) return null;
+
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => setWarningPage(pageNum)}
+                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${warningPage === pageNum
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+
+                        {/* Show ellipsis if current page is far from end */}
+                        {warningPage < warningTotalPages - 3 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">
+                            ...
+                          </span>
+                        )}
+
+                        {/* Always show last page if it's not the first page */}
+                        {warningTotalPages > 1 && (
+                          <button
+                            onClick={() => setWarningPage(warningTotalPages)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${warningPage === warningTotalPages
+                              ? "bg-brand-500 text-white"
+                              : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              }`}
+                          >
+                            {warningTotalPages}
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => setWarningPage((p) => Math.min(warningTotalPages, p + 1))}
+                        disabled={warningPage === warningTotalPages}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}

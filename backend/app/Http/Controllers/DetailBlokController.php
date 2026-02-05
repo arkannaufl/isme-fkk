@@ -755,6 +755,8 @@ class DetailBlokController extends Controller
         try {
             $semester = $request->query('semester');
             $blok = $request->query('blok');
+            $dosenIdInt = (int) $dosenId;
+            $dosenIdStr = (string) $dosenId;
             
             if (!$semester || !$blok) {
                 return response()->json([
@@ -782,30 +784,30 @@ class DetailBlokController extends Controller
                 ->select('j.*', 'mk.nama as mata_kuliah_nama', \DB::raw("'Jurnal Reading' as jenis"))
                 ->get();
                 
-            // 3. Cek di Persamaan Persepsi (multiple dosen)
-            $persepsiJadwal = \DB::table('jadwal_persamaan_persepsi as j')
-                ->join('mata_kuliah as mk', 'j.mata_kuliah_kode', '=', 'mk.kode')
-                ->whereJsonContains('j.dosen_ids', $dosenId)
-                ->where('mk.semester', $semester)
-                ->where('mk.blok', $blok)
-                ->select('j.*', 'mk.nama as mata_kuliah_nama', \DB::raw("'Persamaan Persepsi' as jenis"))
-                ->get();
-                
-            // 4. Cek di Seminar Pleno (multiple dosen)
+            // 3. Cek di Seminar Pleno (multiple dosen)
             $seminarJadwal = \DB::table('jadwal_seminar_pleno as j')
                 ->join('mata_kuliah as mk', 'j.mata_kuliah_kode', '=', 'mk.kode')
-                ->whereJsonContains('j.dosen_ids', $dosenId)
+                ->where(function ($q) use ($dosenIdInt, $dosenIdStr) {
+                    $q->whereJsonContains('j.dosen_ids', $dosenIdInt)
+                        ->orWhereJsonContains('j.dosen_ids', $dosenIdStr)
+                        ->orWhereJsonContains('j.koordinator_ids', $dosenIdInt)
+                        ->orWhereJsonContains('j.koordinator_ids', $dosenIdStr);
+                })
                 ->where('mk.semester', $semester)
                 ->where('mk.blok', $blok)
                 ->select('j.*', 'mk.nama as mata_kuliah_nama', \DB::raw("'Seminar Pleno' as jenis"))
                 ->get();
                 
             $allJadwal = $pblJadwal->merge($jurnalJadwal)
-                              ->merge($persepsiJadwal)
                               ->merge($seminarJadwal);
                               
             // Load relations manual
-            $allJadwal->each(function ($jadwal) {
+            $allJadwal->each(function ($jadwal) use ($dosenIdInt, $dosenIdStr) {
+                // Default peran dosen untuk jadwal single-dosen
+                if (!isset($jadwal->peran_dosen)) {
+                    $jadwal->peran_dosen = isset($jadwal->dosen_id) ? 'Pengampu' : null;
+                }
+
                 // Load dosen
                 if (isset($jadwal->dosen_id)) {
                     $jadwal->dosen = \App\Models\User::find($jadwal->dosen_id);
@@ -821,10 +823,59 @@ class DetailBlokController extends Controller
                     $kelompokKecil = \App\Models\KelompokKecil::find($jadwal->kelompok_kecil_id);
                     $jadwal->kelompok_kecil = $kelompokKecil;
                 }
+
+                // Load kelompok besar (Seminar Pleno)
+                if (isset($jadwal->kelompok_besar_antara_id) && $jadwal->kelompok_besar_antara_id) {
+                    $jadwal->kelompok_besar_antara = \App\Models\KelompokBesarAntara::find($jadwal->kelompok_besar_antara_id);
+                }
+
+                if (isset($jadwal->kelompok_besar_id) && $jadwal->kelompok_besar_id) {
+                    $jadwal->kelompok_besar = \App\Models\KelompokBesar::find($jadwal->kelompok_besar_id);
+                }
                 
                 // Load mata kuliah
                 if (isset($jadwal->mata_kuliah_kode)) {
                     $jadwal->mata_kuliah = \App\Models\MataKuliah::find($jadwal->mata_kuliah_kode);
+                }
+
+                // Enrich peran dosen untuk jadwal multi-dosen (Seminar Pleno)
+                if (!empty($jadwal->jenis) && $jadwal->jenis === 'Seminar Pleno') {
+                    $koordinatorIds = [];
+                    $pengampuIds = [];
+
+                    if (isset($jadwal->koordinator_ids)) {
+                        $decoded = is_string($jadwal->koordinator_ids) ? json_decode($jadwal->koordinator_ids, true) : $jadwal->koordinator_ids;
+                        $koordinatorIds = is_array($decoded) ? $decoded : [];
+                    }
+
+                    if (isset($jadwal->dosen_ids)) {
+                        $decoded = is_string($jadwal->dosen_ids) ? json_decode($jadwal->dosen_ids, true) : $jadwal->dosen_ids;
+                        $pengampuIds = is_array($decoded) ? $decoded : [];
+                    }
+
+                    $isKoordinator = in_array($dosenIdInt, $koordinatorIds, true) || in_array($dosenIdStr, $koordinatorIds, true);
+                    $isPengampu = in_array($dosenIdInt, $pengampuIds, true) || in_array($dosenIdStr, $pengampuIds, true);
+
+                    if ($isKoordinator) {
+                        $jadwal->peran_dosen = 'Koordinator';
+                    } elseif ($isPengampu) {
+                        $jadwal->peran_dosen = 'Pengampu';
+                    }
+                }
+
+                // Enrich kelompok display (agar konsisten di modal)
+                $jadwal->kelompok_display = '-';
+
+                if (isset($jadwal->kelompok_kecil) && $jadwal->kelompok_kecil && isset($jadwal->kelompok_kecil->nama_kelompok)) {
+                    $jadwal->kelompok_display = 'Kelompok ' . $jadwal->kelompok_kecil->nama_kelompok;
+                } elseif (isset($jadwal->kelompok_besar_antara) && $jadwal->kelompok_besar_antara && isset($jadwal->kelompok_besar_antara->nama_kelompok)) {
+                    $jadwal->kelompok_display = $jadwal->kelompok_besar_antara->nama_kelompok;
+                } elseif (isset($jadwal->kelompok_besar) && $jadwal->kelompok_besar) {
+                    if (isset($jadwal->kelompok_besar->nama_kelompok) && $jadwal->kelompok_besar->nama_kelompok) {
+                        $jadwal->kelompok_display = $jadwal->kelompok_besar->nama_kelompok;
+                    } elseif (isset($jadwal->kelompok_besar->semester) && $jadwal->kelompok_besar->semester) {
+                        $jadwal->kelompok_display = 'Kelompok Besar Semester ' . $jadwal->kelompok_besar->semester;
+                    }
                 }
             });
             

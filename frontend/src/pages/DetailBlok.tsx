@@ -10409,9 +10409,9 @@ export default function DetailBlok() {
       const [contohTanggal1, contohTanggal2] = generateContohTanggal();
 
       // Ambil contoh dosen (minimal 2 untuk multi-select)
-      const contohDosen1 = assignedDosenPBL[0]?.name || "Dr. John Doe";
-      const contohDosen2 = assignedDosenPBL[1]?.name || "Dr. Jane Smith";
-      const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
+      const contohDosen1 = allDosenList[0]?.name || "Dr. John Doe";
+      const contohDosen2 = allDosenList[1]?.name || "Dr. Jane Smith";
+      const contohDosen3 = allDosenList[2]?.name || "Dr. Bob Wilson";
       const contohKoordinator = contohDosen1; 
       const contohPengampu = contohDosen2
         ? `${contohDosen2}\\${contohDosen3 || "Dr. Alice"}`
@@ -10503,21 +10503,11 @@ export default function DetailBlok() {
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
         ["DOSEN YANG TERSEDIA:"],
-        ["• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini"],
-        ...assignedDosenPBL
-          .filter(
-            (dosen, index, self) =>
-              index ===
-              self.findIndex(
-                (d) =>
-                  (dosen.id && d.id === dosen.id) ||
-                  (dosen.name && d.name === dosen.name)
-              )
-          )
-          .map((dosen) => {
-            const namaDosen = dosen.name || `Dosen ${dosen.id || "Unknown"}`;
-            return [`• ${namaDosen}`];
-          }),
+        ["• Dosen yang tersedia adalah semua dosen yang ada di sistem"],
+        ...allDosenList.map((dosen) => {
+          const namaDosen = dosen.name || `Dosen ${dosen.id || "Unknown"}`;
+          return [`• ${namaDosen}`];
+        }),
         [""],
         ["VALIDASI SISTEM:"],
         [""],
@@ -10672,7 +10662,7 @@ export default function DetailBlok() {
           // Validasi setiap nama koordinator
           const invalidKoordinatorNames: string[] = [];
           koordinatorNames.forEach((namaDosen: string) => {
-            const dosen = assignedDosenPBL.find(
+            const dosen = allDosenList.find(
               (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
             );
             if (!dosen) {
@@ -10711,7 +10701,7 @@ export default function DetailBlok() {
         const validPengampuIds: number[] = [];
 
         pengampuNames.forEach((namaDosen: string) => {
-          const dosen = assignedDosenPBL.find(
+          const dosen = allDosenList.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
           if (!dosen) {
@@ -10737,7 +10727,7 @@ export default function DetailBlok() {
           if (uniquePengampuNames.length < pengampuNames.length) {
             // Cari nama pengampu yang duplikat
             const pengampuNamesMapped = pengampuNames.map((nama: string) => {
-              const pengampuOption = assignedDosenPBL.find(d =>
+              const pengampuOption = allDosenList.find(d =>
                 d.name.toLowerCase() === nama.toLowerCase() ||
                 `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
                 d.nid === nama ||
@@ -10774,7 +10764,7 @@ export default function DetailBlok() {
           row.dosen_ids.includes(id)
         );
         if (duplicateIds.length > 0) {
-          const duplicateNames = assignedDosenPBL
+          const duplicateNames = allDosenList
             .filter((d) => duplicateIds.includes(d.id))
             .map((d) => d.name);
           cellErrors.push({
@@ -10901,7 +10891,7 @@ export default function DetailBlok() {
         // Find koordinator IDs
         const koordinatorIds: number[] = [];
         koordinatorNames.forEach((namaDosen) => {
-          const dosen = assignedDosenPBL.find(
+          const dosen = allDosenList.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
           if (dosen) {
@@ -10912,7 +10902,7 @@ export default function DetailBlok() {
         // Find pengampu IDs (non-koordinator)
         const pengampuIds: number[] = [];
         pengampuNames.forEach((namaDosen) => {
-          const dosen = assignedDosenPBL.find(
+          const dosen = allDosenList.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
           if (dosen) {
@@ -11001,7 +10991,7 @@ export default function DetailBlok() {
 
         const koordinatorIds: number[] = [];
         koordinatorNames.forEach((namaDosen: string) => {
-          const dosen = assignedDosenPBL.find(
+          const dosen = allDosenList.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
           if (dosen) {
@@ -11025,7 +11015,7 @@ export default function DetailBlok() {
 
         const pengampuIds: number[] = [];
         pengampuNames.forEach((namaDosen: string) => {
-          const dosen = assignedDosenPBL.find(
+          const dosen = allDosenList.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
           if (dosen) {
@@ -21203,7 +21193,7 @@ export default function DetailBlok() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Koordinator Dosen
                         </label>
-                        {loadingAssignedPBL ? (
+                        {loadingDosenRuangan ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -21226,11 +21216,11 @@ export default function DetailBlok() {
                                 ></path>
                               </svg>
                               <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
-                                Memuat data assigned dosen...
+                                Memuat data dosen...
                               </span>
                             </div>
                           </div>
-                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                        ) : !allDosenList || allDosenList.length === 0 ? (
                           <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -21245,17 +21235,13 @@ export default function DetailBlok() {
                                 />
                               </svg>
                               <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada dosen yang di-assign untuk blok ini
+                                Belum ada data dosen
                               </span>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan generate dosen PBL terlebih dahulu di
-                              halaman PBL Generate
-                            </p>
                           </div>
                         ) : (
                           <Select
-                            options={assignedDosenPBL.map((d) => {
+                            options={allDosenList.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Pengampu
                               const isDisabled =
                                 Array.isArray(form.pengampu) &&
@@ -21270,19 +21256,19 @@ export default function DetailBlok() {
                             value={
                               Array.isArray(form.koordinator) &&
                                 form.koordinator.length > 0
-                                ? assignedDosenPBL.find(
+                                ? allDosenList.find(
                                   (d) =>
                                     d.id === (form.koordinator as number[])[0]
                                 )
                                   ? {
                                     value: (form.koordinator as number[])[0],
                                     label:
-                                      assignedDosenPBL.find(
+                                      allDosenList.find(
                                         (d) =>
                                           d.id ===
                                           (form.koordinator as number[])[0]
                                       )?.name || "",
-                                    data: assignedDosenPBL.find(
+                                    data: allDosenList.find(
                                       (d) =>
                                         d.id ===
                                         (form.koordinator as number[])[0]
@@ -21292,16 +21278,16 @@ export default function DetailBlok() {
                                   : null
                                 : form.koordinator &&
                                   typeof form.koordinator === "number"
-                                  ? assignedDosenPBL.find(
+                                  ? allDosenList.find(
                                     (d) => d.id === form.koordinator
                                   )
                                     ? {
                                       value: form.koordinator,
                                       label:
-                                        assignedDosenPBL.find(
+                                        allDosenList.find(
                                           (d) => d.id === form.koordinator
                                         )?.name || "",
-                                      data: assignedDosenPBL.find(
+                                      data: allDosenList.find(
                                         (d) => d.id === form.koordinator
                                       ),
                                       isDisabled: false,
@@ -21457,7 +21443,7 @@ export default function DetailBlok() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Pengampu
                         </label>
-                        {loadingAssignedPBL ? (
+                        {loadingDosenRuangan ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -21480,11 +21466,11 @@ export default function DetailBlok() {
                                 ></path>
                               </svg>
                               <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
-                                Memuat data assigned dosen...
+                                Memuat data dosen...
                               </span>
                             </div>
                           </div>
-                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                        ) : !allDosenList || allDosenList.length === 0 ? (
                           <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -21499,18 +21485,14 @@ export default function DetailBlok() {
                                 />
                               </svg>
                               <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada dosen yang di-assign untuk blok ini
+                                Belum ada data dosen
                               </span>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan generate dosen PBL terlebih dahulu di
-                              halaman PBL Generate
-                            </p>
                           </div>
                         ) : (
                           <Select
                             isMulti
-                            options={assignedDosenPBL.map((d) => {
+                            options={allDosenList.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Koordinator Dosen
                               const isDisabled =
                                 Array.isArray(form.koordinator) &&
@@ -21525,7 +21507,7 @@ export default function DetailBlok() {
                             value={
                               Array.isArray(form.pengampu) &&
                                 form.pengampu.length > 0
-                                ? assignedDosenPBL
+                                ? allDosenList
                                   .filter((d) =>
                                     (form.pengampu as number[]).includes(d.id)
                                   )
@@ -23473,7 +23455,7 @@ export default function DetailBlok() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Koordinator Dosen
                         </label>
-                        {loadingAssignedPBL ? (
+                        {loadingDosenRuangan ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -23496,11 +23478,11 @@ export default function DetailBlok() {
                                 ></path>
                               </svg>
                               <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
-                                Memuat data assigned dosen...
+                                Memuat data dosen...
                               </span>
                             </div>
                           </div>
-                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                        ) : !allDosenList || allDosenList.length === 0 ? (
                           <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -23515,17 +23497,13 @@ export default function DetailBlok() {
                                 />
                               </svg>
                               <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada dosen yang di-assign untuk blok ini
+                                Belum ada data dosen
                               </span>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan generate dosen PBL terlebih dahulu di
-                              halaman PBL Generate
-                            </p>
                           </div>
                         ) : (
                           <Select
-                            options={assignedDosenPBL.map((d) => {
+                            options={allDosenList.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Pengampu
                               const isDisabled =
                                 Array.isArray(form.pengampu) &&
@@ -23540,7 +23518,7 @@ export default function DetailBlok() {
                             value={
                               Array.isArray(form.koordinator) &&
                                 form.koordinator.length > 0
-                                ? assignedDosenPBL.find((d) =>
+                                ? allDosenList.find((d) =>
                                   (form.koordinator as number[]).includes(
                                     d.id
                                   )
@@ -23548,12 +23526,12 @@ export default function DetailBlok() {
                                   ? {
                                     value: (form.koordinator as number[])[0],
                                     label:
-                                      assignedDosenPBL.find(
+                                      allDosenList.find(
                                         (d) =>
                                           d.id ===
                                           (form.koordinator as number[])[0]
                                       )?.name || "",
-                                    data: assignedDosenPBL.find(
+                                    data: allDosenList.find(
                                       (d) =>
                                         d.id ===
                                         (form.koordinator as number[])[0]
@@ -23563,16 +23541,16 @@ export default function DetailBlok() {
                                   : null
                                 : form.koordinator &&
                                   typeof form.koordinator === "number"
-                                  ? assignedDosenPBL.find(
+                                  ? allDosenList.find(
                                     (d) => d.id === form.koordinator
                                   )
                                     ? {
                                       value: form.koordinator,
                                       label:
-                                        assignedDosenPBL.find(
+                                        allDosenList.find(
                                           (d) => d.id === form.koordinator
                                         )?.name || "",
-                                      data: assignedDosenPBL.find(
+                                      data: allDosenList.find(
                                         (d) => d.id === form.koordinator
                                       ),
                                       isDisabled: false,
@@ -23728,7 +23706,7 @@ export default function DetailBlok() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Pengampu
                         </label>
-                        {loadingAssignedPBL ? (
+                        {loadingDosenRuangan ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -23751,11 +23729,11 @@ export default function DetailBlok() {
                                 ></path>
                               </svg>
                               <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
-                                Memuat data assigned dosen...
+                                Memuat data dosen...
                               </span>
                             </div>
                           </div>
-                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                        ) : !allDosenList || allDosenList.length === 0 ? (
                           <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                             <div className="flex items-center gap-2">
                               <svg
@@ -23770,18 +23748,14 @@ export default function DetailBlok() {
                                 />
                               </svg>
                               <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada dosen yang di-assign untuk blok ini
+                                Belum ada data dosen
                               </span>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan generate dosen PBL terlebih dahulu di
-                              halaman PBL Generate
-                            </p>
                           </div>
                         ) : (
                           <Select
                             isMulti
-                            options={assignedDosenPBL.map((d) => {
+                            options={allDosenList.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Koordinator
                               const isDisabled =
                                 Array.isArray(form.koordinator) &&
@@ -23796,7 +23770,7 @@ export default function DetailBlok() {
                             value={
                               Array.isArray(form.pengampu) &&
                                 form.pengampu.length > 0
-                                ? assignedDosenPBL
+                                ? allDosenList
                                   .filter((d) =>
                                     (form.pengampu as number[]).includes(d.id)
                                   )

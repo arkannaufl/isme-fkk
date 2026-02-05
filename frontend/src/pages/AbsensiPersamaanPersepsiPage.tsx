@@ -85,6 +85,9 @@ export default function AbsensiPersamaanPersepsiPage() {
         if (jadwalData) {
           setJadwal(jadwalData);
 
+          const koordinatorIds = jadwalData.koordinator_ids || [];
+          const pengampuIds = jadwalData.dosen_ids || [];
+
           // Buat list dosen dari dosen_with_roles jika ada, atau dari koordinator_ids + dosen_ids
           let allDosen: Dosen[] = [];
           let allDosenData: any[] = []; // Untuk menyimpan hasil fetch agar bisa digunakan ulang
@@ -100,20 +103,29 @@ export default function AbsensiPersamaanPersepsiPage() {
             
             allDosen = jadwalData.dosen_with_roles.map((d: any) => {
               const dosenDetail = allDosenData.find((dd: any) => dd.id === d.id);
+
+              const isKoordinator = koordinatorIds.includes(d.id) || d.is_koordinator === true;
+              const isPengampu = pengampuIds.length > 0 ? pengampuIds.includes(d.id) : !isKoordinator;
+              const peranDisplay =
+                isKoordinator && isPengampu
+                  ? "Koordinator Dosen & Pengampu"
+                  : isKoordinator
+                    ? "Koordinator Dosen"
+                    : "Pengampu";
               return {
                 id: d.id,
                 name: d.name,
                 nid: dosenDetail?.nid || dosenDetail?.username || "",
-                peran: d.peran || (d.is_koordinator ? "koordinator" : "dosen_mengajar"),
-                peran_display: d.peran_display || (d.is_koordinator ? "Koordinator" : "Dosen Mengajar"),
-                is_koordinator: d.is_koordinator || false,
+                peran: isKoordinator && isPengampu ? "koordinator_pengampu" : isKoordinator ? "koordinator" : "pengampu",
+                peran_display: peranDisplay,
+                is_koordinator: isKoordinator,
               };
             });
           } else {
             // Fallback: buat dari koordinator_ids + dosen_ids
             const allDosenIds = [
-              ...(jadwalData.koordinator_ids || []),
-              ...(jadwalData.dosen_ids || [])
+              ...koordinatorIds,
+              ...pengampuIds
             ].filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
             
             if (allDosenIds.length > 0) {
@@ -122,18 +134,28 @@ export default function AbsensiPersamaanPersepsiPage() {
                 ? dosenResponse.data 
                 : dosenResponse.data.data || dosenResponse.data || [];
               
-              const koordinatorIds = jadwalData.koordinator_ids || [];
-              
               allDosen = allDosenIds.map((id: number) => {
                 const dosenDetail = allDosenData.find((d: any) => d.id === id);
                 const isKoordinator = koordinatorIds.includes(id);
+                const isPengampu = pengampuIds.includes(id);
+                const peranDisplay =
+                  isKoordinator && isPengampu
+                    ? "Koordinator Dosen & Pengampu"
+                    : isKoordinator
+                      ? "Koordinator Dosen"
+                      : "Pengampu";
                 
                 return {
                   id: id,
                   name: dosenDetail?.name || "",
                   nid: dosenDetail?.nid || dosenDetail?.username || "",
-                  peran: isKoordinator ? "koordinator" : "dosen_mengajar",
-                  peran_display: isKoordinator ? "Koordinator" : "Dosen Mengajar",
+                  peran:
+                    isKoordinator && isPengampu
+                      ? "koordinator_pengampu"
+                      : isKoordinator
+                        ? "koordinator"
+                        : "pengampu",
+                  peran_display: peranDisplay,
                   is_koordinator: isKoordinator,
                 };
               });
@@ -157,16 +179,27 @@ export default function AbsensiPersamaanPersepsiPage() {
               }
               
               const currentUserDetail = allDosenData.find((d: any) => d.id === currentUserId);
-              const koordinatorIds = jadwalData.koordinator_ids || [];
               const isKoordinator = koordinatorIds.includes(currentUserId);
+              const isPengampu = pengampuIds.includes(currentUserId);
+              const peranDisplay =
+                isKoordinator && isPengampu
+                  ? "Koordinator Dosen & Pengampu"
+                  : isKoordinator
+                    ? "Koordinator Dosen"
+                    : "Pengampu";
               
               if (currentUserDetail) {
                 allDosen.push({
                   id: currentUserId,
                   name: currentUserDetail.name || "",
                   nid: currentUserDetail.nid || currentUserDetail.username || "",
-                  peran: isKoordinator ? "koordinator" : "dosen_mengajar",
-                  peran_display: isKoordinator ? "Koordinator" : "Dosen Mengajar",
+                  peran:
+                    isKoordinator && isPengampu
+                      ? "koordinator_pengampu"
+                      : isKoordinator
+                        ? "koordinator"
+                        : "pengampu",
+                  peran_display: peranDisplay,
                   is_koordinator: isKoordinator,
                 });
               }
