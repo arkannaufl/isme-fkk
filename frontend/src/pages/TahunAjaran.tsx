@@ -4,6 +4,7 @@ import {
   faPenToSquare,
   faTrash,
   faChevronDown,
+  faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 import { motion, AnimatePresence } from "framer-motion";
 import React from "react";
@@ -69,6 +70,7 @@ export default function TahunAjaran() {
   const [showTypingConfirmModal, setShowTypingConfirmModal] = useState(false);
   const [confirmationText, setConfirmationText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [veteranSetupConfirmed, setVeteranSetupConfirmed] = useState(false); // Checkbox veteran setup
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -237,6 +239,12 @@ export default function TahunAjaran() {
   const processTypingConfirmation = async () => {
     if (!pendingActivation || confirmationText.trim() !== 'KONFIRMASI') return;
     
+    // Validasi: Jika update semester, harus centang veteran setup
+    if (updateStudentSemester && !veteranSetupConfirmed) {
+      setError('⚠️ Anda harus mengkonfirmasi bahwa mahasiswa veteran sudah disetting dengan benar.');
+      return;
+    }
+    
     setIsProcessing(true);
     const { type, id } = pendingActivation;
     
@@ -258,6 +266,13 @@ export default function TahunAjaran() {
     setShowTypingConfirmModal(false);
     setConfirmationText('');
     setPendingActivation(null);
+    setVeteranSetupConfirmed(false); // Reset checkbox
+  };
+
+  // Function untuk navigasi ke page veteran
+  const goToVeteranPage = () => {
+    // Navigasi ke halaman veteran di tab yang sama
+    window.location.href = '/generate/mahasiswa-veteran';
   };
 
   const handleActivate = useCallback(
@@ -1027,6 +1042,36 @@ export default function TahunAjaran() {
                         - Jika maju tahun: Mahasiswa naik semester/lulus.<br />
                         - Jika mundur tahun: Mahasiswa akan turun semester.
                       </p>
+                      
+                      {/* ⚠️ WARNING VETERAN SETUP */}
+                      <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-2 flex-1">
+                            <div className="text-yellow-600 dark:text-yellow-400 mt-0.5">
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 text-sm mb-1">
+                                ⚠️ PENTING: Setup Mahasiswa Veteran
+                              </h4>
+                              <p className="text-yellow-700 dark:text-yellow-300 text-xs">
+                                Pastikan semua mahasiswa veteran telah dikonfigurasi dengan benar sebelum memperbarui semester.
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* BUTTON ATUR VETERAN - DI WARNING BOX */}
+                          <button
+                            onClick={goToVeteranPage}
+                            className="ml-3 inline-flex items-center px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-medium rounded transition-colors flex-shrink-0"
+                          >
+                            <FontAwesomeIcon icon={faUsers} className="w-3 h-3 mr-1" />
+                            Atur Veteran
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1143,6 +1188,39 @@ export default function TahunAjaran() {
                   />
                 </div>
 
+                {/* ⚠️ CHECKBOX KONFIRMASI VETERAN SETUP */}
+                {updateStudentSemester && (
+                  <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                    <label className="flex items-start space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={veteranSetupConfirmed}
+                        onChange={(e) => setVeteranSetupConfirmed(e.target.checked)}
+                        className="mt-1 w-4 h-4 text-yellow-600 bg-white dark:bg-gray-800 border-yellow-300 dark:border-yellow-600 rounded focus:ring-yellow-500 focus:ring-2"
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold text-yellow-800 dark:text-yellow-200 text-sm">
+                          Saya sudah mengatur/menyeting mahasiswa veteran dengan benar
+                        </div>
+                        <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">
+                          Pastikan semua mahasiswa veteran telah dikonfigurasi sebelum memperbarui semester.
+                        </div>
+                        
+                        {/* BUTTON ATUR VETERAN */}
+                        <div className="mt-3">
+                          <button
+                            onClick={goToVeteranPage}
+                            className="inline-flex items-center px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-medium rounded-md transition-colors"
+                          >
+                            <FontAwesomeIcon icon={faUsers} className="w-3 h-3 mr-1.5" />
+                            Buka Halaman Veteran
+                          </button>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-2 pt-2 relative z-20">
                   <button
                     onClick={cancelTypingConfirmation}
@@ -1153,9 +1231,9 @@ export default function TahunAjaran() {
                   </button>
                   <button
                     onClick={processTypingConfirmation}
-                    disabled={confirmationText.trim() !== 'KONFIRMASI' || isProcessing}
+                    disabled={confirmationText.trim() !== 'KONFIRMASI' || isProcessing || (updateStudentSemester && !veteranSetupConfirmed)}
                     className={`px-3 sm:px-4 py-2 rounded-lg text-white text-xs sm:text-sm font-medium shadow-theme-xs transition-all duration-300 ease-in-out flex items-center justify-center min-w-[140px] ${
-                      confirmationText.trim() === 'KONFIRMASI' && !isProcessing
+                      confirmationText.trim() === 'KONFIRMASI' && !isProcessing && (!updateStudentSemester || veteranSetupConfirmed)
                         ? 'bg-red-600 hover:bg-red-700'
                         : 'bg-emerald-800 text-white opacity-60 cursor-not-allowed'
                     }`}
