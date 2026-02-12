@@ -99,7 +99,7 @@ const ReportingDosen: React.FC = () => {
     start_date: "",
     end_date: "",
   });
-  const [availableSemesters, setAvailableSemesters] = useState<Array<{id: number, jenis: string}>>([]);
+  const [availableSemesters, setAvailableSemesters] = useState<Array<{ id: number, jenis: string }>>([]);
   const [tahunAjaran, setTahunAjaran] = useState<{ tahun: string; semesters: Array<{ id: number; jenis: string; aktif: boolean }> } | null>(null);
   const [pagination, setPagination] = useState({
     current_page: 1,
@@ -142,7 +142,7 @@ const ReportingDosen: React.FC = () => {
         page: pagination.current_page.toString(),
         per_page: pagination.per_page.toString(),
       });
-      
+
       // Tambahkan filter semester jika ada
       if (filters.semester_jenis) {
         // Cari semester_id berdasarkan jenis
@@ -151,7 +151,7 @@ const ReportingDosen: React.FC = () => {
           params.append('semester_id', semester.id.toString());
         }
       }
-      
+
       let response;
       if (activeTab === "csr") {
         response = await api.get(`/reporting/dosen-csr?${params}`);
@@ -180,10 +180,10 @@ const ReportingDosen: React.FC = () => {
       } else {
         response = await api.get(`/reporting/dosen-pbl?${params}`);
         let data = Array.isArray(response.data.data) ? response.data.data : [];
-        
+
         data = data.map((d: DosenPBLReport) => {
           // Debug: log setiap dosen
-          
+
           // HAPUS: proses JSON.parse/overwrite keahlian di sini
           let allTanggalMulai: string[] = [];
           let allTanggalAkhir: string[] = [];
@@ -238,17 +238,17 @@ const ReportingDosen: React.FC = () => {
         fetchDosenReport();
       }
     };
-    
+
     const handlePblGenerateCompleted = () => {
       if (activeTab === "pbl") {
 
         fetchDosenReport();
       }
     };
-    
+
     window.addEventListener("pbl-assignment-updated", handlePblAssignmentUpdate);
     window.addEventListener("pbl-generate-completed", handlePblGenerateCompleted);
-    
+
     return () => {
       window.removeEventListener("pbl-assignment-updated", handlePblAssignmentUpdate);
       window.removeEventListener("pbl-generate-completed", handlePblGenerateCompleted);
@@ -284,10 +284,10 @@ const ReportingDosen: React.FC = () => {
           const keahlianArr = Array.isArray(d.keahlian)
             ? d.keahlian
             : typeof d.keahlian === "string"
-            ? String(d.keahlian)
+              ? String(d.keahlian)
                 .split(",")
                 .map((k: string) => k.trim())
-            : [];
+              : [];
           const keahlianStr = keahlianArr.join(",").toLowerCase();
           return nama.includes(q) || nid.includes(q) || keahlianStr.includes(q);
         });
@@ -319,10 +319,10 @@ const ReportingDosen: React.FC = () => {
           const keahlianArr = Array.isArray(d.keahlian)
             ? d.keahlian
             : typeof d.keahlian === "string"
-            ? String(d.keahlian)
+              ? String(d.keahlian)
                 .split(",")
                 .map((k: string) => k.trim())
-            : [];
+              : [];
           const keahlianStr = keahlianArr.join(",").toLowerCase();
           return nama.includes(q) || nid.includes(q) || keahlianStr.includes(q);
         });
@@ -367,24 +367,24 @@ const ReportingDosen: React.FC = () => {
   const handleExportPDF = async () => {
     try {
       const doc = new jsPDF();
-      
+
       // Set font
       doc.setFont("helvetica");
-      
+
       // Load dan add logo asli dari file PNG
       try {
         // Fetch logo dari public folder
         const logoResponse = await fetch('/images/logo/logo-umj.png');
         const logoBlob = await logoResponse.blob();
         const logoUrl = URL.createObjectURL(logoBlob);
-        
+
         // Add logo ke PDF (ukuran kecil)
         const logoSize = 30;
-        const logoX = 105 - logoSize/2;
+        const logoX = 105 - logoSize / 2;
         const logoY = 5;
-        
+
         doc.addImage(logoUrl, 'PNG', logoX, logoY, logoSize, logoSize);
-        
+
         // Cleanup URL
         URL.revokeObjectURL(logoUrl);
       } catch (logoError) {
@@ -393,75 +393,75 @@ const ReportingDosen: React.FC = () => {
         doc.setFont("helvetica", "bold");
         doc.text("LOGO UMJ", 105, 25, { align: "center" });
       }
-      
+
       // Header Universitas
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.text("UNIVERSITAS MUHAMMADIYAH JAKARTA", 105, 50, { align: "center" });
-      
+
       doc.setFontSize(12);
       doc.setFont("helvetica", "normal");
       doc.text("Fakultas Kedokteran", 105, 58, { align: "center" });
       doc.text("Program Studi Kedokteran", 105, 64, { align: "center" });
-      
+
       doc.setFontSize(10);
       doc.text("Jl. KH. Ahmad Dahlan, Cirendeu, Ciputat, Tangerang Selatan", 105, 70, { align: "center" });
       doc.text("Telp. (021) 742-3740 - Fax. (021) 742-3740", 105, 76, { align: "center" });
-      
+
       // Garis pemisah
       doc.setLineWidth(0.5);
       doc.line(20, 82, 190, 82);
-      
+
       // Judul Laporan
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text("LAPORAN KINERJA DOSEN", 105, 92, { align: "center" });
-      
+
       // Nomor laporan
       const reportNumber = `${Math.floor(Math.random() * 10) + 1}/UMJ-FK/8/2025`;
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.text(`No: ${reportNumber}`, 105, 100, { align: "center" });
-      
+
       let currentY = 115;
-      
+
       // Informasi penandatangan
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.text("Saya yang bertanda tangan di bawah ini:", 20, currentY);
       currentY += 8;
-      
+
       doc.text("Nama : Kepala Program Studi Kedokteran", 20, currentY);
       currentY += 6;
       doc.text("Jabatan : Kepala Program Studi", 20, currentY);
       currentY += 6;
       doc.text("Alamat : Jl. KH. Ahmad Dahlan, Cirendeu, Ciputat, Tangerang Selatan", 20, currentY);
-      
+
       // Halaman Kedua - Tabel Data Dosen PBL Blok 1
       doc.addPage();
-      
+
       // Judul Halaman Kedua
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.text("REPORTING DOSEN", 20, 20);
-      
+
       doc.setFontSize(12);
       doc.setFont("helvetica", "normal");
       doc.text("BLOK 1 :", 20, 30);
-      
+
       // Filter data dosen PBL untuk Blok 1
       const dosenBlok1 = dosenPblReport.filter((dosen) => {
         // Cek apakah dosen mengajar di Blok 1
-        return dosen.per_semester.some((sem) => 
+        return dosen.per_semester.some((sem) =>
           sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === 1)
         );
       });
-      
+
       if (dosenBlok1.length > 0) {
         // Prepare table data
         const tableColumns = [
           "NAMA\nDOSEN",
-          "PERAN", 
+          "PERAN",
           "KEAHLIAN",
           "TOTAL\nMODUL\nPBL",
           "TOTAL\nPBL",
@@ -470,7 +470,7 @@ const ReportingDosen: React.FC = () => {
           "TANGGAL\nMULAI",
           "TANGGAL\nAKHIR"
         ];
-        
+
         const tableData = dosenBlok1.map((dosen) => {
           // Get role information
           let peranText = "-";
@@ -478,7 +478,7 @@ const ReportingDosen: React.FC = () => {
             const peranList = (dosen as any).dosen_peran.map((p: any) => {
               const tipeLabel: Record<string, string> = {
                 koordinator: "Koordinator",
-                tim_blok: "Tim Blok", 
+                tim_blok: "Tim Blok",
                 dosen_mengajar: "Dosen Mengajar",
                 mengajar: "Dosen Mengajar"
               };
@@ -489,13 +489,13 @@ const ReportingDosen: React.FC = () => {
             const peranLabel: Record<string, string> = {
               koordinator: "Koordinator",
               tim_blok: "Tim Blok",
-              dosen_mengajar: "Dosen Mengajar", 
+              dosen_mengajar: "Dosen Mengajar",
               mengajar: "Dosen Mengajar",
               standby: "Standby"
             };
             peranText = peranLabel[(dosen as any).peran_utama] || (dosen as any).peran_utama;
           }
-          
+
           // Get expertise
           let keahlianText = "-";
           if (Array.isArray(dosen.keahlian) && dosen.keahlian.length > 0) {
@@ -506,22 +506,22 @@ const ReportingDosen: React.FC = () => {
               keahlianText = keahlianStr;
             }
           }
-          
+
           // Calculate totals for Blok 1 only
           let totalModulBlok1 = 0;
           let totalPblBlok1 = 0;
           let totalWaktuBlok1 = 0;
           let perSemesterText = "";
-          
+
           // Filter data per semester untuk Blok 1
-          const semesterBlok1 = dosen.per_semester.filter((sem) => 
+          const semesterBlok1 = dosen.per_semester.filter((sem) =>
             sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === 1)
           );
-          
-          totalModulBlok1 = semesterBlok1.reduce((acc, sem) => 
+
+          totalModulBlok1 = semesterBlok1.reduce((acc, sem) =>
             acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === 1).length : 0), 0
           );
-          
+
           const mkSet = new Set<string>();
           semesterBlok1.forEach((sem) => {
             sem.modul_pbl.filter(modul => modul.blok === 1).forEach((modul) => {
@@ -529,27 +529,27 @@ const ReportingDosen: React.FC = () => {
             });
           });
           totalPblBlok1 = mkSet.size;
-          
-          totalWaktuBlok1 = semesterBlok1.reduce((acc, sem) => 
+
+          totalWaktuBlok1 = semesterBlok1.reduce((acc, sem) =>
             acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === 1).reduce((sum, modul) => sum + modul.waktu_menit, 0) : 0), 0
           );
-          
-          perSemesterText = semesterBlok1.map(sem => 
+
+          perSemesterText = semesterBlok1.map(sem =>
             `Semester ${sem.semester}: ${sem.modul_pbl.filter(modul => modul.blok === 1).length} PBL / ${sem.modul_pbl.filter(modul => modul.blok === 1).reduce((sum, modul) => sum + modul.jumlah_sesi, 0)} sesi`
           ).join(", ");
-          
+
           const totalJam = Math.floor(totalWaktuBlok1 / 60);
           const totalMenit = totalWaktuBlok1 % 60;
           const waktuText = totalJam > 0 ? `${totalJam}j ${totalMenit}m` : `${totalMenit}m`;
-          
+
           // Format tanggal
-          const tanggalMulai = dosen.tanggal_mulai ? 
-            new Date(dosen.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+          const tanggalMulai = dosen.tanggal_mulai ?
+            new Date(dosen.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) :
             "-";
-          const tanggalAkhir = dosen.tanggal_akhir ? 
-            new Date(dosen.tanggal_akhir).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+          const tanggalAkhir = dosen.tanggal_akhir ?
+            new Date(dosen.tanggal_akhir).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) :
             "-";
-          
+
           return [
             dosen.dosen_name,
             peranText,
@@ -562,7 +562,7 @@ const ReportingDosen: React.FC = () => {
             tanggalAkhir
           ];
         });
-        
+
         // Add table
         autoTable(doc, {
           head: [tableColumns],
@@ -621,14 +621,14 @@ const ReportingDosen: React.FC = () => {
         doc.setFont("helvetica", "normal");
         doc.text("Tidak ada data dosen untuk Blok 1", 20, 50);
       }
-      
+
       // Add watermark using centralized helper
       addWatermarkToAllPages(doc);
-      
+
       // Save the PDF
       const filename = `laporan-kinerja-dosen-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      
+
     } catch (error) {
       // Bisa ditambahkan toast notification di sini
     }
@@ -687,7 +687,7 @@ const ReportingDosen: React.FC = () => {
 
       // Filter data dosen PBL untuk Blok yang dipilih
       const dosenBlok = dosenPblReport.filter((dosen) => {
-        return dosen.per_semester.some((sem) => 
+        return dosen.per_semester.some((sem) =>
           sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === blokNumber)
         );
       });
@@ -700,7 +700,7 @@ const ReportingDosen: React.FC = () => {
           const peranList = (dosen as any).dosen_peran.map((p: any) => {
             const tipeLabel: Record<string, string> = {
               koordinator: "Koordinator",
-              tim_blok: "Tim Blok", 
+              tim_blok: "Tim Blok",
               dosen_mengajar: "Dosen Mengajar",
               mengajar: "Dosen Mengajar"
             };
@@ -711,7 +711,7 @@ const ReportingDosen: React.FC = () => {
           const peranLabel: Record<string, string> = {
             koordinator: "Koordinator",
             tim_blok: "Tim Blok",
-            dosen_mengajar: "Dosen Mengajar", 
+            dosen_mengajar: "Dosen Mengajar",
             mengajar: "Dosen Mengajar",
             standby: "Standby"
           };
@@ -736,11 +736,11 @@ const ReportingDosen: React.FC = () => {
         let perSemesterText = "";
 
         // Filter data per semester untuk Blok yang dipilih
-        const semesterBlok = dosen.per_semester.filter((sem) => 
+        const semesterBlok = dosen.per_semester.filter((sem) =>
           sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === blokNumber)
         );
 
-        totalModulBlok1 = semesterBlok.reduce((acc, sem) => 
+        totalModulBlok1 = semesterBlok.reduce((acc, sem) =>
           acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === blokNumber).length : 0), 0
         );
 
@@ -752,11 +752,11 @@ const ReportingDosen: React.FC = () => {
         });
         totalPblBlok1 = mkSet.size;
 
-        totalWaktuBlok1 = semesterBlok.reduce((acc, sem) => 
+        totalWaktuBlok1 = semesterBlok.reduce((acc, sem) =>
           acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === blokNumber).reduce((sum, modul) => sum + modul.waktu_menit, 0) : 0), 0
         );
 
-        perSemesterText = semesterBlok.map(sem => 
+        perSemesterText = semesterBlok.map(sem =>
           `Semester ${sem.semester}: ${sem.modul_pbl.filter(modul => modul.blok === blokNumber).length} PBL / ${sem.modul_pbl.filter(modul => modul.blok === blokNumber).reduce((sum, modul) => sum + modul.jumlah_sesi, 0)} sesi`
         ).join(", ");
 
@@ -765,11 +765,11 @@ const ReportingDosen: React.FC = () => {
         const waktuText = totalJam > 0 ? `${totalJam}j ${totalMenit}m` : `${totalMenit}m`;
 
         // Format tanggal
-        const tanggalMulai = dosen.tanggal_mulai ? 
-          new Date(dosen.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+        const tanggalMulai = dosen.tanggal_mulai ?
+          new Date(dosen.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) :
           "-";
-        const tanggalAkhir = dosen.tanggal_akhir ? 
-          new Date(dosen.tanggal_akhir).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+        const tanggalAkhir = dosen.tanggal_akhir ?
+          new Date(dosen.tanggal_akhir).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) :
           "-";
 
         worksheet.addRow({
@@ -809,181 +809,70 @@ const ReportingDosen: React.FC = () => {
 
   const handleExportExcelByBlok = async (selectedBlok: number | null) => {
     try {
-        // Debug logging untuk melihat data yang tersedia
-        
-        // Ambil data blok dari API yang sudah kita buat
-        const blokResponse = await api.get('/reporting/blok-data-excel');
-        const blokData = blokResponse.data.data || [];
-        if (blokData.length > 0) {
-        }
-        
-        // Ambil data dosen untuk mapping
+      // Debug logging untuk melihat data yang tersedia
+
+      // Ambil data blok dari API yang sudah kita buat
+      const blokResponse = await api.get('/reporting/blok-data-excel');
+      const blokData = blokResponse.data.data || [];
+      if (blokData.length > 0) {
+      }
+
+      // Ambil data dosen untuk keahlian (diperlukan untuk perencanaan CSR)
+      let dosenData: any[] = [];
+      try {
         const dosenResponse = await api.get('/users');
-        const dosenData = dosenResponse.data.data || [];
-        
-        // Buat mapping dosen
-        const dosenMap: { [key: number]: string } = {};
-        dosenData.forEach((dosen: any) => {
-          dosenMap[dosen.id] = dosen.name;
-        });
-        
-        // Ambil data mata kuliah untuk menghitung perencanaan PBL dan Jurnal Reading
-        // Perencanaan PBL = jumlah daftar modul PBL × 5
-        // Perencanaan Jurnal Reading = jumlah daftar jurnal reading × 2
-        const mataKuliahResponse = await api.get('/mata-kuliah');
-        const allMataKuliah = mataKuliahResponse.data || [];
-        
-        // Buat mapping perencanaan PBL dan Jurnal Reading berdasarkan blok, semester, dan dosen
-        // PERBAIKAN: 
-        // - Perencanaan PBL dihitung per blok (karena daftar modul PBL biasanya sama untuk semua semester dengan blok yang sama)
-        // - Perencanaan Jurnal Reading dihitung per semester (karena bisa berbeda per semester)
-        // Key PBL: `${dosen_name}_blok${blok}`
-        // Key Jurnal: `${dosen_name}_blok${blok}_semester${semester}`
-        const perencanaanPblMap: { [key: string]: number } = {}; // Key: `${dosen_name}_blok${blok}`
-        const perencanaanJurnalMap: { [key: string]: number } = {}; // Key: `${dosen_name}_blok${blok}_semester${semester}`
-        
-        // Map untuk tracking mata kuliah yang sudah dihitung per dosen (untuk menghindari duplikasi)
-        const processedMkPerDosenPbl: { [key: string]: Set<string> } = {}; // Key: `${dosen_name}_blok${blok}`
-        const processedMkPerDosenJurnal: { [key: string]: Set<string> } = {}; // Key: `${dosen_name}_blok${blok}_semester${semester}`
-        
-        // Filter mata kuliah berdasarkan selectedBlok
-        const filteredMataKuliah = selectedBlok !== null
-          ? allMataKuliah.filter((mk: any) => mk.jenis === 'Blok' && mk.blok === selectedBlok)
-          : allMataKuliah.filter((mk: any) => mk.jenis === 'Non Blok');
-        
-        
-        // Ambil data daftar modul PBL dan jurnal reading untuk setiap mata kuliah
-        for (const mk of filteredMataKuliah) {
-          try {
-            // Ambil daftar modul PBL
-            const pblListResponse = await api.get(`/mata-kuliah/${mk.kode}/pbls`);
-            const pblList = Array.isArray(pblListResponse.data) ? pblListResponse.data : [];
-            const jumlahModulPbl = pblList.length;
-            
-            // Ambil daftar jurnal reading
-            const jurnalListResponse = await api.get(`/mata-kuliah/${mk.kode}/jurnal-readings`);
-            const jurnalList = Array.isArray(jurnalListResponse.data) ? jurnalListResponse.data : [];
-            const jumlahJurnalReading = jurnalList.length;
-            
-            // Ambil semua dosen yang mengajar di mata kuliah ini dari blokData
-            const dosenDiMataKuliah = new Set<string>();
-            blokData.forEach((item: any) => {
-              if (item.mata_kuliah_kode === mk.kode) {
-                // Ambil dosen dari semua jenis jadwal
-                if (item.pbl1) {
-                  item.pbl1.forEach((j: any) => {
-                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
-                  });
-                }
-                if (item.pbl2) {
-                  item.pbl2.forEach((j: any) => {
-                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
-                  });
-                }
-                if (item.jurnal_reading) {
-                  item.jurnal_reading.forEach((j: any) => {
-                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
-                  });
-                }
-                if (item.kuliah_besar) {
-                  item.kuliah_besar.forEach((j: any) => {
-                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
-                  });
-                }
-                if (item.praktikum) {
-                  item.praktikum.forEach((j: any) => {
-                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
-                  });
-                }
-                if (item.seminar_pleno) {
-                  item.seminar_pleno.forEach((j: any) => {
-                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
-                  });
-                }
-                if (item.pp_pbl) {
-                  item.pp_pbl.forEach((j: any) => {
-                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
-                  });
-                }
-              }
+        dosenData = dosenResponse.data.data || [];
+      } catch (e) {
+        // Jika gagal, lanjutkan tanpa data keahlian dosen
+        dosenData = [];
+      }
+      // Buat mapping perencanaan PBL dan Jurnal Reading berdasarkan blok dan semester
+      // Menggunakan data dari blokData langsung, tanpa fetch per kode mata kuliah
+      // REFACTOR: Filter berdasarkan atribut (blok) bukan kode mata kuliah
+      const perencanaanPblMap: { [key: string]: number } = {}; // Key: `${dosen_name}_blok${blok}`
+      const perencanaanJurnalMap: { [key: string]: number } = {}; // Key: `${dosen_name}_blok${blok}_semester${semester}`
+
+      // Hitung perencanaan langsung dari blokData yang sudah di-filter berdasarkan blok
+      if (selectedBlok !== null) {
+        blokData.forEach((item: any) => {
+          // Filter berdasarkan atribut blok saja (bukan kode mata kuliah)
+          if (item.blok !== selectedBlok) return;
+
+          const blok = item.blok;
+          const semester = item.semester;
+
+          // Hitung jumlah jadwal PBL 1 dan PBL 2 per dosen untuk perencanaan
+          // Perencanaan PBL = jumlah sesi PBL (PBL 1 = 2, PBL 2 = 3 per jadwal)
+          if (item.pbl1 && item.pbl1.length > 0) {
+            item.pbl1.forEach((j: any) => {
+              if (!j.dosen_name) return;
+              const key = `${j.dosen_name}_blok${blok}`;
+              if (!perencanaanPblMap[key]) perencanaanPblMap[key] = 0;
+              perencanaanPblMap[key] += 2; // PBL 1 = 2 sesi
             });
-            
-            // Hitung perencanaan untuk setiap dosen
-            // PERBAIKAN: 
-            // - Perencanaan PBL dihitung per blok (karena daftar modul PBL biasanya sama untuk semua semester dengan blok yang sama)
-            // - Perencanaan Jurnal Reading dihitung per semester (karena bisa berbeda per semester)
-            dosenDiMataKuliah.forEach((dosenName) => {
-              // Key perencanaan PBL: per blok saja (tanpa semester)
-              const keyPerencanaanPbl = `${dosenName}_blok${mk.blok || 'null'}`;
-              // Key perencanaan Jurnal: per blok dan semester
-              const keyPerencanaanJurnal = `${dosenName}_blok${mk.blok || 'null'}_semester${mk.semester}`;
-              
-              // Initialize maps jika belum ada
-              if (!perencanaanPblMap[keyPerencanaanPbl]) {
-                perencanaanPblMap[keyPerencanaanPbl] = 0;
-              }
-              if (!perencanaanJurnalMap[keyPerencanaanJurnal]) {
-                perencanaanJurnalMap[keyPerencanaanJurnal] = 0;
-              }
-              if (!processedMkPerDosenPbl[keyPerencanaanPbl]) {
-                processedMkPerDosenPbl[keyPerencanaanPbl] = new Set<string>();
-              }
-              if (!processedMkPerDosenJurnal[keyPerencanaanJurnal]) {
-                processedMkPerDosenJurnal[keyPerencanaanJurnal] = new Set<string>();
-              }
-              
-              // Hitung perencanaan PBL (per blok)
-              // Cek apakah mata kuliah ini sudah dihitung untuk dosen ini
-              if (!processedMkPerDosenPbl[keyPerencanaanPbl].has(mk.kode)) {
-                const pblPerencanaan = jumlahModulPbl * 5;
-                
-                if (pblPerencanaan > 0) {
-                  // Hanya update jika nilai yang sudah ada adalah 0 atau nilai baru lebih besar
-                  if (perencanaanPblMap[keyPerencanaanPbl] === 0) {
-                    perencanaanPblMap[keyPerencanaanPbl] = pblPerencanaan;
-                  } else if (pblPerencanaan > perencanaanPblMap[keyPerencanaanPbl]) {
-                    // Jika nilai baru lebih besar, update (mungkin ada mata kuliah lain dengan lebih banyak daftar PBL)
-                    perencanaanPblMap[keyPerencanaanPbl] = pblPerencanaan;
-                  }
-                }
-                
-                // Tandai mata kuliah ini sudah diproses untuk PBL
-                processedMkPerDosenPbl[keyPerencanaanPbl].add(mk.kode);
-              }
-              
-              // Hitung perencanaan Jurnal Reading (per semester)
-              // PERBAIKAN: Perencanaan jurnal reading dihitung per mata kuliah
-              // Jika mata kuliah tidak memiliki daftar jurnal reading, nilainya 0
-              // Cek apakah mata kuliah ini sudah dihitung untuk dosen ini di semester ini
-              if (!processedMkPerDosenJurnal[keyPerencanaanJurnal].has(mk.kode)) {
-                const jurnalPerencanaan = jumlahJurnalReading * 2;
-                
-                // PERBAIKAN: Jika tidak ada daftar jurnal reading, set nilai ke 0
-                // Ini untuk memastikan bahwa jika mata kuliah tidak memiliki daftar jurnal reading,
-                // perencanaan jurnal reading untuk dosen yang mengajar di mata kuliah tersebut adalah 0
-                if (jumlahJurnalReading === 0) {
-                  // Jika tidak ada daftar jurnal reading, set nilai ke 0 (jika belum ada nilai sebelumnya)
-                  if (perencanaanJurnalMap[keyPerencanaanJurnal] === undefined) {
-                    perencanaanJurnalMap[keyPerencanaanJurnal] = 0;
-                  }
-                } else if (jurnalPerencanaan > 0) {
-                  // Hanya update jika nilai yang sudah ada adalah 0 atau nilai baru lebih besar
-                  if (perencanaanJurnalMap[keyPerencanaanJurnal] === 0 || perencanaanJurnalMap[keyPerencanaanJurnal] === undefined) {
-                    perencanaanJurnalMap[keyPerencanaanJurnal] = jurnalPerencanaan;
-                  } else if (jurnalPerencanaan > perencanaanJurnalMap[keyPerencanaanJurnal]) {
-                    // Jika nilai baru lebih besar, update
-                    perencanaanJurnalMap[keyPerencanaanJurnal] = jurnalPerencanaan;
-                  }
-                }
-                
-                // Tandai mata kuliah ini sudah diproses untuk Jurnal Reading
-                processedMkPerDosenJurnal[keyPerencanaanJurnal].add(mk.kode);
-              }
-            });
-          } catch (error) {
           }
-        }
-      
+
+          if (item.pbl2 && item.pbl2.length > 0) {
+            item.pbl2.forEach((j: any) => {
+              if (!j.dosen_name) return;
+              const key = `${j.dosen_name}_blok${blok}`;
+              if (!perencanaanPblMap[key]) perencanaanPblMap[key] = 0;
+              perencanaanPblMap[key] += 3; // PBL 2 = 3 sesi
+            });
+          }
+
+          // Hitung perencanaan Jurnal Reading per semester
+          if (item.jurnal_reading && item.jurnal_reading.length > 0) {
+            item.jurnal_reading.forEach((j: any) => {
+              if (!j.dosen_name) return;
+              const key = `${j.dosen_name}_blok${blok}_semester${semester}`;
+              if (!perencanaanJurnalMap[key]) perencanaanJurnalMap[key] = 0;
+              perencanaanJurnalMap[key] += j.jumlah_sesi || 2; // Default 2 sesi per jurnal
+            });
+          }
+        });
+      }
+
       const workbook = new ExcelJS.Workbook();
       const worksheetName = selectedBlok === null ? 'Non Blok' : `Blok ${selectedBlok}`;
       const worksheet = workbook.addWorksheet(`DAFTAR REKAPITULASI SKS ${worksheetName}`);
@@ -1036,7 +925,7 @@ const ReportingDosen: React.FC = () => {
           // Check if start cell is already part of a merge
           const [startCellRef] = range.split(':');
           const startCell = worksheet.getCell(startCellRef);
-          
+
           // If cell is merged, try to unmerge it first
           if (startCell.isMerged) {
             try {
@@ -1049,13 +938,13 @@ const ReportingDosen: React.FC = () => {
               return;
             }
           }
-          
+
           // Now try to merge
           worksheet.mergeCells(range);
         } catch (error: any) {
           // If merge fails, check the error message
           const errorMsg = error.message || String(error);
-          
+
           if (errorMsg.includes('already merged') || errorMsg.includes('Cannot merge')) {
             // Cells are already merged - this is okay, just skip
           } else {
@@ -1071,7 +960,7 @@ const ReportingDosen: React.FC = () => {
       const currentYear = new Date().getFullYear();
       const nextYear = currentYear + 1;
       const tahunAjaran = `${currentYear}_${nextYear}`;
-      
+
       if (blokData.length > 0 && selectedBlok !== null) {
         // Find first blok data untuk mendapatkan nama blok
         const firstBlokData = blokData.find((item: any) => item.blok === selectedBlok);
@@ -1110,9 +999,9 @@ const ReportingDosen: React.FC = () => {
       const titleCell = worksheet.getCell(`A${currentRow}`);
       titleCell.value = 'DAFTAR REKAPITULASI PERHITUNGAN SKS DOSEN';
       titleCell.font = { size: 16, bold: true, color: { argb: 'FF000000' } }; // Teks hitam
-      titleCell.alignment = { 
-        horizontal: 'center', 
-        vertical: 'middle', 
+      titleCell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle',
         wrapText: false, // Tidak wrap, teks memanjang
         shrinkToFit: false // Teks tidak mengecil
       };
@@ -1131,9 +1020,9 @@ const ReportingDosen: React.FC = () => {
         blokInfoCell.value = `PSKD FKK UMJ: NON BLOK`;
       }
       blokInfoCell.font = { size: 14, bold: true, color: { argb: 'FF000000' } }; // Teks hitam
-      blokInfoCell.alignment = { 
-        horizontal: 'center', 
-        vertical: 'middle', 
+      blokInfoCell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle',
         wrapText: false, // Tidak wrap, teks memanjang
         shrinkToFit: false // Teks tidak mengecil
       };
@@ -1148,9 +1037,9 @@ const ReportingDosen: React.FC = () => {
       const semesterCell = worksheet.getCell(`A${currentRow}`);
       semesterCell.value = semesterInfo;
       semesterCell.font = { size: 14, bold: true, color: { argb: 'FF000000' } }; // Teks hitam
-      semesterCell.alignment = { 
-        horizontal: 'center', 
-        vertical: 'middle', 
+      semesterCell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle',
         wrapText: false, // Tidak wrap, teks memanjang
         shrinkToFit: false // Teks tidak mengecil
       };
@@ -1161,14 +1050,14 @@ const ReportingDosen: React.FC = () => {
       // Group data blok by dosen, blok, dan semester
       // Struktur baru: memisahkan perencanaan dan realisasi
       const jadwalByDosenBlokSemester: { [key: string]: any } = {};
-      
-      
+
+
       // Debug: Cek struktur data blok
       if (blokData.length === 0) {
         // Don't return - continue to generate empty template
       }
-      
-      
+
+
       // Helper function untuk memisahkan perencanaan dan realisasi
       const processJadwal = (jadwal: any, jenis: string, key: string, isPerencanaan: boolean) => {
         if (!jadwalByDosenBlokSemester[key]) {
@@ -1200,10 +1089,10 @@ const ReportingDosen: React.FC = () => {
             ppPbl_realisasi: 0,
           };
         }
-        
+
         // Cek apakah jadwal sudah dinilai/absensi
         let isSudahDinilaiAbsensi = false;
-        
+
         if (jenis === 'pbl1' || jenis === 'pbl2' || jenis === 'jurnal_reading') {
           // Nilai: PBL 1, PBL 2, Jurnal Reading - cek penilaian_submitted
           isSudahDinilaiAbsensi = jadwal.penilaian_submitted === true;
@@ -1220,7 +1109,7 @@ const ReportingDosen: React.FC = () => {
           // Materi: cek status_konfirmasi
           isSudahDinilaiAbsensi = jadwal.status_konfirmasi === "bisa";
         }
-        
+
         if (isPerencanaan) {
           // Perencanaan PBL dan Jurnal Reading diambil dari daftar modul PBL dan jurnal reading mata kuliah
           // Bukan dari jadwal, jadi skip perhitungan dari jadwal untuk PBL dan Jurnal Reading
@@ -1229,7 +1118,7 @@ const ReportingDosen: React.FC = () => {
             // Skip perhitungan dari jadwal
             return;
           }
-          
+
           // Perencanaan: hanya jadwal yang BELUM dinilai/absensi (untuk jenis lain selain PBL dan Jurnal Reading)
           if (!isSudahDinilaiAbsensi) {
             if (jenis === 'csr_reguler') {
@@ -1283,114 +1172,114 @@ const ReportingDosen: React.FC = () => {
           }
         }
       };
-      
+
       // Process data blok dari API (only if selectedBlok is not null)
       if (selectedBlok !== null) {
         blokData.forEach((blokDataItem: any) => {
           const blok = blokDataItem.blok;
           const semester = blokDataItem.semester;
-          
+
           // Only process selected blok data
           if (blok === null || blok === undefined || blok !== selectedBlok) {
             return;
           }
-          
-          
+
+
           // Process PBL 1 - Perencanaan dan Realisasi
           if (blokDataItem.pbl1 && blokDataItem.pbl1.length > 0) {
-          blokDataItem.pbl1.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            // Tambahkan blok dan semester ke jadwal untuk helper function
-            jadwal.blok = blok;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'pbl1', key, true);
-            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
-            processJadwal(jadwal, 'pbl1', key, false);
-          });
-        }
-        
-        // Process PBL 2 - Perencanaan dan Realisasi
-        if (blokDataItem.pbl2 && blokDataItem.pbl2.length > 0) {
-          blokDataItem.pbl2.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            jadwal.blok = blok;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'pbl2', key, true);
-            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
-            processJadwal(jadwal, 'pbl2', key, false);
-          });
-        }
-        
-        // Skip CSR Reguler and CSR Responsi for blok data (only for non blok)
-        
-        // Process Praktikum - Perencanaan dan Realisasi
-        if (blokDataItem.praktikum && blokDataItem.praktikum.length > 0) {
-          blokDataItem.praktikum.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            jadwal.blok = blok;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'praktikum', key, true);
-            // Process realisasi (hanya yang sudah di-absensi)
-            processJadwal(jadwal, 'praktikum', key, false);
-          });
-        }
-        
-        // Process Kuliah Besar - Perencanaan dan Realisasi
-        if (blokDataItem.kuliah_besar && blokDataItem.kuliah_besar.length > 0) {
-          blokDataItem.kuliah_besar.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            jadwal.blok = blok;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'kuliah_besar', key, true);
-            // Process realisasi (hanya yang sudah di-absensi)
-            processJadwal(jadwal, 'kuliah_besar', key, false);
-          });
-        }
-        
-        // Process Jurnal Reading - Perencanaan dan Realisasi
-        if (blokDataItem.jurnal_reading && blokDataItem.jurnal_reading.length > 0) {
-          blokDataItem.jurnal_reading.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            jadwal.blok = blok;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'jurnal_reading', key, true);
-            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
-            processJadwal(jadwal, 'jurnal_reading', key, false);
-          });
-        }
-        
-        // Process Seminar Pleno - Perencanaan dan Realisasi
-        if (blokDataItem.seminar_pleno && blokDataItem.seminar_pleno.length > 0) {
-          blokDataItem.seminar_pleno.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            jadwal.blok = blok;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'seminar_pleno', key, true);
-            // Process realisasi (hanya yang sudah di-absensi)
-            processJadwal(jadwal, 'seminar_pleno', key, false);
-          });
-        }
-        
-        // Process PP PBL - Perencanaan dan Realisasi
-        if (blokDataItem.pp_pbl && blokDataItem.pp_pbl.length > 0) {
-          blokDataItem.pp_pbl.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            jadwal.blok = blok;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'pp_pbl', key, true);
-            // Process realisasi (hanya yang sudah di-absensi DAN centang masuk laporan)
-            processJadwal(jadwal, 'pp_pbl', key, false);
-          });
-        }
-        
-        // Skip Materi for blok data (only for non blok)
+            blokDataItem.pbl1.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+              // Tambahkan blok dan semester ke jadwal untuk helper function
+              jadwal.blok = blok;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'pbl1', key, true);
+              // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+              processJadwal(jadwal, 'pbl1', key, false);
+            });
+          }
+
+          // Process PBL 2 - Perencanaan dan Realisasi
+          if (blokDataItem.pbl2 && blokDataItem.pbl2.length > 0) {
+            blokDataItem.pbl2.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+              jadwal.blok = blok;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'pbl2', key, true);
+              // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+              processJadwal(jadwal, 'pbl2', key, false);
+            });
+          }
+
+          // Skip CSR Reguler and CSR Responsi for blok data (only for non blok)
+
+          // Process Praktikum - Perencanaan dan Realisasi
+          if (blokDataItem.praktikum && blokDataItem.praktikum.length > 0) {
+            blokDataItem.praktikum.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+              jadwal.blok = blok;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'praktikum', key, true);
+              // Process realisasi (hanya yang sudah di-absensi)
+              processJadwal(jadwal, 'praktikum', key, false);
+            });
+          }
+
+          // Process Kuliah Besar - Perencanaan dan Realisasi
+          if (blokDataItem.kuliah_besar && blokDataItem.kuliah_besar.length > 0) {
+            blokDataItem.kuliah_besar.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+              jadwal.blok = blok;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'kuliah_besar', key, true);
+              // Process realisasi (hanya yang sudah di-absensi)
+              processJadwal(jadwal, 'kuliah_besar', key, false);
+            });
+          }
+
+          // Process Jurnal Reading - Perencanaan dan Realisasi
+          if (blokDataItem.jurnal_reading && blokDataItem.jurnal_reading.length > 0) {
+            blokDataItem.jurnal_reading.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+              jadwal.blok = blok;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'jurnal_reading', key, true);
+              // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+              processJadwal(jadwal, 'jurnal_reading', key, false);
+            });
+          }
+
+          // Process Seminar Pleno - Perencanaan dan Realisasi
+          if (blokDataItem.seminar_pleno && blokDataItem.seminar_pleno.length > 0) {
+            blokDataItem.seminar_pleno.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+              jadwal.blok = blok;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'seminar_pleno', key, true);
+              // Process realisasi (hanya yang sudah di-absensi)
+              processJadwal(jadwal, 'seminar_pleno', key, false);
+            });
+          }
+
+          // Process PP PBL - Perencanaan dan Realisasi
+          if (blokDataItem.pp_pbl && blokDataItem.pp_pbl.length > 0) {
+            blokDataItem.pp_pbl.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+              jadwal.blok = blok;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'pp_pbl', key, true);
+              // Process realisasi (hanya yang sudah di-absensi DAN centang masuk laporan)
+              processJadwal(jadwal, 'pp_pbl', key, false);
+            });
+          }
+
+          // Skip Materi for blok data (only for non blok)
         });
       }
 
@@ -1399,51 +1288,51 @@ const ReportingDosen: React.FC = () => {
         blokData.forEach((blokDataItem: any) => {
           const blok = blokDataItem.blok;
           const semester = blokDataItem.semester;
-          
+
           // Only process non blok data
           if (blok !== null && blok !== undefined) {
             return;
           }
-          
-        
-        // Process CSR Reguler for non blok - Perencanaan dan Realisasi
-        if (blokDataItem.csr_reguler && blokDataItem.csr_reguler.length > 0) {
-          blokDataItem.csr_reguler.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
-            jadwal.blok = null;
-            jadwal.semester = semester;
-            // Process perencanaan (akan dihitung berdasarkan keahlian dosen nanti)
-            processJadwal(jadwal, 'csr_reguler', key, true);
-            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
-            processJadwal(jadwal, 'csr_reguler', key, false);
-          });
-        }
-        
-        // Process CSR Responsi for non blok - Perencanaan dan Realisasi
-        if (blokDataItem.csr_responsi && blokDataItem.csr_responsi.length > 0) {
-          blokDataItem.csr_responsi.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
-            jadwal.blok = null;
-            jadwal.semester = semester;
-            // Process perencanaan (akan dihitung berdasarkan keahlian dosen nanti)
-            processJadwal(jadwal, 'csr_responsi', key, true);
-            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
-            processJadwal(jadwal, 'csr_responsi', key, false);
-          });
-        }
-        
-        // Process Materi for non blok - Perencanaan dan Realisasi
-        if (blokDataItem.materi && blokDataItem.materi.length > 0) {
-          blokDataItem.materi.forEach((jadwal: any) => {
-            const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
-            jadwal.blok = null;
-            jadwal.semester = semester;
-            // Process perencanaan (semua jadwal masuk ke perencanaan)
-            processJadwal(jadwal, 'materi', key, true);
-            // Process realisasi (hanya jika status_konfirmasi === "bisa")
-            processJadwal(jadwal, 'materi', key, false);
-          });
-        }
+
+
+          // Process CSR Reguler for non blok - Perencanaan dan Realisasi
+          if (blokDataItem.csr_reguler && blokDataItem.csr_reguler.length > 0) {
+            blokDataItem.csr_reguler.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
+              jadwal.blok = null;
+              jadwal.semester = semester;
+              // Process perencanaan (akan dihitung berdasarkan keahlian dosen nanti)
+              processJadwal(jadwal, 'csr_reguler', key, true);
+              // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+              processJadwal(jadwal, 'csr_reguler', key, false);
+            });
+          }
+
+          // Process CSR Responsi for non blok - Perencanaan dan Realisasi
+          if (blokDataItem.csr_responsi && blokDataItem.csr_responsi.length > 0) {
+            blokDataItem.csr_responsi.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
+              jadwal.blok = null;
+              jadwal.semester = semester;
+              // Process perencanaan (akan dihitung berdasarkan keahlian dosen nanti)
+              processJadwal(jadwal, 'csr_responsi', key, true);
+              // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+              processJadwal(jadwal, 'csr_responsi', key, false);
+            });
+          }
+
+          // Process Materi for non blok - Perencanaan dan Realisasi
+          if (blokDataItem.materi && blokDataItem.materi.length > 0) {
+            blokDataItem.materi.forEach((jadwal: any) => {
+              const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
+              jadwal.blok = null;
+              jadwal.semester = semester;
+              // Process perencanaan (semua jadwal masuk ke perencanaan)
+              processJadwal(jadwal, 'materi', key, true);
+              // Process realisasi (hanya jika status_konfirmasi === "bisa")
+              processJadwal(jadwal, 'materi', key, false);
+            });
+          }
         });
       }
 
@@ -1453,31 +1342,31 @@ const ReportingDosen: React.FC = () => {
       // - Perencanaan Jurnal Reading dihitung per semester
       // Perencanaan PBL = jumlah daftar modul PBL × 5
       // Perencanaan Jurnal Reading = jumlah daftar jurnal reading × 2
-      
+
       // Isi perencanaan PBL (per blok, berlaku untuk semua semester dengan blok yang sama)
       Object.entries(perencanaanPblMap).forEach(([keyPerencanaanPbl, pblValue]) => {
         // Parse key perencanaan PBL: `${dosenName}_blok${blok}`
         const [dosenName, blokPart] = keyPerencanaanPbl.split('_');
-          const blokMatch = blokPart.match(/blok(\d+|null)/);
-          const blok = blokMatch && blokMatch[1] !== 'null' ? parseInt(blokMatch[1]) : null;
-        
+        const blokMatch = blokPart.match(/blok(\d+|null)/);
+        const blok = blokMatch && blokMatch[1] !== 'null' ? parseInt(blokMatch[1]) : null;
+
         // Isi perencanaan PBL untuk semua semester dengan blok yang sama
         Object.keys(jadwalByDosenBlokSemester).forEach((keyJadwal) => {
           const jadwalData = jadwalByDosenBlokSemester[keyJadwal];
           // Cek apakah jadwal ini untuk dosen dan blok yang sama
           if (jadwalData.dosen_name === dosenName && jadwalData.blok === blok) {
-        // Isi perencanaan PBL (gabungan PBL 1 + PBL 2)
-        // Karena PBL 1 dan PBL 2 digabung di perencanaan, kita bagi rata atau bisa juga langsung isi ke pbl1_perencanaan
+            // Isi perencanaan PBL (gabungan PBL 1 + PBL 2)
+            // Karena PBL 1 dan PBL 2 digabung di perencanaan, kita bagi rata atau bisa juga langsung isi ke pbl1_perencanaan
             // Berdasarkan penjelasan: PBL per 1 daftar = 5, jadi total perencanaan PBL = pblValue
-        // Kita bagi ke pbl1_perencanaan dan pbl2_perencanaan dengan proporsi yang sama, atau langsung isi ke pbl1_perencanaan
-        // Untuk sementara, kita isi ke pbl1_perencanaan saja karena nanti akan digabung
+            // Kita bagi ke pbl1_perencanaan dan pbl2_perencanaan dengan proporsi yang sama, atau langsung isi ke pbl1_perencanaan
+            // Untuk sementara, kita isi ke pbl1_perencanaan saja karena nanti akan digabung
             jadwalData.pbl1_perencanaan = pblValue;
             jadwalData.pbl2_perencanaan = 0; // PBL 2 perencanaan juga 0 karena sudah digabung
-            
+
           }
         });
       });
-      
+
       // Isi perencanaan Jurnal Reading (per semester)
       // PERBAIKAN: Pastikan semua jadwal diinisialisasi dengan 0 terlebih dahulu
       // Kemudian isi nilai dari map jika ada
@@ -1488,7 +1377,7 @@ const ReportingDosen: React.FC = () => {
           jadwalData.jurnalReading_perencanaan = 0;
         }
       });
-      
+
       // Isi perencanaan Jurnal Reading dari map (hanya jika ada nilai)
       Object.entries(perencanaanJurnalMap).forEach(([keyPerencanaanJurnal, jurnalValue]) => {
         // Parse key perencanaan Jurnal: `${dosenName}_blok${blok}_semester${semester}`
@@ -1497,7 +1386,7 @@ const ReportingDosen: React.FC = () => {
         const semesterMatch = semesterPart.match(/semester(\d+)/);
         const blok = blokMatch && blokMatch[1] !== 'null' ? parseInt(blokMatch[1]) : null;
         const semester = semesterMatch ? parseInt(semesterMatch[1]) : 1;
-        
+
         // Cari jadwal yang sesuai dengan dosen, blok, dan semester
         const keyJadwal = `${dosenName}_blok${blok || 'null'}_semester${semester}`;
         if (jadwalByDosenBlokSemester[keyJadwal]) {
@@ -1514,16 +1403,16 @@ const ReportingDosen: React.FC = () => {
       if (Object.keys(jadwalByDosenBlokSemester).length === 0) {
         // Don't return - continue to generate empty template
       }
-      
+
 
       // Aggregate data by dosen (combine all semesters for selected blok/non-blok)
       // Struktur baru: memisahkan perencanaan dan realisasi
       const dosenAggregated: { [key: string]: any } = {};
-      
+
       Object.values(jadwalByDosenBlokSemester).forEach((data: any) => {
         const isBlokMatch = selectedBlok !== null && data.blok === selectedBlok;
         const isNonBlokMatch = selectedBlok === null && data.blok === null;
-        
+
         if (isBlokMatch || isNonBlokMatch) {
           const key = data.dosen_name;
           if (!dosenAggregated[key]) {
@@ -1596,34 +1485,34 @@ const ReportingDosen: React.FC = () => {
           dosenAggregated[key].ppPbl_realisasi += data.ppPbl_realisasi || 0;
         }
       });
-      
+
       // Hitung perencanaan CSR berdasarkan keahlian dosen (jumlah keahlian × 5)
       // dan update dosen_id dari dosenData
       Object.keys(dosenAggregated).forEach((dosenName) => {
         const dosen = dosenData.find((d: any) => d.name === dosenName);
         if (dosen) {
           dosenAggregated[dosenName].dosen_id = dosen.id;
-          
+
           // Hitung perencanaan CSR berdasarkan keahlian
           // Perencanaan CSR = jumlah keahlian × 5 (hanya jika dosen memiliki assignment CSR)
           if (dosen.keahlian) {
             const jumlahKeahlian = Array.isArray(dosen.keahlian)
               ? dosen.keahlian.length
               : typeof dosen.keahlian === "string"
-              ? dosen.keahlian.split(",").filter((k: string) => k.trim()).length
-              : 1;
-            
+                ? dosen.keahlian.split(",").filter((k: string) => k.trim()).length
+                : 1;
+
             // Perencanaan CSR = jumlah keahlian × 5
             // Hanya jika dosen memiliki assignment CSR (ada realisasi atau flag perencanaan > 0)
-            if (dosenAggregated[dosenName].csrReguler_perencanaan > 0 || 
-                dosenAggregated[dosenName].csrReguler_realisasi > 0) {
+            if (dosenAggregated[dosenName].csrReguler_perencanaan > 0 ||
+              dosenAggregated[dosenName].csrReguler_realisasi > 0) {
               dosenAggregated[dosenName].csrReguler_perencanaan = jumlahKeahlian * 5;
             } else {
               dosenAggregated[dosenName].csrReguler_perencanaan = 0;
             }
-            
-            if (dosenAggregated[dosenName].csrResponsi_perencanaan > 0 || 
-                dosenAggregated[dosenName].csrResponsi_realisasi > 0) {
+
+            if (dosenAggregated[dosenName].csrResponsi_perencanaan > 0 ||
+              dosenAggregated[dosenName].csrResponsi_realisasi > 0) {
               dosenAggregated[dosenName].csrResponsi_perencanaan = jumlahKeahlian * 5;
             } else {
               dosenAggregated[dosenName].csrResponsi_perencanaan = 0;
@@ -1637,7 +1526,7 @@ const ReportingDosen: React.FC = () => {
       });
 
       // Convert to array and sort by dosen name
-      const dosenList = Object.values(dosenAggregated).sort((a: any, b: any) => 
+      const dosenList = Object.values(dosenAggregated).sort((a: any, b: any) =>
         a.dosen_name.localeCompare(b.dosen_name)
       );
 
@@ -1647,28 +1536,28 @@ const ReportingDosen: React.FC = () => {
         const headerRow5 = worksheet.getRow(currentRow);
         headerRow5.getCell(1).value = 'NO'; // A5
         headerRow5.getCell(2).value = 'NAMA DOSEN'; // B5
-        
+
         // Set nilai PERENCANAAN dan REALISASI di row 5 dulu sebelum merge
         // Nilai ini akan tetap muncul setelah merge karena merge dilakukan dari row 5 ke row 6
         const cellPerencanaan = headerRow5.getCell(3);
         const cellRealisasi = headerRow5.getCell(10);
         cellPerencanaan.value = 'PERENCANAAN';
         cellRealisasi.value = 'REALISASI';
-        
+
         // Merge horizontal untuk PERENCANAAN dan REALISASI di row 5
         // PERENCANAAN: C5:I5 (7 kolom: PBL, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, TOTAL JAM)
         // REALISASI: J5:Q5 (8 kolom: PBL 1, PBL 2, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, Total Jam)
         safeMergeCells(`C${currentRow}:I${currentRow}`); // C5:I5 - PERENCANAAN (7 kolom)
         safeMergeCells(`J${currentRow}:Q${currentRow}`); // J5:Q5 - REALISASI (8 kolom)
-        
+
         // Style header row 5 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
         for (let i = 1; i <= 17; i++) {
           const cell = headerRow5.getCell(i);
-          
+
           // Tentukan warna background dan teks berdasarkan kolom
           let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
           let textColor = 'FF000000'; // Default: teks hitam
-          
+
           if (i === 1 || i === 2) {
             // Kolom A-B (NO, NAMA DOSEN) - abu-abu sedang
             bgColor = 'FF9F9E9D'; // Abu-abu sedang #9f9e9d
@@ -1682,11 +1571,11 @@ const ReportingDosen: React.FC = () => {
             bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
             textColor = 'FF000000'; // Teks hitam
           }
-          
+
           cell.font = { bold: true, color: { argb: textColor } };
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
             fgColor: { argb: bgColor }
           };
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -1697,7 +1586,7 @@ const ReportingDosen: React.FC = () => {
             right: { style: 'thin', color: { argb: 'FF000000' } }
           };
         }
-        
+
         // Pastikan styling untuk PERENCANAAN dan REALISASI tetap terlihat setelah merge
         // (styling ini penting untuk memastikan teks "PERENCANAAN" dan "REALISASI" terlihat dengan benar)
         cellPerencanaan.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -1714,14 +1603,14 @@ const ReportingDosen: React.FC = () => {
           pattern: 'solid',
           fgColor: { argb: 'FFF1C6A9' } // Oranye pastel / peach muda #f1c6a9
         };
-        
-          currentRow += 1;
+
+        currentRow += 1;
 
         // Merge A5 with A6 and B5 with B6 first (before setting row 6 values)
         // Kolom 1: A dan B (NO dan NAMA DOSEN)
         safeMergeCells(`A${currentRow - 1}:A${currentRow}`);
         safeMergeCells(`B${currentRow - 1}:B${currentRow}`);
-        
+
         // Set border and fill color for merged cells A5:A6 and B5:B6
         const cellA5 = worksheet.getCell(`A${currentRow - 1}`);
         const cellB5 = worksheet.getCell(`B${currentRow - 1}`);
@@ -1740,8 +1629,8 @@ const ReportingDosen: React.FC = () => {
         };
         // Fill color abu-abu sedang untuk NO dan NAMA DOSEN (bagian 1 dari 3 warna)
         cellA5.fill = {
-            type: 'pattern',
-            pattern: 'solid',
+          type: 'pattern',
+          pattern: 'solid',
           fgColor: { argb: 'FF9F9E9D' } // Abu-abu sedang #9f9e9d
         };
         cellB5.fill = {
@@ -1755,7 +1644,7 @@ const ReportingDosen: React.FC = () => {
         // Alignment center
         cellA5.alignment = { horizontal: 'center', vertical: 'middle' };
         cellB5.alignment = { horizontal: 'center', vertical: 'middle' };
-        
+
         // Tidak perlu merge vertikal untuk kolom C-J dan K-R karena:
         // 1. Row 5 sudah di-merge horizontal untuk "PERENCANAAN" (C5:J5) dan "REALISASI" (K5:R5)
         // 2. Row 6 akan berisi sub-header untuk setiap kolom (C6, D6, ..., J6, K6, L6, ..., R6)
@@ -1764,7 +1653,7 @@ const ReportingDosen: React.FC = () => {
         // Create table header for Blok (Row 6) - Sub headers
         const headerRow6 = worksheet.getRow(currentRow);
         // Don't set A6 and B6 values as they're merged with A5 and B5
-        
+
         // Set nilai untuk row 6 (sub headers) - nilai akan muncul di cell yang sudah di-merge
         // PERENCANAAN: PBL 1 dan PBL 2 digabung jadi satu kolom "PBL"
         headerRow6.getCell(3).value = 'PBL\n(PER 50\')'; // C6 - PERENCANAAN (gabungan PBL 1 + PBL 2)
@@ -1783,7 +1672,7 @@ const ReportingDosen: React.FC = () => {
         headerRow6.getCell(15).value = 'PP PBL\n(PER 50\')'; // O6 - REALISASI
         headerRow6.getCell(16).value = 'SEMINAR\nPLENO\n(PER 50\')'; // P6 - REALISASI
         headerRow6.getCell(17).value = 'Total Jam'; // Q6 - REALISASI
-        
+
         // Style header row 6 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
         for (let i = 1; i <= 17; i++) {
           const cell = headerRow6.getCell(i);
@@ -1791,7 +1680,7 @@ const ReportingDosen: React.FC = () => {
             // Tentukan warna background dan teks berdasarkan kolom (sama dengan row 5)
             let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
             let textColor = 'FF000000'; // Default: teks hitam
-            
+
             if (i >= 3 && i <= 9) {
               // Kolom C-I (PERENCANAAN) - biru muda (7 kolom: PBL, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, TOTAL JAM)
               bgColor = 'FFBAD2E9'; // Biru muda #bad2e9
@@ -1801,11 +1690,11 @@ const ReportingDosen: React.FC = () => {
               bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
               textColor = 'FF000000'; // Teks hitam
             }
-            
+
             cell.font = { bold: true, color: { argb: textColor } };
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
               fgColor: { argb: bgColor }
             };
             cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -1818,31 +1707,31 @@ const ReportingDosen: React.FC = () => {
           }
           // A and B are already styled from row 5 merged cells
         }
-            currentRow += 1;
-            
+        currentRow += 1;
+
         // Add data rows
         if (dosenList.length > 0) {
           dosenList.forEach((dosen: any, index: number) => {
-              const dataRow = worksheet.getRow(currentRow);
-            
+            const dataRow = worksheet.getRow(currentRow);
+
             // Calculate totals perencanaan
             // Semua data dari DetailBlok masuk ke perencanaan
-            const totalPerencanaan = (dosen.pbl1_perencanaan || 0) + 
-                                     (dosen.pbl2_perencanaan || 0) + 
-                                     (dosen.jurnalReading_perencanaan || 0) +
-                                     (dosen.ppPbl_perencanaan || 0) +
-                                     (dosen.seminarPleno_perencanaan || 0) +
-                                     (dosen.kuliahBesar_perencanaan || 0) +
-                                     (dosen.praktikum_perencanaan || 0);
-            
+            const totalPerencanaan = (dosen.pbl1_perencanaan || 0) +
+              (dosen.pbl2_perencanaan || 0) +
+              (dosen.jurnalReading_perencanaan || 0) +
+              (dosen.ppPbl_perencanaan || 0) +
+              (dosen.seminarPleno_perencanaan || 0) +
+              (dosen.kuliahBesar_perencanaan || 0) +
+              (dosen.praktikum_perencanaan || 0);
+
             // Calculate totals realisasi
-            const totalRealisasi = (dosen.pbl1_realisasi || 0) + 
-                                   (dosen.pbl2_realisasi || 0) + 
-                                   (dosen.jurnalReading_realisasi || 0) + 
-                                   (dosen.kuliahBesar_realisasi || 0) + 
-                                   (dosen.praktikum_realisasi || 0) +
-                                   (dosen.ppPbl_realisasi || 0) +
-                                   (dosen.seminarPleno_realisasi || 0);
+            const totalRealisasi = (dosen.pbl1_realisasi || 0) +
+              (dosen.pbl2_realisasi || 0) +
+              (dosen.jurnalReading_realisasi || 0) +
+              (dosen.kuliahBesar_realisasi || 0) +
+              (dosen.praktikum_realisasi || 0) +
+              (dosen.ppPbl_realisasi || 0) +
+              (dosen.seminarPleno_realisasi || 0);
 
             dataRow.getCell(1).value = index + 1; // NO
             dataRow.getCell(2).value = dosen.dosen_name; // NAMA DOSEN
@@ -1866,16 +1755,16 @@ const ReportingDosen: React.FC = () => {
 
             // Style data row - sesuai template: background putih, teks hitam, border hitam
             for (let i = 1; i <= 17; i++) {
-                const cell = dataRow.getCell(i);
-                cell.fill = {
-                  type: 'pattern',
-                  pattern: 'solid',
-                  fgColor: { argb: 'FFFFFFFF' } // Background putih
-                };
-                cell.font = { color: { argb: 'FF000000' } }; // Teks hitam
-              cell.alignment = { 
-                horizontal: i === 2 ? 'left' : 'center', 
-                vertical: 'middle' 
+              const cell = dataRow.getCell(i);
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFFFFF' } // Background putih
+              };
+              cell.font = { color: { argb: 'FF000000' } }; // Teks hitam
+              cell.alignment = {
+                horizontal: i === 2 ? 'left' : 'center',
+                vertical: 'middle'
               };
               // Border hitam tipis sesuai template
               cell.border = {
@@ -1885,9 +1774,9 @@ const ReportingDosen: React.FC = () => {
                 right: { style: 'thin', color: { argb: 'FF000000' } }
               };
             }
-              currentRow += 1;
-            });
-          } else {
+            currentRow += 1;
+          });
+        } else {
           // Add empty row message - sesuai template: background putih, teks hitam
           safeMergeCells(`A${currentRow}:Q${currentRow}`);
           const emptyRow = worksheet.getRow(currentRow);
@@ -1918,15 +1807,15 @@ const ReportingDosen: React.FC = () => {
         headerRow5.getCell(3).value = 'PERENCANAAN';
         safeMergeCells(`G${currentRow}:J${currentRow}`); // G5:J5 - REALISASI
         headerRow5.getCell(7).value = 'REALISASI';
-        
+
         // Style header row 5 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
         for (let i = 1; i <= 10; i++) {
           const cell = headerRow5.getCell(i);
-          
+
           // Tentukan warna background dan teks berdasarkan kolom
           let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
           let textColor = 'FF000000'; // Default: teks hitam
-          
+
           if (i === 1 || i === 2) {
             // Kolom A-B (NO, NAMA DOSEN) - abu-abu sedang
             bgColor = 'FF9F9E9D'; // Abu-abu sedang #9f9e9d
@@ -1940,7 +1829,7 @@ const ReportingDosen: React.FC = () => {
             bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
             textColor = 'FF000000'; // Teks hitam
           }
-          
+
           cell.font = { bold: true, color: { argb: textColor } };
           cell.fill = {
             type: 'pattern',
@@ -1960,7 +1849,7 @@ const ReportingDosen: React.FC = () => {
         // Merge A5 with A6 and B5 with B6 first (before setting row 6 values)
         safeMergeCells(`A${currentRow - 1}:A${currentRow}`);
         safeMergeCells(`B${currentRow - 1}:B${currentRow}`);
-        
+
         // Set border and fill color for merged cells A5:A6 and B5:B6
         const cellA5NonBlok = worksheet.getCell(`A${currentRow - 1}`);
         const cellB5NonBlok = worksheet.getCell(`B${currentRow - 1}`);
@@ -1979,8 +1868,8 @@ const ReportingDosen: React.FC = () => {
         };
         // Fill color abu-abu sedang untuk NO dan NAMA DOSEN (bagian 1 dari 3 warna)
         cellA5NonBlok.fill = {
-            type: 'pattern',
-            pattern: 'solid',
+          type: 'pattern',
+          pattern: 'solid',
           fgColor: { argb: 'FF9F9E9D' } // Abu-abu sedang #9f9e9d
         };
         cellB5NonBlok.fill = {
@@ -2006,7 +1895,7 @@ const ReportingDosen: React.FC = () => {
         headerRow6.getCell(8).value = 'CSR RESPONSI\n(PER 50\')'; // H6
         headerRow6.getCell(9).value = 'MATERI\n(PER 50\')'; // I6
         headerRow6.getCell(10).value = 'Total Jam'; // J6
-        
+
         // Style header row 6 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
         for (let i = 1; i <= 10; i++) {
           const cell = headerRow6.getCell(i);
@@ -2014,7 +1903,7 @@ const ReportingDosen: React.FC = () => {
             // Tentukan warna background dan teks berdasarkan kolom (sama dengan row 5)
             let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
             let textColor = 'FF000000'; // Default: teks hitam
-            
+
             if (i >= 3 && i <= 6) {
               // Kolom C-F (PERENCANAAN) - biru muda
               bgColor = 'FFBAD2E9'; // Biru muda #bad2e9
@@ -2024,11 +1913,11 @@ const ReportingDosen: React.FC = () => {
               bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
               textColor = 'FF000000'; // Teks hitam
             }
-            
+
             cell.font = { bold: true, color: { argb: textColor } };
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
               fgColor: { argb: bgColor }
             };
             cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -2046,18 +1935,18 @@ const ReportingDosen: React.FC = () => {
         // Add data rows for Non Blok
         if (dosenList.length > 0) {
           dosenList.forEach((dosen: any, index: number) => {
-          const dataRow = worksheet.getRow(currentRow);
-            
+            const dataRow = worksheet.getRow(currentRow);
+
             // Calculate totals perencanaan
             // Semua data dari DetailBlok masuk ke perencanaan
-            const totalPerencanaan = (dosen.csrReguler_perencanaan || 0) + 
-                                     (dosen.csrResponsi_perencanaan || 0) +
-                                     (dosen.materi_perencanaan || 0);
-            
+            const totalPerencanaan = (dosen.csrReguler_perencanaan || 0) +
+              (dosen.csrResponsi_perencanaan || 0) +
+              (dosen.materi_perencanaan || 0);
+
             // Calculate totals realisasi
-            const totalRealisasi = (dosen.csrReguler_realisasi || 0) + 
-                                   (dosen.csrResponsi_realisasi || 0) + 
-                                   (dosen.materi_realisasi || 0);
+            const totalRealisasi = (dosen.csrReguler_realisasi || 0) +
+              (dosen.csrResponsi_realisasi || 0) +
+              (dosen.materi_realisasi || 0);
 
             dataRow.getCell(1).value = index + 1; // NO
             dataRow.getCell(2).value = dosen.dosen_name; // NAMA DOSEN
@@ -2079,9 +1968,9 @@ const ReportingDosen: React.FC = () => {
                 fgColor: { argb: 'FFFFFFFF' } // Background putih
               };
               cell.font = { color: { argb: 'FF000000' } }; // Teks hitam
-              cell.alignment = { 
-                horizontal: i === 2 ? 'left' : 'center', 
-                vertical: 'middle' 
+              cell.alignment = {
+                horizontal: i === 2 ? 'left' : 'center',
+                vertical: 'middle'
               };
               // Border hitam tipis sesuai template
               cell.border = {
@@ -2102,10 +1991,10 @@ const ReportingDosen: React.FC = () => {
           emptyCell.font = { italic: true, color: { argb: 'FF000000' } }; // Teks hitam
           emptyCell.alignment = { horizontal: 'center', vertical: 'middle' };
           emptyCell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: 'FFFFFFFF' } // Background putih
-            };
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
           // Border hitam untuk empty row
           emptyCell.border = {
             top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -2120,12 +2009,12 @@ const ReportingDosen: React.FC = () => {
       // Borders sudah di-set di setiap cell saat membuat header dan data rows
 
       // Generate Excel file
-      
+
       // Debug: Cek apakah worksheet memiliki data
       if (worksheet.rowCount <= 6) {
         // Don't return - continue to generate Excel file
       }
-      
+
       // Debug: Tampilkan beberapa baris Excel untuk memastikan data ada
       const maxPreviewCol = selectedBlok === null ? 10 : 17;
       for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
@@ -2136,13 +2025,13 @@ const ReportingDosen: React.FC = () => {
         }
       }
       const buffer = await workbook.xlsx.writeBuffer();
-      
+
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const fileName = selectedBlok === null 
+      const fileName = selectedBlok === null
         ? `DAFTAR-REKAPITULASI-SKS-NON-BLOK-${new Date().toISOString().split('T')[0]}.xlsx`
         : `DAFTAR-REKAPITULASI-SKS-BLOK${selectedBlok}-${new Date().toISOString().split('T')[0]}.xlsx`;
       a.download = fileName;
@@ -2150,7 +2039,7 @@ const ReportingDosen: React.FC = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       setShowExcelDropdown(false);
 
     } catch (error) {
@@ -2234,15 +2123,15 @@ const ReportingDosen: React.FC = () => {
               >
                 <DownloadIcon className="w-5 h-5" />
                 Export Excel
-                <FontAwesomeIcon 
-                  icon={showExcelDropdown ? faChevronUp : faChevronDown} 
-                  className="w-4 h-4 ml-1" 
+                <FontAwesomeIcon
+                  icon={showExcelDropdown ? faChevronUp : faChevronDown}
+                  className="w-4 h-4 ml-1"
                 />
               </button>
               {showExcelDropdown && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-10" 
+                  <div
+                    className="fixed inset-0 z-10"
                     onClick={() => setShowExcelDropdown(false)}
                   ></div>
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
@@ -2282,22 +2171,20 @@ const ReportingDosen: React.FC = () => {
         <div className="flex space-x-2 bg-white dark:bg-gray-800 rounded-full shadow-lg p-1 w-fit mx-auto border border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setActiveTab("csr")}
-            className={`flex-1 px-6 py-2 text-base font-semibold rounded-full transition-colors ${
-              activeTab === "csr"
-                ? "bg-brand-500 text-white shadow"
-                : "text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
-            }`}
+            className={`flex-1 px-6 py-2 text-base font-semibold rounded-full transition-colors ${activeTab === "csr"
+              ? "bg-brand-500 text-white shadow"
+              : "text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
+              }`}
             style={{ minWidth: 100 }}
           >
             CSR
           </button>
           <button
             onClick={() => setActiveTab("pbl")}
-            className={`flex-1 px-6 py-2 text-base font-semibold rounded-full transition-colors ${
-              activeTab === "pbl"
-                ? "bg-brand-500 text-white shadow"
-                : "text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
-            }`}
+            className={`flex-1 px-6 py-2 text-base font-semibold rounded-full transition-colors ${activeTab === "pbl"
+              ? "bg-brand-500 text-white shadow"
+              : "text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
+              }`}
             style={{ minWidth: 100 }}
           >
             PBL
@@ -2525,7 +2412,7 @@ const ReportingDosen: React.FC = () => {
                           {/* UI multi-peran profesional ala PBLGenerate dengan badge toggle (chevron) dan icon buku */}
                           {(() => {
                             const peranArr = (dosen as any).dosen_peran;
-                            
+
                             // Debug: log untuk melihat struktur data
 
 
@@ -2535,7 +2422,7 @@ const ReportingDosen: React.FC = () => {
 
 
 
-                            
+
                             if (
                               Array.isArray(peranArr) &&
                               peranArr.length > 0
@@ -2549,7 +2436,7 @@ const ReportingDosen: React.FC = () => {
 
 
                               });
-                              
+
                               const tipeList = [
                                 "koordinator",
                                 "tim_blok",
@@ -2562,12 +2449,12 @@ const ReportingDosen: React.FC = () => {
                                 dosen_mengajar: "Dosen Mengajar",
                                 mengajar: "Dosen Mengajar", // Map "mengajar" ke "Dosen Mengajar"
                               };
-                                                             const tipeBadge: Record<string, string> = {
-                                 koordinator: "bg-blue-100 text-blue-700",
-                                 tim_blok: "bg-green-100 text-green-700",
+                              const tipeBadge: Record<string, string> = {
+                                koordinator: "bg-blue-100 text-blue-700",
+                                tim_blok: "bg-green-100 text-green-700",
                                 dosen_mengajar: "bg-yellow-100 text-yellow-700",
                                 mengajar: "bg-yellow-100 text-yellow-700", // Badge kuning untuk "mengajar"
-                               };
+                              };
                               return (
                                 <div className="flex flex-wrap gap-2">
                                   {tipeList.map((tipe) => {
@@ -2575,13 +2462,13 @@ const ReportingDosen: React.FC = () => {
                                       (p: any) => p.tipe_peran === tipe
                                     );
                                     if (peranList.length === 0) return null;
-                                    
+
                                     // Tampilkan semua peran, tidak perlu filter data yang relevan
                                     // karena dosen mengajar mungkin tidak punya mata_kuliah_nama tapi tetap valid
-                                    
+
                                     const badgeKey = `${dosen.dosen_id}-${tipe}`;
                                     const isExpanded = expandedPeran[badgeKey];
-                                    
+
                                     return (
                                       <div
                                         key={tipe}
@@ -2600,29 +2487,27 @@ const ReportingDosen: React.FC = () => {
                                             className="w-3 h-3 ml-1"
                                           />
                                         </button>
-                                        
-                                                                                {/* Expandable detail peran */}
+
+                                        {/* Expandable detail peran */}
                                         {isExpanded && (
                                           <div className="ml-4 mt-2 space-y-2">
                                             {peranList.map((peran: any, idx: number) => (
                                               <div key={idx} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
                                                 <div className="flex items-start gap-3">
                                                   {/* Icon berdasarkan tipe peran */}
-                                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                                    tipe === "koordinator" ? "bg-blue-100 dark:bg-blue-900/30" :
+                                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${tipe === "koordinator" ? "bg-blue-100 dark:bg-blue-900/30" :
                                                     tipe === "tim_blok" ? "bg-green-100 dark:bg-green-900/30" :
-                                                    "bg-yellow-100 dark:bg-yellow-900/30"
-                                                  }`}>
-                                                    <FontAwesomeIcon 
-                                                      icon={faBookOpen} 
-                                                      className={`w-4 h-4 ${
-                                                        tipe === "koordinator" ? "text-blue-600 dark:text-blue-400" :
+                                                      "bg-yellow-100 dark:bg-yellow-900/30"
+                                                    }`}>
+                                                    <FontAwesomeIcon
+                                                      icon={faBookOpen}
+                                                      className={`w-4 h-4 ${tipe === "koordinator" ? "text-blue-600 dark:text-blue-400" :
                                                         tipe === "tim_blok" ? "text-green-600 dark:text-green-400" :
-                                                        "text-yellow-600 dark:text-yellow-400"
-                                                      }`}
+                                                          "text-yellow-600 dark:text-yellow-400"
+                                                        }`}
                                                     />
                                                   </div>
-                                                  
+
                                                   {/* Content */}
                                                   <div className="flex-1 min-w-0">
                                                     <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-2">
@@ -2664,35 +2549,35 @@ const ReportingDosen: React.FC = () => {
                                       </div>
                                     );
                                   })}
-                                  
+
                                   {/* Tambahkan badge "Dosen Mengajar" jika ada PBL activity tapi tidak ada peran dosen mengajar */}
                                   {(() => {
-                                    const hasDosenMengajar = peranArr.some((p: any) => 
+                                    const hasDosenMengajar = peranArr.some((p: any) =>
                                       p.tipe_peran === 'dosen_mengajar' || p.tipe_peran === 'mengajar'
                                     );
-                                    
+
                                     // Cek apakah ada peran koordinator atau tim_blok
-                                    const hasKoordinator = peranArr.some((p: any) => 
+                                    const hasKoordinator = peranArr.some((p: any) =>
                                       p.tipe_peran === 'koordinator'
                                     );
-                                    const hasTimBlok = peranArr.some((p: any) => 
+                                    const hasTimBlok = peranArr.some((p: any) =>
                                       p.tipe_peran === 'tim_blok'
                                     );
-                                    
+
                                     // Jika ada peran koordinator atau tim_blok, jangan tampilkan dosen mengajar
-                                    const shouldAddDosenMengajar = !hasDosenMengajar && 
-                                      !hasKoordinator && 
+                                    const shouldAddDosenMengajar = !hasDosenMengajar &&
+                                      !hasKoordinator &&
                                       !hasTimBlok &&
-                                      activeTab === "pbl" && 
+                                      activeTab === "pbl" &&
                                       ((dosen as any).total_pbl > 0 || (dosen as any).total_sesi > 0);
-                                    
 
 
-                                    
+
+
                                     if (shouldAddDosenMengajar) {
                                       const badgeKey = `${dosen.dosen_id}-dosen_mengajar_fallback`;
                                       const isExpanded = expandedPeran[badgeKey];
-                                      
+
                                       return (
                                         <div className="flex flex-col gap-1">
                                           <button
@@ -2706,7 +2591,7 @@ const ReportingDosen: React.FC = () => {
                                               className="w-3 h-3 ml-1"
                                             />
                                           </button>
-                                          
+
                                           {/* Expandable detail untuk Dosen Mengajar */}
                                           {isExpanded && (
                                             <div className="ml-4 mt-2 space-y-2">
@@ -2714,12 +2599,12 @@ const ReportingDosen: React.FC = () => {
                                                 <div className="flex items-start gap-3">
                                                   {/* Icon */}ang
                                                   <div className="w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
-                                                    <FontAwesomeIcon 
-                                                      icon={faBookOpen} 
+                                                    <FontAwesomeIcon
+                                                      icon={faBookOpen}
                                                       className="w-4 h-4 text-yellow-600 dark:text-yellow-400"
                                                     />
                                                   </div>
-                                                  
+
                                                   {/* Content */}
                                                   <div className="flex-1 min-w-0">
                                                     <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-2">
@@ -2745,7 +2630,7 @@ const ReportingDosen: React.FC = () => {
                                                         <div className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
                                                           <span className="w-16 text-gray-500 dark:text-gray-500 flex-shrink-0">Semester:</span>
                                                           <span className="font-medium leading-relaxed text-gray-700 dark:text-gray-300">
-                                                            {(dosen as any).per_semester.map((sem: any, idx: number) => 
+                                                            {(dosen as any).per_semester.map((sem: any, idx: number) =>
                                                               `Semester ${sem.semester} (${sem.jumlah} modul, ${sem.total_sesi} sesi)`
                                                             ).join(', ')}
                                                           </span>
@@ -2771,11 +2656,11 @@ const ReportingDosen: React.FC = () => {
                             const keahlianArr = Array.isArray(dosen.keahlian)
                               ? dosen.keahlian
                               : typeof dosen.keahlian === "string"
-                              ? String(dosen.keahlian)
+                                ? String(dosen.keahlian)
                                   .split(",")
                                   .map((k: string) => k.trim())
-                              : [];
-                            
+                                : [];
+
                             // Check peran_utama first, then keahlian for standby
                             if ((dosen as any).peran_utama === "koordinator") {
                               label = "Koordinator";
@@ -2795,16 +2680,16 @@ const ReportingDosen: React.FC = () => {
                               // Jika standby, cek apakah ada data PBL yang menunjukkan dosen mengajar
                               if (activeTab === "pbl") {
                                 const pblDosen = dosen as DosenPBLReport;
-                                const hasModulPbl = pblDosen.per_semester.some(sem => 
+                                const hasModulPbl = pblDosen.per_semester.some(sem =>
                                   sem.modul_pbl && sem.modul_pbl.length > 0
                                 );
-                                
+
                                 if (pblDosen.total_pbl > 0 || pblDosen.total_sesi > 0 || hasModulPbl) {
                                   label = "Dosen Mengajar";
                                   badgeClass = "bg-yellow-100 text-yellow-700";
                                 } else {
-                              label = "Standby";
-                              badgeClass = "bg-gray-200 text-gray-700";
+                                  label = "Standby";
+                                  badgeClass = "bg-gray-200 text-gray-700";
                                 }
                               } else {
                                 label = "Standby";
@@ -2818,44 +2703,44 @@ const ReportingDosen: React.FC = () => {
                               label = "Standby";
                               badgeClass = "bg-gray-200 text-gray-700";
                             }
-                            
+
                             // Jika tidak ada peran_utama sama sekali, cek apakah ada data mengajar di per_semester
                             // Tapi hanya jika tidak ada peran koordinator atau tim blok
                             if (!label && activeTab === "pbl") {
                               const pblDosen = dosen as DosenPBLReport;
                               // Cek apakah ada modul PBL yang menunjukkan dosen mengajar
-                              const hasModulPbl = pblDosen.per_semester.some(sem => 
+                              const hasModulPbl = pblDosen.per_semester.some(sem =>
                                 sem.modul_pbl && sem.modul_pbl.length > 0
                               );
-                              
+
                               // Cek apakah ada peran koordinator atau tim blok di dosen_peran
-                              const hasKoordinatorInPeran = Array.isArray((dosen as any).dosen_peran) && 
+                              const hasKoordinatorInPeran = Array.isArray((dosen as any).dosen_peran) &&
                                 (dosen as any).dosen_peran.some((p: any) => p.tipe_peran === 'koordinator');
-                              const hasTimBlokInPeran = Array.isArray((dosen as any).dosen_peran) && 
+                              const hasTimBlokInPeran = Array.isArray((dosen as any).dosen_peran) &&
                                 (dosen as any).dosen_peran.some((p: any) => p.tipe_peran === 'tim_blok');
-                              
+
                               // Hanya tampilkan dosen mengajar jika tidak ada peran koordinator atau tim blok
-                              if (!hasKoordinatorInPeran && !hasTimBlokInPeran && 
-                                  (pblDosen.total_pbl > 0 || pblDosen.total_sesi > 0 || hasModulPbl)) {
+                              if (!hasKoordinatorInPeran && !hasTimBlokInPeran &&
+                                (pblDosen.total_pbl > 0 || pblDosen.total_sesi > 0 || hasModulPbl)) {
                                 label = "Dosen Mengajar";
                                 badgeClass = "bg-yellow-100 text-yellow-700";
                               }
                             }
-                            
+
                             // Hanya tampilkan badge jika ada peran yang relevan
                             if (!label) {
                               return <span>-</span>;
                             }
-                            
+
                             // Jika ada dosen_peran yang valid, tampilkan multiple peran
                             if (Array.isArray(peranArr) && peranArr.length > 0) {
 
                               return null; // Biarkan logic multi-peran yang di atas yang handle
                             }
-                            
+
                             const fallbackKey = `${dosen.dosen_id}-fallback`;
                             const isFallbackExpanded = expandedPeran[fallbackKey];
-                            
+
                             return (
                               <div className="flex flex-col gap-1">
                                 <button
@@ -2868,7 +2753,7 @@ const ReportingDosen: React.FC = () => {
                                     className="w-3 h-3 ml-1"
                                   />
                                 </button>
-                                
+
                                 {/* Expandable detail untuk fallback */}
                                 {isFallbackExpanded && (
                                   <div className="ml-4 mt-2 space-y-2">
@@ -2876,12 +2761,12 @@ const ReportingDosen: React.FC = () => {
                                       <div className="flex items-start gap-3">
                                         {/* Icon */}
                                         <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                          <FontAwesomeIcon 
-                                            icon={faUserTie} 
+                                          <FontAwesomeIcon
+                                            icon={faUserTie}
                                             className="w-4 h-4 text-gray-600 dark:text-gray-400"
                                           />
                                         </div>
-                                        
+
                                         {/* Content */}
                                         <div className="flex-1 min-w-0">
                                           <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-2">
@@ -3056,7 +2941,7 @@ const ReportingDosen: React.FC = () => {
                                     }
                                     aria-expanded={
                                       !!expandedRows[
-                                        dosen.dosen_id * 100 + sem.semester
+                                      dosen.dosen_id * 100 + sem.semester
                                       ]
                                     }
                                   >
@@ -3083,7 +2968,7 @@ const ReportingDosen: React.FC = () => {
                                     Array.isArray((sem as any).blok_csr) &&
                                     (sem as any).blok_csr.length > 0 &&
                                     expandedRows[
-                                      dosen.dosen_id * 100 + sem.semester
+                                    dosen.dosen_id * 100 + sem.semester
                                     ] && (
                                       <div className="ml-6 text-xs text-gray-700 dark:text-gray-300 space-y-2">
                                         {/* Group by blok, tampilkan info blok dan waktu */}
@@ -3119,7 +3004,7 @@ const ReportingDosen: React.FC = () => {
                                     (sem as DosenPBLReport["per_semester"][0])
                                       .modul_pbl.length > 0 &&
                                     expandedRows[
-                                      dosen.dosen_id * 100 + sem.semester
+                                    dosen.dosen_id * 100 + sem.semester
                                     ] && (
                                       <div className="ml-6 text-xs text-gray-700 dark:text-gray-300 space-y-2">
                                         {/* Group by blok + kode MK, lalu tampilkan modul di bawahnya */}
@@ -3215,25 +3100,25 @@ const ReportingDosen: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white/90">
                           {dosen.tanggal_mulai
                             ? new Date(dosen.tanggal_mulai).toLocaleDateString(
-                                "id-ID",
-                                {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                }
-                              )
+                              "id-ID",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              }
+                            )
                             : "-"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white/90">
                           {dosen.tanggal_akhir
                             ? new Date(dosen.tanggal_akhir).toLocaleDateString(
-                                "id-ID",
-                                {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                }
-                              )
+                              "id-ID",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              }
+                            )
                             : "-"}
                         </td>
                       </tr>
@@ -3288,7 +3173,7 @@ const ReportingDosen: React.FC = () => {
               >
                 Prev
               </button>
-              
+
               {/* Smart Pagination with Scroll */}
               <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
                 scrollbarWidth: 'thin',
@@ -3321,74 +3206,71 @@ const ReportingDosen: React.FC = () => {
                     }
                   `
                 }} />
-                
+
                 {/* Always show first page */}
                 <button
                   onClick={() =>
                     setPagination((prev) => ({ ...prev, current_page: 1 }))
                   }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    pagination.current_page === 1
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pagination.current_page === 1
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                 >
                   1
                 </button>
-                
+
                 {/* Show ellipsis if current page is far from start */}
                 {pagination.current_page > 4 && (
                   <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
                 )}
-                
+
                 {/* Show pages around current page */}
                 {Array.from({ length: pagination.last_page }, (_, i) => {
                   const pageNum = i + 1;
                   // Show pages around current page (2 pages before and after)
-                  const shouldShow = pageNum > 1 && pageNum < pagination.last_page && 
+                  const shouldShow = pageNum > 1 && pageNum < pagination.last_page &&
                     (pageNum >= pagination.current_page - 2 && pageNum <= pagination.current_page + 2);
-                  
+
                   if (!shouldShow) return null;
-                  
+
                   return (
                     <button
                       key={i}
                       onClick={() =>
                         setPagination((prev) => ({ ...prev, current_page: pageNum }))
                       }
-                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                        pagination.current_page === pageNum
-                          ? "bg-brand-500 text-white"
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pagination.current_page === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {pageNum}
                     </button>
                   );
                 })}
-                
+
                 {/* Show ellipsis if current page is far from end */}
                 {pagination.current_page < pagination.last_page - 3 && (
                   <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
                 )}
-                
+
                 {/* Always show last page if it's not the first page */}
                 {pagination.last_page > 1 && (
                   <button
                     onClick={() =>
                       setPagination((prev) => ({ ...prev, current_page: pagination.last_page }))
                     }
-                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      pagination.current_page === pagination.last_page
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${pagination.current_page === pagination.last_page
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {pagination.last_page}
                   </button>
                 )}
               </div>
-              
+
               <button
                 onClick={() =>
                   setPagination((prev) => ({
