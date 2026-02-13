@@ -3865,7 +3865,7 @@ export default function DetailNonBlokNonCSR() {
       setJadwalSidangSkripsi(allJadwal.filter((j: JadwalNonBlokNonCSR) => j.jenis_baris === 'sidang_skripsi'));
 
       // Set reference data
-      setDosenList(batchData.dosen_list);
+      setDosenList(batchData.dosen_list || batchData.dosen?.all || []);
       setRuanganList(batchData.ruangan_list);
       setJamOptions(batchData.jam_options);
       setKelompokBesarAgendaOptions(batchData.kelompok_besar_agenda_options || []);

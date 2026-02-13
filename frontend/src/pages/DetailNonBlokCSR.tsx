@@ -1424,8 +1424,8 @@ export default function DetailNonBlokCSR() {
         const ruanganNama = getValueFromMultipleFormats(['Ruang\n(Lihat Daftar Ruang)', 'Ruang'], rowObj);
         const nipPengajar = rowObj['NIP Pengajar'] || '';
 
-        // Find ruangan data - cari berdasarkan id_ruangan (kode ruangan) seperti di kuliah besar & praktikum
-        const ruanganData = ruanganList?.find(r => r.id_ruangan === ruanganNama);
+        // Find ruangan data - cari berdasarkan nama (sesuai dengan export)
+        const ruanganData = ruanganList?.find(r => r.nama === ruanganNama);
 
         // Find dosen data - cari berdasarkan NID
         const dosenData = dosenList?.find(d => d.nid === nipPengajar);
@@ -1972,7 +1972,7 @@ export default function DetailNonBlokCSR() {
       setJadwalCSR(batchData.jadwal_csr);
 
       // Set reference data
-      setDosenList(batchData.dosen_list);
+      setDosenList(batchData.dosen_list || batchData.dosen?.all || []);
       setRuanganList(batchData.ruangan_list);
       setKelompokKecilList(batchData.kelompok_kecil);
       setKategoriList(batchData.kategori_list);
@@ -2120,7 +2120,7 @@ export default function DetailNonBlokCSR() {
           row.siakad_jenis_pertemuan || '',
           row.siakad_metode || '',
           // System Fields - Orange headers
-          ruangan?.id_ruangan || '',
+          ruangan?.nama || '',
           dosen?.nid || '',
           // SIAKAD Fields (from original file) - Green headers
           row.siakad_dosen_pengganti || '',
@@ -3968,8 +3968,6 @@ export default function DetailNonBlokCSR() {
                         <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
                           <li>Jenis CSR → Klik kolom "Kosong (isi manual)" untuk memilih (reguler/responsi)</li>
                           <li>Keahlian → Klik kolom "Kosong (isi manual)" untuk memilih keahlian</li>
-                          <li>Dosen → Klik kolom "Kosong (isi manual)" untuk memilih dosen</li>
-                          <li>Sesi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
                         </ul>
                       </div>
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">

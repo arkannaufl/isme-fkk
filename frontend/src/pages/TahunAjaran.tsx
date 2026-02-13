@@ -997,7 +997,7 @@ export default function TahunAjaran() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100003] max-h-[90vh] overflow-y-auto hide-scroll border border-gray-100 dark:border-gray-800"
+              className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100003] max-h-[90vh] overflow-y-auto hide-scroll border border-gray-100 dark:border-gray-800"
             >
               <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">

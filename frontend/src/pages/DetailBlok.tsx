@@ -9255,7 +9255,7 @@ export default function DetailBlok() {
           // Cari dosen berdasarkan NID
           let dosen = null;
           if (nipPengajar) {
-            dosen = dosenList.find((d) => d.nid === nipPengajar);
+            dosen = allDosenList.find((d) => d.nid === nipPengajar);
           }
 
           // Cari ruangan berdasarkan nama atau kode ruangan (id_ruangan)
