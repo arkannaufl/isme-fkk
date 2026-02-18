@@ -58,6 +58,7 @@ class User extends Authenticatable
         'veteran_set_by',
         'veteran_semesters',
         'veteran_history',
+        'veteran_status',
         // WhatsApp fields untuk Wablas
         'whatsapp_phone',
         'whatsapp_email',

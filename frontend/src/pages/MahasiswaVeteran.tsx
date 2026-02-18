@@ -81,6 +81,19 @@ const MahasiswaVeteran: React.FC = () => {
     }
   };
 
+  const getVeteranStatusColor = (veteranStatus: string) => {
+    switch (veteranStatus?.toLowerCase()) {
+      case 'aktif':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400';
+      case 'pre_veteran':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400';
+      case 'non_veteran':
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    }
+  };
+
   // Filter options
   const angkatanOptions = Array.from(new Set(mahasiswaList.map((m) => m.angkatan))).sort((a, b) => Number(b) - Number(a));
 
@@ -671,19 +684,30 @@ const MahasiswaVeteran: React.FC = () => {
                   <UserIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     {mahasiswa.name}
                   </p>
                   <div className="mt-1 mb-2 flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
                       {mahasiswa.status === 'lulus' ? `Lulus: ${mahasiswa.semester || '?'}` : 
                        (mahasiswa.is_veteran && mahasiswa.veteran_status === 'aktif') ? `Veteran: ${mahasiswa.semester || '?'}` :
+                       (mahasiswa.is_veteran && mahasiswa.veteran_status === 'pre_veteran') ? `Pre-Veteran: ${mahasiswa.semester || '?'}` :
                        `Semester ${mahasiswa.semester || '?'}`}
                     </span>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
                       {mahasiswa.nim}
                     </p>
                   </div>
+                  {/* Veteran Status Badge */}
+                  {mahasiswa.is_veteran && (
+                    <div className="mt-1 mb-2">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getVeteranStatusColor(mahasiswa.veteran_status)}`}>
+                        {mahasiswa.veteran_status === 'pre_veteran' ? '🔄 Pre-Veteran' : 
+                         mahasiswa.veteran_status === 'aktif' ? '✅ Veteran Aktif' : 
+                         '❓ Veteran'}
+                      </span>
+                    </div>
+                  )}
                   {mahasiswa.is_veteran && mahasiswa.veteran_semesters && mahasiswa.veteran_semesters.length > 0 && (
                     <div className="mt-1 mb-2">
                       <span className="text-xs text-gray-500 dark:text-gray-400">

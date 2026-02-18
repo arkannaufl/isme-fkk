@@ -20,7 +20,7 @@ class MahasiswaVeteranController extends Controller
                     ->with('veteranSetBy:id,name')
                     ->select([
                         'id', 'name', 'nim', 'gender', 'ipk', 'status', 'angkatan', 'semester',
-                        'is_veteran', 'is_multi_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester', 'veteran_semesters'
+                        'is_veteran', 'is_multi_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester', 'veteran_semesters', 'veteran_status'
                     ]);
 
             // Filter by veteran status
@@ -95,17 +95,18 @@ class MahasiswaVeteranController extends Controller
                     // Simpan semester saat lulus sebelum jadi veteran
                     $user->semester_saat_lulus = $user->semester;
                     
-                    // Set semester veteran dimulai dari +1 dari semester lulus
-                    $user->veteran_semester_count = 1;
-                    $user->semester = $user->semester_saat_lulus + 1; // Semester 8 jika lulus di 7
+                    // Set status veteran tapi TIDAK naik semester dulu
+                    $user->veteran_semester_count = 0; // Mulai dari 0, akan naik saat update semester
+                    $user->semester = $user->semester_saat_lulus; // Tetap semester lulus dulu
                     
-                    // Ubah status jadi aktif
+                    // Ubah status jadi "pre-veteran" (masih aktif tapi belum veteran aktif)
                     $user->status = 'aktif';
-                    $user->veteran_status = 'aktif';
+                    $user->veteran_status = 'pre_veteran'; // Status baru untuk pre-veteran
                 } else {
-                    // Mahasiswa aktif yang jadi veteran
+                    // Mahasiswa aktif yang jadi pre-veteran
                     $user->veteran_semester_count = 0;
-                    $user->veteran_status = 'aktif';
+                    $user->veteran_status = 'pre_veteran'; // Status pre-veteran
+                    // Semester TETAP, belum naik
                 }
 
                 // Hanya set status veteran, veteran_semesters kosong dulu

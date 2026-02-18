@@ -60,8 +60,32 @@ class SemesterService
             foreach ($students as $student) {
                 // PENTING: Mahasiswa Veteran tidak ikut naik semester regular
                 if ($student->is_veteran) {
-                    // TAPI veteran bisa naik semester tanpa batas
-                    if ($student->veteran_status === 'aktif') {
+                    // Handle Pre-Veteran → Veteran Aktif
+                    if ($student->veteran_status === 'pre_veteran') {
+                        // Pre-veteran naik semester dan jadi veteran aktif
+                        $oldSemesterNumber = $student->semester ?? 1;
+                        $newSemesterNumber = $oldSemesterNumber + 1; // Naik 1 semester
+                        
+                        $student->update([
+                            'semester' => $newSemesterNumber,
+                            'veteran_status' => 'aktif', // Ubah status jadi veteran aktif
+                            'veteran_semester_count' => 1 // Mulai count dari 1
+                        ]);
+                        $updatedCount++;
+                        
+                        // Log pre-veteran to veteran activation
+                        activity()
+                            ->performedOn($student)
+                            ->withProperties([
+                                'old_semester' => $oldSemesterNumber,
+                                'new_semester' => $newSemesterNumber,
+                                'old_status' => 'pre_veteran',
+                                'new_status' => 'aktif'
+                            ])
+                            ->log("Pre-Veteran activation: {$oldSemesterNumber} → {$newSemesterNumber} (Veteran Aktif)");
+                    }
+                    // Handle Veteran Aktif (bukan pre-veteran)
+                    elseif ($student->veteran_status === 'aktif') {
                         $oldSemesterNumber = $student->semester ?? 1;
                         $newSemesterNumber = $oldSemesterNumber + 1; // Veteran naik 1 semester
                         
