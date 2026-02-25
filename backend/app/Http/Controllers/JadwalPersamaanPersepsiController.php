@@ -4,18 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\JadwalPersamaanPersepsi;
 use App\Models\User;
-use App\Models\Ruangan;
 use App\Models\Notification;
 use App\Models\AbsensiPersamaanPersepsi;
+use App\Models\MataKuliah;
+use App\Services\JadwalValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Database\Eloquent\Collection;
 
 class JadwalPersamaanPersepsiController extends Controller
 {
+    protected JadwalValidationService $validationService;
+
+    public function __construct(JadwalValidationService $validationService)
+    {
+        $this->validationService = $validationService;
+    }
+
     // List semua jadwal Persamaan Persepsi untuk satu mata kuliah blok
     public function index($kode)
     {
@@ -124,16 +131,22 @@ class JadwalPersamaanPersepsiController extends Controller
         $dataForValidation = $data;
         $dataForValidation['dosen_ids'] = $allDosenIds;
 
+        $mataKuliah = MataKuliah::where('kode', $kode)->first();
+        $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
+        if ($tanggalMessage) {
+            return response()->json(['message' => $tanggalMessage], 422);
+        }
+
         // Validasi kapasitas ruangan hanya jika menggunakan ruangan
         if ($data['use_ruangan'] && $data['ruangan_id']) {
-            $kapasitasMessage = $this->validateRuanganCapacity($dataForValidation);
+            $kapasitasMessage = $this->validationService->validateRoomCapacity($dataForValidation, 'persamaan_persepsi', false);
             if ($kapasitasMessage) {
                 return response()->json(['message' => $kapasitasMessage], 422);
             }
         }
 
         // Validasi bentrok (cek semua dosen - koordinator + pengampu)
-        $bentrokMessage = $this->checkBentrokWithDetail($dataForValidation, null);
+        $bentrokMessage = $this->validationService->validateConflict($dataForValidation, 'persamaan_persepsi', null, false);
         if ($bentrokMessage) {
             return response()->json(['message' => $bentrokMessage], 422);
         }
@@ -304,16 +317,22 @@ class JadwalPersamaanPersepsiController extends Controller
         $dataForValidation = $data;
         $dataForValidation['dosen_ids'] = $allDosenIds;
 
+        $mataKuliah = MataKuliah::where('kode', $kode)->first();
+        $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
+        if ($tanggalMessage) {
+            return response()->json(['message' => $tanggalMessage], 422);
+        }
+
         // Validasi kapasitas ruangan hanya jika menggunakan ruangan
         if ($data['use_ruangan'] && $data['ruangan_id']) {
-            $kapasitasMessage = $this->validateRuanganCapacity($dataForValidation);
+            $kapasitasMessage = $this->validationService->validateRoomCapacity($dataForValidation, 'persamaan_persepsi', false);
             if ($kapasitasMessage) {
                 return response()->json(['message' => $kapasitasMessage], 422);
             }
         }
 
         // Validasi bentrok (cek semua dosen - koordinator + pengampu, kecuali dirinya sendiri)
-        $bentrokMessage = $this->checkBentrokWithDetail($dataForValidation, $id);
+        $bentrokMessage = $this->validationService->validateConflict($dataForValidation, 'persamaan_persepsi', $id, false);
         if ($bentrokMessage) {
             return response()->json(['message' => $bentrokMessage], 422);
         }
@@ -389,9 +408,38 @@ class JadwalPersamaanPersepsiController extends Controller
                 'data.*.topik' => 'nullable|string',
             ]);
 
-            $mataKuliah = \App\Models\MataKuliah::find($kode);
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
             if (!$mataKuliah) {
                 return response()->json(['message' => 'Mata kuliah tidak ditemukan'], 404);
+            }
+
+            $excelDataForAntarBaris = [];
+            foreach ($data['data'] as $row) {
+                $koordinatorIds = $row['koordinator_ids'] ?? [];
+                $pengampuIds = $row['dosen_ids'] ?? [];
+                $allDosenIds = array_values(array_unique(array_merge($koordinatorIds, $pengampuIds)));
+
+                $rowForValidation = $row;
+                $rowForValidation['mata_kuliah_kode'] = $kode;
+                $rowForValidation['dosen_ids'] = $allDosenIds;
+                $rowForValidation['koordinator_ids'] = $koordinatorIds;
+
+                $useRuangan = $rowForValidation['use_ruangan'] ?? true;
+                if (!$useRuangan) {
+                    $rowForValidation['ruangan_id'] = null;
+                }
+
+                $excelDataForAntarBaris[] = $rowForValidation;
+            }
+
+            $antarBarisErrors = $this->validationService->validateAntarBarisExcel($excelDataForAntarBaris, 'persamaan_persepsi', false);
+            if (!empty($antarBarisErrors)) {
+                return response()->json([
+                    'success' => false,
+                    'total' => count($data['data']),
+                    'errors' => $antarBarisErrors,
+                    'message' => 'Gagal mengimport data. Perbaiki error terlebih dahulu.'
+                ], 422);
             }
 
             $errors = [];
@@ -401,9 +449,19 @@ class JadwalPersamaanPersepsiController extends Controller
             foreach ($data['data'] as $index => $row) {
                 $rowErrors = [];
 
-                // Validasi tanggal dalam rentang mata kuliah
-                if ($row['tanggal'] < $mataKuliah->tanggal_mulai || $row['tanggal'] > $mataKuliah->tanggal_akhir) {
-                    $rowErrors[] = "Baris " . ($index + 1) . ": Tanggal di luar rentang mata kuliah";
+                $rowForValidation = $row;
+                $rowForValidation['mata_kuliah_kode'] = $kode;
+
+                // Gabungkan koordinator_ids dan dosen_ids untuk validasi (bentrok/kapasitas)
+                $koordinatorIds = $row['koordinator_ids'] ?? [];
+                $pengampuIds = $row['dosen_ids'] ?? [];
+                $allDosenIds = array_values(array_unique(array_merge($koordinatorIds, $pengampuIds)));
+                $rowForValidation['dosen_ids'] = $allDosenIds;
+                $rowForValidation['koordinator_ids'] = $koordinatorIds;
+
+                $tanggalMessage = $this->validationService->validateTanggalMataKuliah($rowForValidation, $mataKuliah);
+                if ($tanggalMessage) {
+                    $rowErrors[] = "Baris " . ($index + 1) . ": " . $tanggalMessage;
                 }
 
                 // Validasi ruangan hanya jika menggunakan ruangan
@@ -411,110 +469,31 @@ class JadwalPersamaanPersepsiController extends Controller
                 if ($useRuangan) {
                     if (!$row['ruangan_id']) {
                         $rowErrors[] = "Baris " . ($index + 1) . ": Ruangan wajib dipilih jika menggunakan ruangan";
-                    } else {
-                        $ruangan = Ruangan::find($row['ruangan_id']);
-                        if (!$ruangan) {
-                            $rowErrors[] = "Baris " . ($index + 1) . ": Ruangan tidak ditemukan";
-                        } else {
-                            // Validasi kapasitas ruangan (koordinator + pengampu)
-                            $koordinatorIds = $row['koordinator_ids'] ?? [];
-                            $pengampuIds = $row['dosen_ids'] ?? [];
-
-                            // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
-                            $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
-                            if (!empty($duplicateIds)) {
-                                $duplicateNames = \App\Models\User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
-                                $rowErrors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: " . implode(', ', $duplicateNames);
-                            }
-
-                            $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
-                            $jumlahDosen = count($allDosenIds);
-                            if ($jumlahDosen > $ruangan->kapasitas) {
-                                $rowErrors[] = "Baris " . ($index + 1) . ": Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$jumlahDosen} dosen";
-                            }
-                        }
                     }
                 } else {
                     // Jika tidak menggunakan ruangan, set ruangan_id ke null
                     $row['ruangan_id'] = null;
+                    $rowForValidation['ruangan_id'] = null;
                 }
 
-                // Validasi dosen pengampu
-                foreach ($row['dosen_ids'] as $dosenId) {
-                    $dosen = User::find($dosenId);
-                    if (!$dosen) {
-                        $rowErrors[] = "Baris " . ($index + 1) . ": Dosen dengan ID {$dosenId} tidak ditemukan";
+                // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
+                $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
+                if (!empty($duplicateIds)) {
+                    $duplicateNames = User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
+                    $rowErrors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: " . implode(', ', $duplicateNames);
+                }
+
+                // Validasi kapasitas ruangan hanya jika menggunakan ruangan
+                if ($useRuangan && ($rowForValidation['ruangan_id'] ?? null)) {
+                    $kapasitasMessage = $this->validationService->validateRoomCapacity($rowForValidation, 'persamaan_persepsi', false);
+                    if ($kapasitasMessage) {
+                        $rowErrors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
                     }
                 }
 
-                // Validasi dosen koordinator
-                $koordinatorIds = $row['koordinator_ids'] ?? [];
-                foreach ($koordinatorIds as $dosenId) {
-                    $dosen = User::find($dosenId);
-                    if (!$dosen) {
-                        $rowErrors[] = "Baris " . ($index + 1) . ": Koordinator dengan ID {$dosenId} tidak ditemukan";
-                    }
-                }
-
-                // Gabungkan koordinator_ids dan dosen_ids untuk validasi bentrok
-                $koordinatorIds = $row['koordinator_ids'] ?? [];
-                $pengampuIds = $row['dosen_ids'] ?? [];
-                $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
-
-                // Validasi bentrok (cek semua dosen - koordinator + pengampu)
-                $rowData = [
-                    'mata_kuliah_kode' => $kode,
-                    'tanggal' => $row['tanggal'],
-                    'jam_mulai' => $row['jam_mulai'],
-                    'jam_selesai' => $row['jam_selesai'],
-                    'jumlah_sesi' => $row['jumlah_sesi'],
-                    'dosen_ids' => $allDosenIds, // Semua dosen untuk validasi bentrok
-                    'ruangan_id' => $row['ruangan_id'],
-                    'use_ruangan' => $row['use_ruangan'] ?? true,
-                    'topik' => $row['topik'] ?? '',
-                ];
-
-                $bentrokMessage = $this->checkBentrokWithDetail($rowData, null);
+                $bentrokMessage = $this->validationService->validateConflict($rowForValidation, 'persamaan_persepsi', null, false);
                 if ($bentrokMessage) {
                     $rowErrors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
-                }
-
-                // Validasi bentrok dengan data dalam batch import yang sama
-                for ($j = 0; $j < $index; $j++) {
-                    $previousData = $data['data'][$j];
-                    // Gabungkan koordinator_ids dan dosen_ids untuk validasi bentrok
-                    $prevKoordinatorIds = $previousData['koordinator_ids'] ?? [];
-                    $prevPengampuIds = $previousData['dosen_ids'] ?? [];
-                    $prevAllDosenIds = array_unique(array_merge($prevKoordinatorIds, $prevPengampuIds));
-
-                    $previousRowData = [
-                        'mata_kuliah_kode' => $kode,
-                        'tanggal' => $previousData['tanggal'],
-                        'jam_mulai' => $previousData['jam_mulai'],
-                        'jam_selesai' => $previousData['jam_selesai'],
-                        'jumlah_sesi' => $previousData['jumlah_sesi'],
-                        'dosen_ids' => $prevAllDosenIds, // Semua dosen untuk validasi bentrok
-                        'ruangan_id' => $previousData['ruangan_id'],
-                        'use_ruangan' => $previousData['use_ruangan'] ?? true,
-                        'topik' => $previousData['topik'] ?? '',
-                    ];
-                    if ($this->isDataBentrok($rowData, $previousRowData)) {
-                        $ruanganPrev = Ruangan::find($previousData['ruangan_id']);
-                        $ruanganNamePrev = $ruanganPrev ? $ruanganPrev->nama : 'N/A';
-                        $dosenNamesPrev = [];
-                        foreach ($prevAllDosenIds as $dosenIdPrev) {
-                            $dosenPrev = User::find($dosenIdPrev);
-                            if ($dosenPrev) {
-                                $dosenNamesPrev[] = $dosenPrev->name;
-                            }
-                        }
-                        $dosenNamesStrPrev = implode(', ', $dosenNamesPrev);
-                        if (empty($dosenNamesStrPrev)) {
-                            $dosenNamesStrPrev = 'N/A';
-                        }
-                        $rowErrors[] = "Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: {$dosenNamesStrPrev}, Ruangan: {$ruanganNamePrev})";
-                        break;
-                    }
                 }
 
                 if (empty($rowErrors)) {
@@ -652,383 +631,6 @@ class JadwalPersamaanPersepsiController extends Controller
                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
-     * Helper method untuk mengecek apakah dua data bentrok
-     */
-    private function isDataBentrok($data1, $data2): bool
-    {
-        // Cek apakah tanggal sama
-        if ($data1['tanggal'] !== $data2['tanggal']) {
-            return false;
-        }
-
-        // Cek apakah jam bentrok
-        $jamMulai1 = $data1['jam_mulai'];
-        $jamSelesai1 = $data1['jam_selesai'];
-        $jamMulai2 = $data2['jam_mulai'];
-        $jamSelesai2 = $data2['jam_selesai'];
-
-        // Cek apakah jam bentrok
-        $jamBentrok = ($jamMulai1 < $jamSelesai2 && $jamSelesai1 > $jamMulai2);
-
-        if (!$jamBentrok) {
-            return false;
-        }
-
-        // Cek bentrok dosen (multi-select)
-        $dosenBentrok = false;
-        if (
-            isset($data1['dosen_ids']) && is_array($data1['dosen_ids']) &&
-            isset($data2['dosen_ids']) && is_array($data2['dosen_ids'])
-        ) {
-            $intersectingDosen = array_intersect($data1['dosen_ids'], $data2['dosen_ids']);
-            if (!empty($intersectingDosen)) {
-                $dosenBentrok = true;
-            }
-        }
-
-        // Cek bentrok ruangan
-        $ruanganBentrok = false;
-        if (
-            isset($data1['ruangan_id']) && isset($data2['ruangan_id']) &&
-            $data1['ruangan_id'] == $data2['ruangan_id']
-        ) {
-            $ruanganBentrok = true;
-        }
-
-        // Jika bentrok dosen ATAU bentrok ruangan, maka ada bentrok
-        return $dosenBentrok || $ruanganBentrok;
-    }
-
-    /**
-     * Validasi bentrok dengan detail
-     */
-    private function checkBentrokWithDetail($data, $ignoreId = null): ?string
-    {
-        // Jika tidak menggunakan ruangan, hanya cek bentrok berdasarkan dosen
-        $useRuangan = isset($data['use_ruangan']) ? $data['use_ruangan'] : true;
-
-        // Ambil data mata kuliah untuk mendapatkan semester
-        $mataKuliah = \App\Models\MataKuliah::where('kode', $data['mata_kuliah_kode'])->first();
-        $semester = $mataKuliah ? $mataKuliah->semester : null;
-
-        // Cek bentrok dengan jadwal Persamaan Persepsi lain
-        $persepsiQuery = JadwalPersamaanPersepsi::where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data, $useRuangan) {
-                // Cek bentrok ruangan hanya jika menggunakan ruangan
-                if ($useRuangan && isset($data['ruangan_id']) && $data['ruangan_id']) {
-                    $q->where('ruangan_id', $data['ruangan_id']);
-                }
-
-                // Cek bentrok dosen (multiple dosen_ids)
-                if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
-                    // Cek apakah ada dosen yang sama dengan jadwal lain
-                    $q->where(function ($subQ) use ($data) {
-                        foreach ($data['dosen_ids'] as $dosenId) {
-                            $subQ->orWhereJsonContains('dosen_ids', $dosenId);
-                        }
-                    });
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            });
-
-        if ($ignoreId) {
-            $persepsiQuery->where('id', '!=', $ignoreId);
-        }
-
-        $persepsiBentrok = $persepsiQuery->first();
-        if ($persepsiBentrok) {
-            $jamMulaiFormatted = str_replace(':', '.', $persepsiBentrok->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $persepsiBentrok->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($data, $persepsiBentrok);
-            return "Jadwal bentrok dengan Jadwal Persamaan Persepsi lain pada tanggal " .
-                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal PBL (dengan filter semester)
-        $pblQuery = \App\Models\JadwalPBL::where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data, $useRuangan) {
-                // Cek bentrok ruangan hanya jika menggunakan ruangan
-                if ($useRuangan && isset($data['ruangan_id']) && $data['ruangan_id']) {
-                    $q->where('ruangan_id', $data['ruangan_id']);
-                }
-
-                // Cek bentrok dosen (multiple dosen_ids)
-                if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
-                    $q->orWhereIn('dosen_id', $data['dosen_ids']);
-
-                    // Cek jika jadwal PBL juga menggunakan multiple dosen
-                    $q->orWhere(function ($subQ) use ($data) {
-                        foreach ($data['dosen_ids'] as $dosenId) {
-                            $subQ->orWhereJsonContains('dosen_ids', $dosenId);
-                        }
-                    });
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            });
-
-        $pblBentrok = $pblQuery->first();
-        if ($pblBentrok) {
-            $jamMulaiFormatted = str_replace(':', '.', $pblBentrok->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $pblBentrok->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($data, $pblBentrok);
-            return "Jadwal bentrok dengan Jadwal PBL pada tanggal " .
-                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Jurnal Reading (dengan filter semester)
-        $jurnalQuery = \App\Models\JadwalJurnalReading::where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data, $useRuangan) {
-                // Cek bentrok ruangan hanya jika menggunakan ruangan
-                if ($useRuangan && isset($data['ruangan_id']) && $data['ruangan_id']) {
-                    $q->where('ruangan_id', $data['ruangan_id']);
-                }
-
-                // Cek bentrok dosen (multiple dosen_ids)
-                if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
-                    $q->orWhereIn('dosen_id', $data['dosen_ids']);
-
-                    // Cek jika jadwal Jurnal juga menggunakan multiple dosen
-                    $q->orWhere(function ($subQ) use ($data) {
-                        foreach ($data['dosen_ids'] as $dosenId) {
-                            $subQ->orWhereJsonContains('dosen_ids', $dosenId);
-                        }
-                    });
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            });
-
-        $jurnalBentrok = $jurnalQuery->first();
-        if ($jurnalBentrok) {
-            $jamMulaiFormatted = str_replace(':', '.', $jurnalBentrok->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $jurnalBentrok->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($data, $jurnalBentrok);
-            return "Jadwal bentrok dengan Jadwal Jurnal Reading pada tanggal " .
-                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Kuliah Besar (dengan filter semester)
-        $kuliahBesarQuery = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data, $useRuangan) {
-                // Cek bentrok ruangan hanya jika menggunakan ruangan
-                if ($useRuangan && isset($data['ruangan_id']) && $data['ruangan_id']) {
-                    $q->where('ruangan_id', $data['ruangan_id']);
-                }
-
-                // Cek bentrok dosen (single dosen_id)
-                if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
-                    $q->orWhereIn('dosen_id', $data['dosen_ids']);
-
-                    // Cek jika jadwal Kuliah Besar juga menggunakan multiple dosen
-                    $q->orWhere(function ($subQ) use ($data) {
-                        foreach ($data['dosen_ids'] as $dosenId) {
-                            $subQ->orWhereJsonContains('dosen_ids', $dosenId);
-                        }
-                    });
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            });
-
-        $kuliahBesarBentrok = $kuliahBesarQuery->first();
-        if ($kuliahBesarBentrok) {
-            $jamMulaiFormatted = str_replace(':', '.', $kuliahBesarBentrok->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $kuliahBesarBentrok->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($data, $kuliahBesarBentrok);
-            return "Jadwal bentrok dengan Jadwal Kuliah Besar pada tanggal " .
-                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Agenda Khusus (dengan filter semester)
-        $agendaKhususQuery = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            });
-
-        // Cek bentrok ruangan hanya jika menggunakan ruangan
-        if ($useRuangan && isset($data['ruangan_id']) && $data['ruangan_id']) {
-            $agendaKhususQuery->where('ruangan_id', $data['ruangan_id']);
-        }
-
-        $agendaKhususBentrok = $agendaKhususQuery
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($agendaKhususBentrok) {
-            $jamMulaiFormatted = str_replace(':', '.', $agendaKhususBentrok->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $agendaKhususBentrok->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($data, $agendaKhususBentrok);
-            return "Jadwal bentrok dengan Jadwal Agenda Khusus pada tanggal " .
-                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Praktikum (dengan filter semester)
-        $praktikumBentrok = \App\Models\JadwalPraktikum::where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->where(function ($q) use ($data) {
-                // Cek bentrok dosen (multiple dosen_ids)
-                if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
-                    $q->whereExists(function ($subQ) use ($data) {
-                        $subQ->select(DB::raw(1))
-                            ->from('jadwal_praktikum_dosen')
-                            ->whereColumn('jadwal_praktikum_dosen.jadwal_praktikum_id', 'jadwal_praktikum.id')
-                            ->whereIn('jadwal_praktikum_dosen.dosen_id', $data['dosen_ids']);
-                    });
-                }
-            })
-            ->first();
-
-        if ($praktikumBentrok) {
-            $jamMulaiFormatted = str_replace(':', '.', $praktikumBentrok->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $praktikumBentrok->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($data, $praktikumBentrok);
-            return "Jadwal bentrok dengan Jadwal Praktikum pada tanggal " .
-                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        return null; // Tidak ada bentrok
-    }
-
-    /**
-     * Mendapatkan alasan bentrok yang detail
-     */
-    private function getBentrokReason($data, $jadwalBentrok): string
-    {
-        $reasons = [];
-
-        // Cek bentrok dosen (multiple dosen_ids)
-        if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
-            $otherDosenIds = [];
-
-            // Handle different models that might have dosen_ids
-            if (isset($jadwalBentrok->dosen_ids)) {
-                $otherDosenIds = is_array($jadwalBentrok->dosen_ids)
-                    ? $jadwalBentrok->dosen_ids
-                    : (is_string($jadwalBentrok->dosen_ids) ? json_decode($jadwalBentrok->dosen_ids, true) : []);
-            } elseif (isset($jadwalBentrok->dosen_id)) {
-                $otherDosenIds = [$jadwalBentrok->dosen_id];
-            } elseif (method_exists($jadwalBentrok, 'dosen') && $jadwalBentrok->dosen) {
-                // For models with relationship
-                if (is_array($jadwalBentrok->dosen)) {
-                    $otherDosenIds = array_map(function ($d) {
-                        return is_object($d) ? $d->id : $d;
-                    }, $jadwalBentrok->dosen);
-                } elseif ($jadwalBentrok->dosen instanceof Collection) {
-                    // Handle collection (hasMany, belongsToMany)
-                    $otherDosenIds = $jadwalBentrok->dosen->pluck('id')->toArray();
-                } else {
-                    // Single model (belongsTo)
-                    $otherDosenIds = [$jadwalBentrok->dosen->id];
-                }
-            }
-
-            if (!empty($otherDosenIds)) {
-                $intersectingDosenIds = array_intersect($data['dosen_ids'], $otherDosenIds);
-                if (!empty($intersectingDosenIds)) {
-                    $dosenNames = User::whereIn('id', $intersectingDosenIds)->pluck('name')->toArray();
-                    $reasons[] = "Dosen: " . implode(', ', $dosenNames);
-                }
-            }
-        }
-
-        // Cek bentrok ruangan (hanya jika menggunakan ruangan)
-        if (
-            isset($data['ruangan_id']) && $data['ruangan_id'] &&
-            isset($jadwalBentrok->ruangan_id) && $jadwalBentrok->ruangan_id &&
-            $data['ruangan_id'] == $jadwalBentrok->ruangan_id
-        ) {
-            $ruangan = Ruangan::find($data['ruangan_id']);
-            $reasons[] = "Ruangan: " . ($ruangan ? $ruangan->nama : 'Tidak diketahui');
-        }
-
-        // Fallback: jika belum ada alasan spesifik
-        if (empty($reasons)) {
-            $reasons[] = "Konflik jadwal";
-        }
-
-        return implode(', ', $reasons);
-    }
-
-    /**
-     * Validasi kapasitas ruangan berdasarkan jumlah dosen (tidak ada kelompok)
-     */
-    private function validateRuanganCapacity($data)
-    {
-        // Ambil data ruangan
-        $ruangan = Ruangan::find($data['ruangan_id']);
-        if (!$ruangan) {
-            return 'Ruangan tidak ditemukan';
-        }
-
-        // Hitung jumlah dosen
-        $jumlahDosen = 0;
-        if (isset($data['dosen_ids']) && is_array($data['dosen_ids'])) {
-            $jumlahDosen = count($data['dosen_ids']);
-        }
-
-        if ($jumlahDosen == 0) {
-            return 'Minimal 1 dosen harus dipilih';
-        }
-
-        // Cek apakah kapasitas ruangan mencukupi (hanya mempertimbangkan jumlah dosen)
-        if ($jumlahDosen > $ruangan->kapasitas) {
-            return "Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$jumlahDosen} dosen.";
-        }
-
-        return null; // Kapasitas mencukupi
     }
 
     /**

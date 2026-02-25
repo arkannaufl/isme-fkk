@@ -4326,7 +4326,7 @@ export default function DetailNonBlokNonCSR() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Komentator</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '400px' }}>Mahasiswa</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
                 </tr>
@@ -4355,7 +4355,7 @@ export default function DetailNonBlokNonCSR() {
                     <td className="px-6 py-4">
                       <div className="h-4 w-36 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
                     </td>
-                    <td className="px-6 py-4" style={{ minWidth: '300px' }}>
+                    <td className="px-6 py-4" style={{ minWidth: '400px' }}>
                       <div className="h-4 w-40 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
                     </td>
                     <td className="px-6 py-4">
@@ -4400,7 +4400,7 @@ export default function DetailNonBlokNonCSR() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Penguji</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '400px' }}>Mahasiswa</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
                 </tr>
@@ -4429,7 +4429,7 @@ export default function DetailNonBlokNonCSR() {
                     <td className="px-6 py-4">
                       <div className="h-4 w-36 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
                     </td>
-                    <td className="px-6 py-4" style={{ minWidth: '300px' }}>
+                    <td className="px-6 py-4" style={{ minWidth: '400px' }}>
                       <div className="h-4 w-40 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
                     </td>
                     <td className="px-6 py-4">
@@ -5319,7 +5319,7 @@ export default function DetailNonBlokNonCSR() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Komentator</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '400px' }}>Mahasiswa</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
                 </tr>
@@ -5367,7 +5367,7 @@ export default function DetailNonBlokNonCSR() {
                           ? row.komentator.map((k: any) => k.name || k).join(', ')
                           : '-'}
                       </td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90" style={{ minWidth: '300px' }}>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90" style={{ minWidth: '400px' }}>
                         {(() => {
                           if (!row.mahasiswa_nims || row.mahasiswa_nims.length === 0) {
                             return '-';
@@ -5702,7 +5702,7 @@ export default function DetailNonBlokNonCSR() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Penguji</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '400px' }}>Mahasiswa</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
                 </tr>
@@ -5750,7 +5750,7 @@ export default function DetailNonBlokNonCSR() {
                           ? row.penguji.map((p: any) => p.name || p).join(', ')
                           : '-'}
                       </td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90" style={{ minWidth: '300px' }}>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90" style={{ minWidth: '400px' }}>
                         {(() => {
                           if (!row.mahasiswa_nims || row.mahasiswa_nims.length === 0) {
                             return '-';

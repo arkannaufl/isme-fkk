@@ -554,6 +554,12 @@ export default function DetailBlok() {
 
   const [error, setError] = useState<string | null>(null);
 
+  const [showPengampuModal, setShowPengampuModal] = useState(false);
+  const [selectedPengampuList, setSelectedPengampuList] = useState<DosenType[]>([]);
+  const [pengampuSearchQuery, setPengampuSearchQuery] = useState("");
+  const [pengampuModalPage, setPengampuModalPage] = useState(1);
+  const [pengampuModalPageSize, setPengampuModalPageSize] = useState(10);
+
   
   // State untuk pesan sukses per section
   const [kuliahBesarSuccess, setKuliahBesarSuccess] = useState<string | null>(
@@ -933,6 +939,92 @@ export default function DetailBlok() {
     const names = getPengampuNamesArray(row);
     return names.length > 0 ? names.join(", ") : "-";
   };
+
+  const normalizePengampuNames = useCallback(
+    (row: any): string[] => {
+      if (row?.pengampu_names && typeof row.pengampu_names === "string") {
+        const parts = row.pengampu_names
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+        if (parts.length > 0) return parts;
+      }
+
+      const names = getPengampuNamesArray(row);
+      if (names.length > 0) return names;
+
+      return [];
+    },
+    [getPengampuNamesArray]
+  );
+
+  const normalizePengampuList = useCallback(
+    (row: any): DosenType[] => {
+      let dosenIds: number[] = [];
+      if (row?.dosen_ids) {
+        dosenIds = Array.isArray(row.dosen_ids)
+          ? row.dosen_ids
+          : typeof row.dosen_ids === "string"
+            ? JSON.parse(row.dosen_ids || "[]")
+            : [];
+      }
+
+      if (dosenIds.length > 0) {
+        return dosenIds.map((id: number) => {
+          const dosen = allDosenList.find((d) => d.id === id);
+          return dosen || { id, name: `Dosen ${id}`, nid: "-" };
+        });
+      }
+
+      const names = normalizePengampuNames(row);
+      if (names.length > 0) {
+        return names.map((name: string, idx: number) => {
+          const dosen = allDosenList.find((d) => d.name === name);
+          return dosen || { id: -1 - idx, name, nid: "-" };
+        });
+      }
+
+      return [];
+    },
+    [allDosenList, normalizePengampuNames]
+  );
+
+  const renderPengampuCompact = useCallback(
+    (row: any) => {
+      const names = normalizePengampuNames(row);
+      if (!names || names.length === 0) return "-";
+
+      const displayCount = 3;
+      const displayNames = names.slice(0, displayCount);
+      const remainingCount = names.length - displayCount;
+
+      return (
+        <div className="flex flex-wrap items-center gap-1">
+          {displayNames.map((name, idx) => (
+            <span key={idx} className="text-sm">
+              {name}
+              {idx < displayNames.length - 1 && ","}
+            </span>
+          ))}
+          {remainingCount > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedPengampuList(normalizePengampuList(row));
+                setPengampuSearchQuery("");
+                setPengampuModalPage(1);
+                setShowPengampuModal(true);
+              }}
+              className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300 font-medium underline cursor-pointer ml-1"
+            >
+              +{remainingCount} lebih banyak
+            </button>
+          )}
+        </div>
+      );
+    },
+    [normalizePengampuList, normalizePengampuNames]
+  );
 
   const [jadwalPBL, setJadwalPBL] = useState<JadwalPBLType[]>([]);
 
@@ -1877,7 +1969,6 @@ export default function DetailBlok() {
     let newForm = { ...form, [name]: value };
 
     if (name === "jamMulai" || name === "jumlahKali") {
-      // For Jurnal Reading, always use 2 sessions regardless of form value
       const jumlah =
         form.jenisBaris === "jurnal"
           ? 2
@@ -2151,7 +2242,7 @@ export default function DetailBlok() {
         jamMulai: String(row.jamMulai || row.pukul?.split("-")[0] || ""),
 
         jumlahKali: Number(
-          row.jumlahKali || (row.waktu ? row.waktu.split("x")[0] : 1)
+          row.jumlahKali || (row.waktu ? row.waktu.split("x")[0] : 2)
         ),
 
         jamSelesai: String(row.jamSelesai || row.pukul?.split("-")[1] || ""),
@@ -4233,14 +4324,16 @@ export default function DetailBlok() {
 
     // Validasi bentrok frontend
 
+    const jumlahSesi = form.jenisBaris === "jurnal" ? 2 : Number(form.jumlahKali || 2);
+
     const payload = {
       tanggal: form.hariTanggal,
 
       jam_mulai: form.jamMulai,
 
-      jam_selesai: form.jamSelesai,
+      jam_selesai: hitungJamSelesai(form.jamMulai, jumlahSesi),
 
-      jumlah_sesi: 2, // Force 2 sessions for Jurnal Reading
+      jumlah_sesi: jumlahSesi,
 
       kelompok_kecil_id: kelompokKecilId,
 
@@ -4260,7 +4353,7 @@ export default function DetailBlok() {
 
       formData.append("jam_selesai", payload.jam_selesai);
 
-      formData.append("jumlah_sesi", "2"); // Force 2 sessions for Jurnal Reading
+      formData.append("jumlah_sesi", payload.jumlah_sesi.toString());
 
       formData.append(
         "kelompok_kecil_id",
@@ -4293,7 +4386,7 @@ export default function DetailBlok() {
 
           editFormData.append("jam_selesai", payload.jam_selesai);
 
-          editFormData.append("jumlah_sesi", "2"); // Force 2 sessions for Jurnal Reading
+          editFormData.append("jumlah_sesi", payload.jumlah_sesi.toString());
 
           editFormData.append(
             "kelompok_kecil_id",
@@ -4328,7 +4421,7 @@ export default function DetailBlok() {
 
             jam_selesai: payload.jam_selesai,
 
-            jumlah_sesi: 2, // Force 2 sessions for Jurnal Reading
+            jumlah_sesi: payload.jumlah_sesi,
 
             kelompok_kecil_id: payload.kelompok_kecil_id,
 
@@ -4436,8 +4529,10 @@ export default function DetailBlok() {
     setForm({
       hariTanggal: actualRow.tanggal || "",
       jamMulai: actualRow.jam_mulai || "",
-      jumlahKali: Number(actualRow.jumlah_sesi || 1),
-      jamSelesai: actualRow.jam_selesai || "",
+      jumlahKali: Number(actualRow.jumlah_sesi || 2),
+      jamSelesai:
+        actualRow.jam_selesai ||
+        hitungJamSelesai(actualRow.jam_mulai || "", Number(actualRow.jumlah_sesi || 2)),
       pengampu: pengampuValue,
       koordinator: null,
       materi: "",
@@ -5600,11 +5695,11 @@ export default function DetailBlok() {
             ? new Date(row.tanggal).toISOString().split("T")[0]
             : "",
           "Jam Mulai": row.jam_mulai,
-          "Sesi": row.jumlah_sesi,
+          Topik: row.topik || "",
           Dosen: dosen?.name || "",
           Ruangan: ruangan?.nama || "",
           "Kelompok Kecil": kelompok?.nama_kelompok || "",
-          Topik: row.topik || "",
+          "Sesi": row.jumlah_sesi,
         };
       });
 
@@ -5612,22 +5707,22 @@ export default function DetailBlok() {
         header: [
           "Tanggal",
           "Jam Mulai",
-          "Sesi",
+          "Topik",
           "Dosen",
           "Ruangan",
           "Kelompok Kecil",
-          "Topik",
+          "Sesi",
         ],
       });
 
       const jurnalReadingColWidths = [
         { wch: 12 },
         { wch: 10 },
-        { wch: 6 },
+        { wch: 30 },
         { wch: 25 },
         { wch: 20 },
         { wch: 15 },
-        { wch: 30 },
+        { wch: 6 },
       ];
       jurnalReadingWs["!cols"] = jurnalReadingColWidths;
 
@@ -12363,14 +12458,14 @@ export default function DetailBlok() {
           return false;
         if (error.includes("Terjadi kesalahan saat memvalidasi data"))
           return false;
-        if (error.includes("Gagal mengimport data. Perbaiki error terlebih dahulu"))
+        if (error.includes("Gagal mengimport data") && error.includes("Perbaiki terlebih dahulu"))
           return false;
         return true;
       });
 
       const filteredErrorMessage =
         errorMessage.includes("Terjadi kesalahan saat memvalidasi data") ||
-          errorMessage.includes("Gagal mengimport data. Perbaiki error terlebih dahulu")
+          (errorMessage.includes("Gagal mengimport data") && errorMessage.includes("Perbaiki terlebih dahulu"))
           ? null
           : errorMessage;
 
@@ -14333,6 +14428,211 @@ export default function DetailBlok() {
           )}
         </AnimatePresence>
 
+      <AnimatePresence>
+        {showPengampuModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowPengampuModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              <button
+                onClick={() => setShowPengampuModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z" fill="currentColor" />
+                </svg>
+              </button>
+
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Daftar Pengampu</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total {selectedPengampuList.length} dosen</p>
+              </div>
+
+              <div className="mb-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari berdasarkan nama atau NID..."
+                    value={pengampuSearchQuery}
+                    onChange={(e) => {
+                      setPengampuSearchQuery(e.target.value);
+                      setPengampuModalPage(1);
+                    }}
+                    className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {pengampuSearchQuery && (
+                    <button
+                      onClick={() => {
+                        setPengampuSearchQuery("");
+                        setPengampuModalPage(1);
+                      }}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {(() => {
+                const filteredPengampu = selectedPengampuList.filter((d) => {
+                  if (!pengampuSearchQuery.trim()) return true;
+                  const query = pengampuSearchQuery.toLowerCase().trim();
+                  return (
+                    d.name.toLowerCase().includes(query) ||
+                    (d.nid || "").toLowerCase().includes(query)
+                  );
+                });
+                const totalPages = Math.ceil(filteredPengampu.length / pengampuModalPageSize);
+                const paginatedData = filteredPengampu.slice(
+                  (pengampuModalPage - 1) * pengampuModalPageSize,
+                  pengampuModalPage * pengampuModalPageSize
+                );
+
+                return (
+                  <>
+                    {pengampuSearchQuery && (
+                      <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                        Menampilkan {filteredPengampu.length} dari {selectedPengampuList.length} dosen
+                      </div>
+                    )}
+
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NID</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginatedData.length === 0 ? (
+                              <tr>
+                                <td colSpan={3} className="text-center py-6 text-gray-400">
+                                  {pengampuSearchQuery
+                                    ? "Tidak ada dosen yang sesuai dengan pencarian"
+                                    : "Tidak ada data pengampu"}
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedData.map((dosen, idx) => {
+                                const actualIndex =
+                                  (pengampuModalPage - 1) * pengampuModalPageSize + idx;
+                                return (
+                                  <tr
+                                    key={`${dosen.id}-${actualIndex}`}
+                                    className={idx % 2 === 1 ? "bg-gray-50 dark:bg-white/2" : ""}
+                                  >
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                      {actualIndex + 1}
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                      {dosen.nid || "-"}
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                      {dosen.name}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {filteredPengampu.length > pengampuModalPageSize && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700 mt-6">
+                        <div className="flex items-center gap-4">
+                          <select
+                            value={pengampuModalPageSize}
+                            onChange={(e) => {
+                              setPengampuModalPageSize(Number(e.target.value));
+                              setPengampuModalPage(1);
+                            }}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                          >
+                            <option value={10}>10 per halaman</option>
+                            <option value={20}>20 per halaman</option>
+                            <option value={50}>50 per halaman</option>
+                            <option value={100}>100 per halaman</option>
+                          </select>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Menampilkan {(pengampuModalPage - 1) * pengampuModalPageSize + 1}-
+                            {Math.min(pengampuModalPage * pengampuModalPageSize, filteredPengampu.length)} dari {filteredPengampu.length} dosen
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setPengampuModalPage((p) => Math.max(1, p - 1))}
+                            disabled={pengampuModalPage === 1}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Halaman {pengampuModalPage} dari {totalPages}
+                          </span>
+                          <button
+                            onClick={() => setPengampuModalPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={pengampuModalPage >= totalPages}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+                      <button
+                        onClick={() => {
+                          setShowPengampuModal(false);
+                          setPengampuSearchQuery("");
+                          setPengampuModalPage(1);
+                        }}
+                        className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
         {/* Pesan Sukses Bulk Delete untuk Kuliah Besar */}
         <AnimatePresence>
           {kuliahBesarSuccess && (
@@ -14955,7 +15255,7 @@ export default function DetailBlok() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     Koordinator Dosen
                   </th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                  <th style={{ minWidth: 400 }} className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     Pengampu
                   </th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
@@ -15048,7 +15348,7 @@ export default function DetailBlok() {
                       </td>
                       {/* Kolom Pengampu (non-koordinator) */}
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {row.pengampu_names || "-"}
+                        {renderPengampuCompact(row)}
                       </td>
                       {/* Kolom Kelompok Besar */}
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -18063,7 +18363,7 @@ export default function DetailBlok() {
 
                                 jamSelesai: hitungJamSelesai(
                                   value,
-                                  f.jumlahKali
+                                  f.jenisBaris === "jurnal" ? 2 : f.jumlahKali
                                 ),
                               }));
                             }}
@@ -22094,15 +22394,12 @@ export default function DetailBlok() {
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             x 50 menit
                           </label>
-
                           <select
                             name="jumlahKali"
-                            value={
-                              form.jenisBaris === "jurnal" ? 2 : form.jumlahKali
-                            }
+                            value={form.jenisBaris === "jurnal" ? 2 : form.jumlahKali}
                             onChange={handleFormChange}
                             disabled={form.jenisBaris === "jurnal"}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           >
                             {form.jenisBaris === "jurnal" ? (
                               <option value={2}>2 x 50'</option>
@@ -26412,7 +26709,7 @@ export default function DetailBlok() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     Koordinator Dosen
                   </th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                  <th style={{ minWidth: 400 }} className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     Pengampu
                   </th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
@@ -26505,7 +26802,7 @@ export default function DetailBlok() {
                       </td>
                       {/* Kolom Pengampu (non-koordinator) */}
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {row.pengampu_names || "-"}
+                        {renderPengampuCompact(row)}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {(() => {
@@ -26915,7 +27212,7 @@ export default function DetailBlok() {
                 setForm({
                   hariTanggal: "",
                   jamMulai: "",
-                  jumlahKali: 1,
+                  jumlahKali: 2,
                   jamSelesai: "",
                   pengampu: null,
                   koordinator: null,
@@ -32944,7 +33241,7 @@ export default function DetailBlok() {
                               // Filter error generic yang tidak perlu ditampilkan
                               if (err.includes("data.") && err.includes("field is required")) return false;
                               if (err.includes("Terjadi kesalahan saat memvalidasi data")) return false;
-                              if (err.includes("Gagal mengimport data. Perbaiki error terlebih dahulu")) return false;
+                              if (err.includes("Gagal mengimport data") && err.includes("Perbaiki terlebih dahulu")) return false;
                               return true;
                             })
                             .map((err, idx) => (

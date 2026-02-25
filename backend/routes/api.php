@@ -430,6 +430,7 @@ Route::middleware('auth:sanctum')->prefix('kelompok-besar-antara')->group(functi
     Route::post('/', [KelompokBesarAntaraController::class, 'store']);
     Route::put('/{id}', [KelompokBesarAntaraController::class, 'update']);
     Route::delete('/{id}', [KelompokBesarAntaraController::class, 'destroy']);
+    Route::post('/{id}/unassign', [KelompokBesarAntaraController::class, 'unassignMahasiswa']);
 });
 
 // Routes untuk Kelompok Kecil Antara (Global untuk semester Antara)
@@ -439,6 +440,7 @@ Route::middleware('auth:sanctum')->prefix('kelompok-kecil-antara')->group(functi
     Route::put('/{id}', [KelompokKecilAntaraController::class, 'update']);
     Route::delete('/{id}', [KelompokKecilAntaraController::class, 'destroy']);
     Route::get('/by-nama', [KelompokKecilAntaraController::class, 'getByNama']);
+    Route::post('/{id}/unassign', [KelompokKecilAntaraController::class, 'unassignMahasiswa']);
 });
 
 

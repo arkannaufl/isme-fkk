@@ -77,6 +77,12 @@ export default function DetailNonBlokNonCSRAntara() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [showPengampuModal, setShowPengampuModal] = useState(false);
+  const [selectedPengampuList, setSelectedPengampuList] = useState<DosenOption[]>([]);
+  const [pengampuSearchQuery, setPengampuSearchQuery] = useState('');
+  const [pengampuModalPage, setPengampuModalPage] = useState(1);
+  const [pengampuModalPageSize, setPengampuModalPageSize] = useState(10);
+
   // State untuk modal input materi kuliah
   const [showModal, setShowModal] = useState(false);
   const [jadwalMateri, setJadwalMateri] = useState<JadwalNonBlokNonCSR[]>([]);
@@ -120,6 +126,83 @@ export default function DetailNonBlokNonCSRAntara() {
   // Memoized ruangan options untuk optimisasi performa
   const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
 
+  const normalizePengampuNames = useCallback((row: JadwalNonBlokNonCSR): string[] => {
+    if (row.dosen_names && typeof row.dosen_names === 'string') {
+      const parts = row.dosen_names
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (parts.length > 0) return parts;
+    }
+
+    if (row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) {
+      const names = row.dosen_ids
+        .map(id => dosenList.find(d => d.id === id)?.name)
+        .filter(Boolean) as string[];
+      if (names.length > 0) return names;
+    }
+
+    if (row.dosen?.name) return [row.dosen.name];
+    return [];
+  }, [dosenList]);
+
+  const normalizePengampuList = useCallback((row: JadwalNonBlokNonCSR): DosenOption[] => {
+    if (row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) {
+      return row.dosen_ids.map((id) => {
+        const dosen = dosenList.find(d => d.id === id);
+        return dosen || { id, name: `Dosen ${id}`, nid: '-' };
+      });
+    }
+
+    if (row.dosen?.name) {
+      return [{ id: -1, name: row.dosen.name, nid: '-' }];
+    }
+
+    if (row.dosen_names && typeof row.dosen_names === 'string') {
+      const parts = row.dosen_names
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      return parts.map((name, idx) => ({ id: -1 - idx, name, nid: '-' }));
+    }
+
+    return [];
+  }, [dosenList]);
+
+  const renderPengampuCompact = useCallback((row: JadwalNonBlokNonCSR) => {
+    const names = normalizePengampuNames(row);
+    if (!names || names.length === 0) return '-';
+
+    const displayCount = 3;
+    const displayNames = names.slice(0, displayCount);
+    const remainingCount = names.length - displayCount;
+
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        {displayNames.map((name, idx) => (
+          <span key={idx} className="text-sm">
+            {name}
+            {idx < displayNames.length - 1 && ','}
+          </span>
+        ))}
+        {remainingCount > 0 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedPengampuList(normalizePengampuList(row));
+              setPengampuSearchQuery('');
+              setPengampuModalPage(1);
+              setShowPengampuModal(true);
+            }}
+            className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300 font-medium underline cursor-pointer ml-1"
+          >
+            +{remainingCount} lebih banyak
+          </button>
+        )}
+      </div>
+    );
+  }, [normalizePengampuNames, normalizePengampuList]);
+
   // Pagination logic functions - optimized with useCallback
   const getPaginatedData = useCallback((data: any[], page: number, pageSize: number): any[] => {
     const startIndex = (page - 1) * pageSize;
@@ -154,6 +237,7 @@ export default function DetailNonBlokNonCSRAntara() {
   });
   const [kelompokKecilAntaraList, setKelompokKecilAntaraList] = useState<{ id: number, nama_kelompok: string, mahasiswa_ids: number[] }[]>([]);
   const [isCreatingKelompokKecilAntara, setIsCreatingKelompokKecilAntara] = useState(false);
+  const [unassignMode, setUnassignMode] = useState<{ [key: number]: boolean }>({});
 
   // Reset form function - optimized with useCallback
   const resetForm = useCallback(() => {
@@ -222,11 +306,27 @@ export default function DetailNonBlokNonCSRAntara() {
   const deleteKelompokBesarAntara = async (id: number) => {
     if (!data) return;
 
-    if (!confirm('Apakah Anda yakin ingin menghapus kelompok ini?')) return;
+    if (!confirm('Apakah Anda yakin ingin menghapus kelompok ini? Semua kelompok kecil yang bergantung pada kelompok ini juga akan dihapus.')) return;
 
     try {
-      await api.delete(`/kelompok-besar-antara/${id}`);
+      const response = await api.delete(`/kelompok-besar-antara/${id}`);
+      
+      // Check for cascade effect and show appropriate message
+      let message = 'Kelompok besar berhasil dihapus';
+      
+      if (response.data.cascade_effect) {
+        const { deleted_kelompok_kecil_count } = response.data.cascade_effect;
+        
+        if (deleted_kelompok_kecil_count > 0) {
+          message = `Kelompok besar berhasil dihapus. ${deleted_kelompok_kecil_count} kelompok kecil yang bergantung juga dihapus.`;
+        }
+      }
+      
       await fetchKelompokBesarOptions();
+      // Also refresh kelompok kecil since they might be affected
+      await fetchKelompokKecilAntara();
+      
+      alert(message);
     } catch (err) {
       alert('Gagal menghapus kelompok besar antara');
     }
@@ -270,11 +370,57 @@ export default function DetailNonBlokNonCSRAntara() {
 
     if (!confirm('Apakah Anda yakin ingin menghapus kelompok ini?')) return;
 
+    setIsLoadingKelompok(true);
     try {
       await api.delete(`/kelompok-kecil-antara/${id}`);
-      await fetchKelompokKecilAntara();
-    } catch (err) {
-      alert('Gagal menghapus kelompok kecil antara');
+      fetchKelompokKecilAntara();
+    } catch (error: any) {
+      alert(handleApiError(error, 'Menghapus kelompok'));
+    } finally {
+      setIsLoadingKelompok(false);
+    }
+  };
+
+  const handleUnassignMahasiswa = async (kelompokId: number, mahasiswaId: number, kelompokType: 'besar' | 'kecil') => {
+    if (!confirm('Apakah Anda yakin ingin meng-unassign mahasiswa ini dari kelompok?')) return;
+
+    try {
+      const endpoint = kelompokType === 'besar' 
+        ? `/kelompok-besar-antara/${kelompokId}/unassign`
+        : `/kelompok-kecil-antara/${kelompokId}/unassign`;
+      
+      const response = await api.post(endpoint, { mahasiswa_ids: [mahasiswaId] });
+      
+      // Check for cascade effect and show appropriate message
+      let message = 'Mahasiswa berhasil di-unassign dari kelompok';
+      
+      if (kelompokType === 'besar' && response.data.cascade_effect) {
+        const { affected_kelompok_kecil_count, affected_kelompok_kecil } = response.data.cascade_effect;
+        
+        if (affected_kelompok_kecil_count > 0) {
+          message = `Mahasiswa berhasil di-unassign dari kelompok besar. ${affected_kelompok_kecil_count} kelompok kecil terpengaruh:\n`;
+          
+          affected_kelompok_kecil.forEach((kel: any) => {
+            message += `\n- ${kel.nama_kelompok_kecil}: ${kel.affected_mahasiswa_count} mahasiswa di-unassign`;
+          });
+        }
+      }
+      
+      // Refresh data based on kelompok type
+      if (kelompokType === 'besar') {
+        fetchKelompokBesarOptions();
+        // Also refresh kelompok kecil since they might be affected
+        fetchKelompokKecilAntara();
+      } else {
+        fetchKelompokKecilAntara();
+      }
+      
+      // Refresh available mahasiswa options
+      fetchAllMahasiswaOptions();
+      
+      alert(message);
+    } catch (error: any) {
+      alert(handleApiError(error, 'Meng-unassign mahasiswa'));
     }
   };
 
@@ -638,7 +784,7 @@ export default function DetailNonBlokNonCSRAntara() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
+                  <th style={{ minWidth: 400 }} className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Lokasi</th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
@@ -838,7 +984,7 @@ export default function DetailNonBlokNonCSRAntara() {
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
-                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
+                <th style={{ minWidth: 400 }} className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Lokasi</th>
@@ -889,17 +1035,23 @@ export default function DetailNonBlokNonCSRAntara() {
                           {row.agenda}
                         </td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {row.kelompok_besar_antara_id ? `Kelompok Besar ${row.kelompok_besar_antara_id}` : '-'}
+                          {row.kelompok_besar_antara_id 
+                          ? kelompokBesarOptions.find(k => k.id === row.kelompok_besar_antara_id)?.label || `Kelompok Besar ${row.kelompok_besar_antara_id}`
+                          : '-'
+                        }
                         </td>
                       </>
                     ) : (
                       <>
-                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {row.dosen_names || row.dosen?.name || ''}
+                        <td style={{ minWidth: 400 }} className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {renderPengampuCompact(row)}
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90`}>{row.materi}</td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {row.kelompok_besar_antara_id ? `Kelompok Besar ${row.kelompok_besar_antara_id}` : '-'}
+                          {row.kelompok_besar_antara_id 
+                          ? kelompokBesarOptions.find(k => k.id === row.kelompok_besar_antara_id)?.label || `Kelompok Besar ${row.kelompok_besar_antara_id}`
+                          : '-'
+                        }
                         </td>
                       </>
                     )}
@@ -1924,6 +2076,198 @@ export default function DetailNonBlokNonCSRAntara() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showPengampuModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowPengampuModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              <button
+                onClick={() => setShowPengampuModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z" fill="currentColor" />
+                </svg>
+              </button>
+
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Daftar Pengampu</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total {selectedPengampuList.length} dosen</p>
+              </div>
+
+              <div className="mb-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari berdasarkan nama atau NID..."
+                    value={pengampuSearchQuery}
+                    onChange={(e) => {
+                      setPengampuSearchQuery(e.target.value);
+                      setPengampuModalPage(1);
+                    }}
+                    className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {pengampuSearchQuery && (
+                    <button
+                      onClick={() => {
+                        setPengampuSearchQuery('');
+                        setPengampuModalPage(1);
+                      }}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {(() => {
+                const filteredPengampu = selectedPengampuList.filter((d) => {
+                  if (!pengampuSearchQuery.trim()) return true;
+                  const query = pengampuSearchQuery.toLowerCase().trim();
+                  return (
+                    d.name.toLowerCase().includes(query) ||
+                    (d.nid || '').toLowerCase().includes(query)
+                  );
+                });
+                const totalPages = Math.ceil(filteredPengampu.length / pengampuModalPageSize);
+                const paginatedData = filteredPengampu.slice(
+                  (pengampuModalPage - 1) * pengampuModalPageSize,
+                  pengampuModalPage * pengampuModalPageSize
+                );
+
+                return (
+                  <>
+                    {pengampuSearchQuery && (
+                      <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                        Menampilkan {filteredPengampu.length} dari {selectedPengampuList.length} dosen
+                      </div>
+                    )}
+
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/5 text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NID</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginatedData.length === 0 ? (
+                              <tr>
+                                <td colSpan={3} className="text-center py-6 text-gray-400">
+                                  {pengampuSearchQuery ? 'Tidak ada dosen yang sesuai dengan pencarian' : 'Tidak ada data pengampu'}
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedData.map((dosen, idx) => {
+                                const actualIndex = (pengampuModalPage - 1) * pengampuModalPageSize + idx;
+                                return (
+                                  <tr key={`${dosen.id}-${actualIndex}`} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/2' : ''}>
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{dosen.nid || '-'}</td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{dosen.name}</td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {filteredPengampu.length > pengampuModalPageSize && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700 mt-6">
+                        <div className="flex items-center gap-4">
+                          <select
+                            value={pengampuModalPageSize}
+                            onChange={(e) => {
+                              setPengampuModalPageSize(Number(e.target.value));
+                              setPengampuModalPage(1);
+                            }}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                          >
+                            <option value={10}>10 per halaman</option>
+                            <option value={20}>20 per halaman</option>
+                            <option value={50}>50 per halaman</option>
+                            <option value={100}>100 per halaman</option>
+                          </select>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Menampilkan {((pengampuModalPage - 1) * pengampuModalPageSize) + 1}-{Math.min(pengampuModalPage * pengampuModalPageSize, filteredPengampu.length)} dari {filteredPengampu.length} dosen
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setPengampuModalPage((p) => Math.max(1, p - 1))}
+                            disabled={pengampuModalPage === 1}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Halaman {pengampuModalPage} dari {totalPages}
+                          </span>
+                          <button
+                            onClick={() => setPengampuModalPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={pengampuModalPage >= totalPages}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+                      <button
+                        onClick={() => {
+                          setShowPengampuModal(false);
+                          setPengampuSearchQuery('');
+                          setPengampuModalPage(1);
+                        }}
+                        className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* MODAL KONFIRMASI HAPUS */}
       <AnimatePresence>
         {showDeleteModal && (
@@ -1971,7 +2315,7 @@ export default function DetailNonBlokNonCSRAntara() {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">Kelola Kelompok</h2>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">Kelola Kelompok Antara</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       Buat dan kelola kelompok besar dan kecil untuk semester antara
                     </p>
@@ -2012,11 +2356,11 @@ export default function DetailNonBlokNonCSRAntara() {
               </div>
 
               {/* Content */}
-              <div className="flex h-[calc(90vh-200px)]">
+              <div className="flex h-[calc(90vh-200px)] min-h-0">
                 {activeTab === 'besar' ? (
                   <>
                     {/* Left Panel - Create New Group */}
-                    <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
+                    <div className="w-1/2 h-full min-h-0 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
                       <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <div className="flex items-center space-x-2 mb-6">
                           <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
@@ -2227,7 +2571,7 @@ export default function DetailNonBlokNonCSRAntara() {
                     </div>
 
                     {/* Right Panel - Existing Groups */}
-                    <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
+                    <div className="w-1/2 h-full min-h-0 pl-4 overflow-y-auto hide-scroll">
                       <div className="flex items-center space-x-2 mb-6">
                         <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
                           <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2272,38 +2616,74 @@ export default function DetailNonBlokNonCSRAntara() {
                                   <div className="flex items-center space-x-3">
                                     <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
                                       <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656-.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                       </svg>
                                     </div>
                                     <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.label}</h4>
                                   </div>
-                                  <button
-                                    onClick={() => deleteKelompokBesarAntara(kelompok.id)}
-                                    className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                    title="Hapus kelompok"
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      onClick={() => {
+                                        // Toggle unassign mode for this kelompok
+                                        setUnassignMode(prev => ({
+                                          ...prev,
+                                          [kelompok.id]: !prev[kelompok.id]
+                                        }));
+                                      }}
+                                      className={`p-2 rounded-lg transition-all duration-200 ${
+                                        unassignMode[kelompok.id] 
+                                          ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' 
+                                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                      }`}
+                                      title={unassignMode[kelompok.id] ? "Selesai unassign" : "Unassign mahasiswa"}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => deleteKelompokBesarAntara(kelompok.id)}
+                                      className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                                      title="Hapus kelompok"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   {kelompok.mahasiswa.map((mahasiswa: any) => (
-                                    <div key={mahasiswa.id} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                                      <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                      <span>{mahasiswa.name}</span>
-                                      <span
-                                        className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
-                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                          : (mahasiswa.ipk || 0) >= 3.0
-                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                            : (mahasiswa.ipk || 0) >= 2.5
-                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                          }`}
-                                      >
-                                        IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                      </span>
+                                    <div key={mahasiswa.id} className={`flex items-center text-sm text-gray-600 dark:text-gray-400 p-1.5 rounded-lg transition-colors ${
+                                      unassignMode[kelompok.id] ? 'justify-between hover:bg-gray-50 dark:hover:bg-gray-700' : ''
+                                    }`}>
+                                      <div className="flex items-center space-x-1.5">
+                                        <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                                        <span>{mahasiswa.name}</span>
+                                        <span
+                                          className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                                            : (mahasiswa.ipk || 0) >= 3.0
+                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                              : (mahasiswa.ipk || 0) >= 2.5
+                                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                                : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                            }`}
+                                        >
+                                          IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
+                                        </span>
+                                      </div>
+                                      {unassignMode[kelompok.id] && (
+                                        <button
+                                          onClick={() => handleUnassignMahasiswa(kelompok.id, mahasiswa.id, 'besar')}
+                                          className="p-1.5 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                                          title="Unassign mahasiswa dari kelompok"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -2333,7 +2713,7 @@ export default function DetailNonBlokNonCSRAntara() {
                 ) : (
                   <>
                     {/* Left Panel - Create New Kelompok Kecil */}
-                    <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
+                    <div className="w-1/2 h-full min-h-0 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
                       <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <div className="flex items-center space-x-2 mb-6">
                           <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
@@ -2583,7 +2963,7 @@ export default function DetailNonBlokNonCSRAntara() {
                     </div>
 
                     {/* Right Panel - Existing Kelompok Kecil */}
-                    <div className="w-1/2 pl-4 overflow-y-auto hide-scroll">
+                    <div className="w-1/2 h-full min-h-0 pl-4 overflow-y-auto hide-scroll">
                       <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <div className="flex items-center space-x-2 mb-6">
                           <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
@@ -2655,11 +3035,12 @@ export default function DetailNonBlokNonCSRAntara() {
                                     </svg>
                                   </button>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   {kelompok.mahasiswa_ids.map((mahasiswaId) => {
                                     const mahasiswa = allMahasiswaOptions.find(m => m.id === mahasiswaId);
                                     return mahasiswa ? (
-                                      <div key={mahasiswaId} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                                      <div key={mahasiswaId} className="flex items-center text-sm text-gray-600 dark:text-gray-400 p-1.5 rounded-lg transition-colors">
+                                        <div className="flex items-center space-x-1.5">
                                         <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
                                         <span>{mahasiswa.name}</span>
                                         <span
@@ -2674,6 +3055,7 @@ export default function DetailNonBlokNonCSRAntara() {
                                         >
                                           IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
                                         </span>
+                                        </div>
                                       </div>
                                     ) : null;
                                   })}

@@ -5,11 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\JadwalCSR;
 use App\Models\MataKuliah;
 use App\Models\User;
-use App\Models\Ruangan;
-use App\Models\KelompokKecil;
 use App\Models\CSR;
 use App\Models\AbsensiCSR;
 use App\Models\Notification;
+use App\Services\JadwalValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +16,13 @@ use Illuminate\Support\Facades\Storage;
 
 class JadwalCSRController extends Controller
 {
+    protected JadwalValidationService $validationService;
+
+    public function __construct(JadwalValidationService $validationService)
+    {
+        $this->validationService = $validationService;
+    }
+
     public function index(string $kode): JsonResponse
     {
         try {
@@ -82,21 +88,30 @@ class JadwalCSRController extends Controller
                 'siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
-            // Validasi kapasitas ruangan
-            $kapasitasMessage = $this->validateRuanganCapacity($request);
+            $jamMulai = str_replace('.', ':', $request->jam_mulai);
+            $jamSelesai = str_replace('.', ':', $request->jam_selesai);
+
+            $dataForValidation = array_merge($request->all(), [
+                'mata_kuliah_kode' => $kode,
+                'jam_mulai' => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+            ]);
+
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
+            if ($tanggalMessage) {
+                return response()->json(['message' => $tanggalMessage], 422);
+            }
+
+            $kapasitasMessage = $this->validationService->validateRoomCapacity($dataForValidation, 'csr', false);
             if ($kapasitasMessage) {
                 return response()->json(['message' => $kapasitasMessage], 422);
             }
 
-            // Validasi bentrok
-            $bentrokMessage = $this->checkBentrokWithDetail($request, $kode);
+            $bentrokMessage = $this->validationService->validateConflict($dataForValidation, 'csr', null, false);
             if ($bentrokMessage) {
                 return response()->json(['message' => $bentrokMessage], 422);
             }
-
-            // Konversi format jam dari "07.20" ke "07:20"
-            $jamMulai = str_replace('.', ':', $request->jam_mulai);
-            $jamSelesai = str_replace('.', ':', $request->jam_selesai);
 
             $jadwalCSR = JadwalCSR::create([
                 'mata_kuliah_kode' => $kode,
@@ -213,21 +228,30 @@ class JadwalCSRController extends Controller
 
             $jadwalCSR = JadwalCSR::where('mata_kuliah_kode', $kode)->findOrFail($id);
 
-            // Validasi kapasitas ruangan
-            $kapasitasMessage = $this->validateRuanganCapacity($request);
+            $jamMulai = str_replace('.', ':', $request->jam_mulai);
+            $jamSelesai = str_replace('.', ':', $request->jam_selesai);
+
+            $dataForValidation = array_merge($request->all(), [
+                'mata_kuliah_kode' => $kode,
+                'jam_mulai' => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+            ]);
+
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
+            if ($tanggalMessage) {
+                return response()->json(['message' => $tanggalMessage], 422);
+            }
+
+            $kapasitasMessage = $this->validationService->validateRoomCapacity($dataForValidation, 'csr', false);
             if ($kapasitasMessage) {
                 return response()->json(['message' => $kapasitasMessage], 422);
             }
 
-            // Validasi bentrok (exclude current record)
-            $bentrokMessage = $this->checkBentrokWithDetail($request, $kode, $id);
+            $bentrokMessage = $this->validationService->validateConflict($dataForValidation, 'csr', $id, false);
             if ($bentrokMessage) {
                 return response()->json(['message' => $bentrokMessage], 422);
             }
-
-            // Konversi format jam dari "07.20" ke "07:20"
-            $jamMulai = str_replace('.', ':', $request->jam_mulai);
-            $jamSelesai = str_replace('.', ':', $request->jam_selesai);
 
             $updateData = [
                 'tanggal' => $request->tanggal,
@@ -316,7 +340,7 @@ class JadwalCSRController extends Controller
     public function getRuanganOptions(): JsonResponse
     {
         try {
-            $ruangan = Ruangan::select('id', 'nama')
+            $ruangan = \App\Models\Ruangan::select('id', 'nama')
                 ->orderBy('nama')
                 ->get();
 
@@ -329,7 +353,7 @@ class JadwalCSRController extends Controller
     public function getKelompokOptions(): JsonResponse
     {
         try {
-            $kelompok = KelompokKecil::select('id', 'nama_kelompok')
+            $kelompok = \App\Models\KelompokKecil::select('id', 'nama_kelompok')
                 ->orderBy('nama_kelompok')
                 ->get();
 
@@ -386,500 +410,6 @@ class JadwalCSRController extends Controller
         } catch (\Exception $e) {
             return response()->json(['message' => 'Gagal mengambil data jam'], 500);
         }
-    }
-
-    private function isBentrok(Request $request, string $kode, ?int $excludeId = null): bool
-    {
-        // Ambil data mata kuliah untuk mendapatkan semester
-        $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
-        $semester = $mataKuliah ? $mataKuliah->semester : null;
-
-        // Konversi format waktu dari frontend (dot) ke format database (colon)
-        $jamMulai = str_replace('.', ':', $request->jam_mulai);
-        $jamSelesai = str_replace('.', ':', $request->jam_selesai);
-
-        \Log::info('Checking bentrok for CSR', [
-            'tanggal' => $request->tanggal,
-            'jam_mulai_request' => $request->jam_mulai,
-            'jam_selesai_request' => $request->jam_selesai,
-            'jam_mulai_converted' => $jamMulai,
-            'jam_selesai_converted' => $jamSelesai,
-            'dosen_id' => $request->dosen_id,
-            'ruangan_id' => $request->ruangan_id,
-            'kelompok_kecil_id' => $request->kelompok_kecil_id,
-            'semester' => $semester
-        ]);
-
-        // Cek bentrok dengan jadwal CSR lain (dengan filter semester)
-        $bentrokCSR = DB::table('jadwal_csr')
-            ->join('mata_kuliah', 'jadwal_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_csr.mata_kuliah_kode', $kode)
-            ->where('jadwal_csr.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokCSR->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokCSR->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_csr.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_csr.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_csr.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_csr.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_csr.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_csr.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('jadwal_csr.dosen_id', $request->dosen_id)
-                    ->orWhere('jadwal_csr.ruangan_id', $request->ruangan_id)
-                    ->orWhere('jadwal_csr.kelompok_kecil_id', $request->kelompok_kecil_id);
-            });
-
-        if ($excludeId) {
-            $bentrokCSR->where('jadwal_csr.id', '!=', $excludeId);
-        }
-
-        $bentrokCSRExists = $bentrokCSR->exists();
-        \Log::info('CSR bentrok check result', ['bentrok' => $bentrokCSRExists]);
-
-        // Cek bentrok dengan jadwal lain (PBL, Kuliah Besar, dll) - dengan filter semester
-        $bentrokPBL = DB::table('jadwal_pbl')
-            ->join('mata_kuliah', 'jadwal_pbl.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_pbl.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokPBL->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokPBL->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_pbl.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_pbl.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_pbl.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_pbl.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_pbl.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_pbl.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('jadwal_pbl.dosen_id', $request->dosen_id)
-                    ->orWhere('jadwal_pbl.ruangan_id', $request->ruangan_id)
-                    ->orWhere('jadwal_pbl.kelompok_kecil_id', $request->kelompok_kecil_id);
-            });
-
-        $bentrokPBLExists = $bentrokPBL->exists();
-
-        $bentrokKuliahBesar = DB::table('jadwal_kuliah_besar')
-            ->join('mata_kuliah', 'jadwal_kuliah_besar.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_kuliah_besar.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokKuliahBesar->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokKuliahBesar->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_kuliah_besar.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_kuliah_besar.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_kuliah_besar.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_kuliah_besar.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_kuliah_besar.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_kuliah_besar.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('jadwal_kuliah_besar.dosen_id', $request->dosen_id)
-                    ->orWhere('jadwal_kuliah_besar.ruangan_id', $request->ruangan_id);
-            });
-
-        $bentrokKuliahBesarExists = $bentrokKuliahBesar->exists();
-
-        $bentrokAgendaKhusus = DB::table('jadwal_agenda_khusus')
-            ->join('mata_kuliah', 'jadwal_agenda_khusus.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_agenda_khusus.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokAgendaKhusus->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokAgendaKhusus->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_agenda_khusus.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_agenda_khusus.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_agenda_khusus.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_agenda_khusus.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_agenda_khusus.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_agenda_khusus.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where('jadwal_agenda_khusus.ruangan_id', $request->ruangan_id);
-
-        $bentrokAgendaKhususExists = $bentrokAgendaKhusus->exists();
-
-        $bentrokPraktikum = DB::table('jadwal_praktikum')
-            ->join('mata_kuliah', 'jadwal_praktikum.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_praktikum.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokPraktikum->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokPraktikum->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_praktikum.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_praktikum.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_praktikum.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_praktikum.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_praktikum.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_praktikum.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where('jadwal_praktikum.ruangan_id', $request->ruangan_id);
-
-        $bentrokPraktikumExists = $bentrokPraktikum->exists();
-
-        $bentrokJurnalReading = DB::table('jadwal_jurnal_reading')
-            ->join('mata_kuliah', 'jadwal_jurnal_reading.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_jurnal_reading.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokJurnalReading->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokJurnalReading->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_jurnal_reading.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_jurnal_reading.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_jurnal_reading.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_jurnal_reading.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_jurnal_reading.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_jurnal_reading.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('jadwal_jurnal_reading.dosen_id', $request->dosen_id)
-                    ->orWhere('jadwal_jurnal_reading.ruangan_id', $request->ruangan_id)
-                    ->orWhere('jadwal_jurnal_reading.kelompok_kecil_id', $request->kelompok_kecil_id);
-            });
-
-        $bentrokJurnalReadingExists = $bentrokJurnalReading->exists();
-
-        // Cek bentrok dengan kelompok besar (jika ada kelompok_besar_id di jadwal lain)
-        $bentrokKelompokBesar = $this->checkKelompokBesarBentrok($request, $excludeId);
-
-        $totalBentrok = $bentrokCSRExists || $bentrokPBLExists || $bentrokKuliahBesarExists || $bentrokAgendaKhususExists || $bentrokPraktikumExists || $bentrokJurnalReadingExists || $bentrokKelompokBesar;
-
-        \Log::info('Total bentrok check result', [
-            'csr_bentrok' => $bentrokCSRExists,
-            'pbl_bentrok' => $bentrokPBLExists,
-            'kuliah_besar_bentrok' => $bentrokKuliahBesarExists,
-            'agenda_khusus_bentrok' => $bentrokAgendaKhususExists,
-            'praktikum_bentrok' => $bentrokPraktikumExists,
-            'jurnal_reading_bentrok' => $bentrokJurnalReadingExists,
-            'total_bentrok' => $totalBentrok
-        ]);
-
-        return $totalBentrok;
-    }
-
-    private function checkBentrokWithDetail(Request $request, string $kode, ?int $excludeId = null): ?string
-    {
-        // Ambil data mata kuliah untuk mendapatkan semester
-        $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
-        $semester = $mataKuliah ? $mataKuliah->semester : null;
-
-        // Konversi format waktu dari frontend (dot) ke format database (colon)
-        $jamMulai = str_replace('.', ':', $request->jam_mulai);
-        $jamSelesai = str_replace('.', ':', $request->jam_selesai);
-
-        // Cek bentrok dengan jadwal CSR (dengan filter semester)
-        $bentrokCSR = DB::table('jadwal_csr')
-            ->join('mata_kuliah', 'jadwal_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_csr.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokCSR->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokCSR->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_csr.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_csr.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_csr.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_csr.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_csr.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_csr.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('jadwal_csr.dosen_id', $request->dosen_id)
-                    ->orWhere('jadwal_csr.ruangan_id', $request->ruangan_id)
-                    ->orWhere('jadwal_csr.kelompok_kecil_id', $request->kelompok_kecil_id);
-            });
-
-        if ($excludeId) {
-            $bentrokCSR->where('jadwal_csr.id', '!=', $excludeId);
-        }
-
-        $jadwalBentrokCSR = $bentrokCSR->select('jadwal_csr.*')->first();
-        if ($jadwalBentrokCSR) {
-            $jamMulaiFormatted = str_replace(':', '.', $jadwalBentrokCSR->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $jadwalBentrokCSR->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($request, $jadwalBentrokCSR);
-            return "Jadwal bentrok dengan Jadwal CSR pada tanggal " .
-                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal PBL (dengan filter semester)
-        $bentrokPBL = DB::table('jadwal_pbl')
-            ->join('mata_kuliah', 'jadwal_pbl.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_pbl.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokPBL->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokPBL->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_pbl.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_pbl.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_pbl.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_pbl.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_pbl.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_pbl.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('jadwal_pbl.dosen_id', $request->dosen_id)
-                    ->orWhere('jadwal_pbl.ruangan_id', $request->ruangan_id)
-                    ->orWhere('jadwal_pbl.kelompok_kecil_id', $request->kelompok_kecil_id);
-            });
-
-        $jadwalBentrokPBL = $bentrokPBL->select('jadwal_pbl.*')->first();
-        if ($jadwalBentrokPBL) {
-            $jamMulaiFormatted = str_replace(':', '.', $jadwalBentrokPBL->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $jadwalBentrokPBL->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($request, $jadwalBentrokPBL);
-            return "Jadwal bentrok dengan Jadwal PBL pada tanggal " .
-                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Kuliah Besar (dengan filter semester)
-        $bentrokKuliahBesar = DB::table('jadwal_kuliah_besar')
-            ->join('mata_kuliah', 'jadwal_kuliah_besar.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_kuliah_besar.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokKuliahBesar->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokKuliahBesar->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_kuliah_besar.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_kuliah_besar.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_kuliah_besar.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_kuliah_besar.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_kuliah_besar.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_kuliah_besar.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('jadwal_kuliah_besar.dosen_id', $request->dosen_id)
-                    ->orWhere('jadwal_kuliah_besar.ruangan_id', $request->ruangan_id);
-            });
-
-        $jadwalBentrokKuliahBesar = $bentrokKuliahBesar->select('jadwal_kuliah_besar.*')->first();
-        if ($jadwalBentrokKuliahBesar) {
-            $jamMulaiFormatted = str_replace(':', '.', $jadwalBentrokKuliahBesar->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $jadwalBentrokKuliahBesar->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($request, $jadwalBentrokKuliahBesar);
-            return "Jadwal bentrok dengan Jadwal Kuliah Besar pada tanggal " .
-                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Agenda Khusus (dengan filter semester)
-        $bentrokAgendaKhusus = DB::table('jadwal_agenda_khusus')
-            ->join('mata_kuliah', 'jadwal_agenda_khusus.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_agenda_khusus.tanggal', $request->tanggal)
-            ->where('jadwal_agenda_khusus.use_ruangan', true);
-        
-        if ($semester) {
-            $bentrokAgendaKhusus->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokAgendaKhusus->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_agenda_khusus.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_agenda_khusus.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_agenda_khusus.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_agenda_khusus.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_agenda_khusus.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_agenda_khusus.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where('jadwal_agenda_khusus.ruangan_id', $request->ruangan_id);
-
-        $jadwalBentrokAgendaKhusus = $bentrokAgendaKhusus->select('jadwal_agenda_khusus.*')->first();
-        if ($jadwalBentrokAgendaKhusus) {
-            $jamMulaiFormatted = str_replace(':', '.', $jadwalBentrokAgendaKhusus->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $jadwalBentrokAgendaKhusus->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($request, $jadwalBentrokAgendaKhusus);
-            return "Jadwal bentrok dengan Jadwal Agenda Khusus pada tanggal " .
-                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Praktikum (dengan filter semester)
-        $bentrokPraktikum = DB::table('jadwal_praktikum')
-            ->join('mata_kuliah', 'jadwal_praktikum.mata_kuliah_kode', '=', 'mata_kuliah.kode')
-            ->where('jadwal_praktikum.tanggal', $request->tanggal);
-        
-        if ($semester) {
-            $bentrokPraktikum->where('mata_kuliah.semester', $semester);
-        }
-        
-        $bentrokPraktikum->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_praktikum.jam_mulai', '<=', $jamMulai)
-                        ->where('jadwal_praktikum.jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_praktikum.jam_mulai', '<', $jamSelesai)
-                        ->where('jadwal_praktikum.jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jadwal_praktikum.jam_mulai', '>=', $jamMulai)
-                        ->where('jadwal_praktikum.jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where('jadwal_praktikum.ruangan_id', $request->ruangan_id);
-
-        $jadwalBentrokPraktikum = $bentrokPraktikum->select('jadwal_praktikum.*')->first();
-
-        if ($jadwalBentrokPraktikum) {
-            $jamMulaiFormatted = str_replace(':', '.', $jadwalBentrokPraktikum->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $jadwalBentrokPraktikum->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($request, $jadwalBentrokPraktikum);
-            return "Jadwal bentrok dengan Jadwal Praktikum pada tanggal " .
-                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        // Cek bentrok dengan jadwal Jurnal Reading
-        $bentrokJurnalReading = DB::table('jadwal_jurnal_reading')
-            ->where('tanggal', $request->tanggal)
-            ->where(function ($q) use ($jamMulai, $jamSelesai) {
-                $q->where(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jam_mulai', '<=', $jamMulai)
-                        ->where('jam_selesai', '>', $jamMulai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jam_mulai', '<', $jamSelesai)
-                        ->where('jam_selesai', '>=', $jamSelesai);
-                })->orWhere(function ($subQ) use ($jamMulai, $jamSelesai) {
-                    $subQ->where('jam_mulai', '>=', $jamMulai)
-                        ->where('jam_selesai', '<=', $jamSelesai);
-                });
-            })
-            ->where(function ($q) use ($request) {
-                $q->where('dosen_id', $request->dosen_id)
-                    ->orWhere('ruangan_id', $request->ruangan_id)
-                    ->orWhere('kelompok_kecil_id', $request->kelompok_kecil_id);
-            })
-            ->first();
-
-        if ($bentrokJurnalReading) {
-            $jamMulaiFormatted = str_replace(':', '.', $bentrokJurnalReading->jam_mulai);
-            $jamSelesaiFormatted = str_replace(':', '.', $bentrokJurnalReading->jam_selesai);
-            $bentrokReason = $this->getBentrokReason($request, $bentrokJurnalReading);
-            return "Jadwal bentrok dengan Jadwal Jurnal Reading pada tanggal " .
-                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
-                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
-        }
-
-        return null; // Tidak ada bentrok
-    }
-
-    /**
-     * Mendapatkan alasan bentrok yang detail
-     */
-    private function getBentrokReason($request, $jadwalBentrok): string
-    {
-        $reasons = [];
-
-        // Cek bentrok dosen
-        if (isset($request->dosen_id) && isset($jadwalBentrok->dosen_id) && $request->dosen_id == $jadwalBentrok->dosen_id) {
-            $dosen = \App\Models\User::find($request->dosen_id);
-            $reasons[] = "Dosen: " . ($dosen ? $dosen->name : 'Tidak diketahui');
-        }
-
-        // Cek bentrok ruangan
-        if (isset($request->ruangan_id) && isset($jadwalBentrok->ruangan_id) && $request->ruangan_id == $jadwalBentrok->ruangan_id) {
-            $ruangan = \App\Models\Ruangan::find($request->ruangan_id);
-            $reasons[] = "Ruangan: " . ($ruangan ? $ruangan->nama : 'Tidak diketahui');
-        }
-
-        // Cek bentrok kelompok kecil
-        if (isset($request->kelompok_kecil_id) && isset($jadwalBentrok->kelompok_kecil_id) && $request->kelompok_kecil_id == $jadwalBentrok->kelompok_kecil_id) {
-            $kelompokKecil = \App\Models\KelompokKecil::find($request->kelompok_kecil_id);
-            $reasons[] = "Kelompok Kecil: " . ($kelompokKecil ? $kelompokKecil->nama_kelompok : 'Tidak diketahui');
-        }
-
-        return implode(', ', $reasons);
-    }
-
-    /**
-     * Validasi kapasitas ruangan berdasarkan jumlah mahasiswa
-     */
-    private function validateRuanganCapacity($request)
-    {
-        // Ambil data ruangan
-        $ruangan = Ruangan::find($request->ruangan_id);
-        if (!$ruangan) {
-            return 'Ruangan tidak ditemukan';
-        }
-
-        // Ambil data kelompok kecil
-        $kelompokKecil = KelompokKecil::find($request->kelompok_kecil_id);
-        if (!$kelompokKecil) {
-            return 'Kelompok kecil tidak ditemukan';
-        }
-
-        // Hitung jumlah mahasiswa dalam kelompok
-        $jumlahMahasiswa = KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
-            ->where('semester', $kelompokKecil->semester)
-            ->count();
-
-        // Hitung total (mahasiswa + 1 dosen)
-        $totalMahasiswa = $jumlahMahasiswa + 1;
-
-        // Cek apakah kapasitas ruangan mencukupi
-        if ($totalMahasiswa > $ruangan->kapasitas) {
-            return "Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$totalMahasiswa} orang (kelompok {$jumlahMahasiswa} mahasiswa + 1 dosen).";
-        }
-
-        return null; // Kapasitas mencukupi
     }
 
     /**
@@ -1329,50 +859,66 @@ class JadwalCSRController extends Controller
 
             $errors = [];
 
+            $excelDataForAntarBaris = array_map(function ($row) use ($kode) {
+                $jamMulai = str_replace('.', ':', $row['jam_mulai']);
+                $jamSelesai = str_replace('.', ':', $row['jam_selesai']);
+
+                $row['mata_kuliah_kode'] = $kode;
+                $row['jam_mulai'] = $jamMulai;
+                $row['jam_selesai'] = $jamSelesai;
+                return $row;
+            }, $data);
+
+            $antarBarisErrors = $this->validationService->validateAntarBarisExcel($excelDataForAntarBaris, 'csr', false);
+            if (!empty($antarBarisErrors)) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data),
+                    'errors' => $antarBarisErrors,
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
+                ], 422);
+            }
+
             // Validasi semua data terlebih dahulu (all-or-nothing approach)
             foreach ($data as $index => $row) {
-                // Validasi rentang tanggal mata kuliah
-                $tanggalJadwal = new \DateTime($row['tanggal']);
-                $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
-                $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+                $rowErrors = [];
 
-                if ($tanggalJadwal < $tanggalMulai || $tanggalJadwal > $tanggalAkhir) {
-                    $errors[] = "Baris " . ($index + 1) . ": Tanggal di luar rentang mata kuliah";
+                // Validasi rentang tanggal mata kuliah
+                $jamMulai = str_replace('.', ':', $row['jam_mulai']);
+                $jamSelesai = str_replace('.', ':', $row['jam_selesai']);
+
+                $rowForValidation = array_merge($row, [
+                    'mata_kuliah_kode' => $kode,
+                    'jam_mulai' => $jamMulai,
+                    'jam_selesai' => $jamSelesai,
+                ]);
+
+                $tanggalMessage = $this->validationService->validateTanggalMataKuliah($rowForValidation, $mataKuliah);
+                if ($tanggalMessage) {
+                    $rowErrors[] = $tanggalMessage;
                 }
 
                 // Validasi sesi sesuai jenis CSR
                 if ($row['jenis_csr'] === 'reguler' && $row['jumlah_sesi'] !== 3) {
-                    $errors[] = "Baris " . ($index + 1) . ": CSR Reguler harus 3 sesi";
+                    $rowErrors[] = "CSR Reguler harus 3 sesi";
                 }
 
                 if ($row['jenis_csr'] === 'responsi' && $row['jumlah_sesi'] !== 2) {
-                    $errors[] = "Baris " . ($index + 1) . ": CSR Responsi harus 2 sesi";
+                    $rowErrors[] = "CSR Responsi harus 2 sesi";
                 }
 
-                // Validasi bentrok dengan semua jadwal (mempertimbangkan semester)
-                // Buat request object untuk checkBentrokWithDetail
-                $rowRequest = new \Illuminate\Http\Request();
-                $rowRequest->merge($row);
-                $bentrokMessage = $this->checkBentrokWithDetail($rowRequest, $kode, null);
+                $kapasitasMessage = $this->validationService->validateRoomCapacity($rowForValidation, 'csr', false);
+                if ($kapasitasMessage) {
+                    $rowErrors[] = $kapasitasMessage;
+                }
+
+                $bentrokMessage = $this->validationService->validateConflict($rowForValidation, 'csr', null, false);
                 if ($bentrokMessage) {
-                    $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                    $rowErrors[] = $bentrokMessage;
                 }
 
-                // Cek kapasitas ruangan
-                $ruangan = Ruangan::find($row['ruangan_id']);
-                $kelompokKecil = KelompokKecil::find($row['kelompok_kecil_id']);
-
-                if ($ruangan && $kelompokKecil && $ruangan->kapasitas && $kelompokKecil->jumlah_anggota > $ruangan->kapasitas) {
-                    $errors[] = "Baris " . ($index + 1) . ": Kapasitas ruangan tidak mencukupi (Kelompok: {$kelompokKecil->jumlah_anggota}, Kapasitas: {$ruangan->kapasitas})";
-                }
-
-                // Validasi bentrok dengan data dalam batch import yang sama
-                for ($j = 0; $j < $index; $j++) {
-                    $previousData = $data[$j];
-                    if ($this->isDataBentrok($row, $previousData)) {
-                        $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: " . (\App\Models\User::find($row['dosen_id'])->name ?? 'N/A') . ", Ruangan: " . (\App\Models\Ruangan::find($row['ruangan_id'])->nama ?? 'N/A') . ")";
-                        break;
-                    }
+                if (!empty($rowErrors)) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . implode(', ', $rowErrors);
                 }
             }
 
@@ -1457,53 +1003,6 @@ class JadwalCSRController extends Controller
         }
     }
 
-    /**
-     * Helper function untuk mengecek bentrok antar data dalam batch import
-     */
-    private function isDataBentrok($data1, $data2): bool
-    {
-        // Cek apakah tanggal sama
-        if ($data1['tanggal'] !== $data2['tanggal']) {
-            return false;
-        }
-
-        // Cek apakah jam bentrok
-        $jamMulai1 = $data1['jam_mulai'];
-        $jamSelesai1 = $data1['jam_selesai'];
-        $jamMulai2 = $data2['jam_mulai'];
-        $jamSelesai2 = $data2['jam_selesai'];
-
-        // Konversi jam ke format yang bisa dibandingkan
-        $jamMulai1Formatted = str_replace('.', ':', $jamMulai1);
-        $jamSelesai1Formatted = str_replace('.', ':', $jamSelesai1);
-        $jamMulai2Formatted = str_replace('.', ':', $jamMulai2);
-        $jamSelesai2Formatted = str_replace('.', ':', $jamSelesai2);
-
-        // Cek apakah jam bentrok
-        $jamBentrok = ($jamMulai1Formatted < $jamSelesai2Formatted && $jamSelesai1Formatted > $jamMulai2Formatted);
-
-        if (!$jamBentrok) {
-            return false;
-        }
-
-        // Cek bentrok dosen
-        $dosenBentrok = false;
-        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
-            $dosenBentrok = true;
-        }
-
-        // Cek bentrok ruangan
-        $ruanganBentrok = false;
-        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] == $data2['ruangan_id']) {
-            $ruanganBentrok = true;
-        }
-
-        return $dosenBentrok || $ruanganBentrok;
-    }
-
-    /**
-     * Kirim notifikasi replacement ke super admin
-     */
     private function sendReplacementNotification($jadwal, $alasan = null)
     {
         try {

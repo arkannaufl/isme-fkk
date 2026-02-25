@@ -102,17 +102,34 @@ class KelompokKecilAntaraController extends Controller
                 'mahasiswa_ids.*' => 'exists:users,id',
             ]);
 
-            // Check if mahasiswa already in another kelompok kecil (excluding current)
-            // Gunakan pendekatan yang lebih kompatibel dengan MySQL
-            $existingKelompok = KelompokKecilAntara::where('id', '!=', $id)->get();
-            $conflictingMahasiswa = [];
+            // VALIDATION: Ensure all mahasiswa exist in the parent kelompok besar
+            $parentKelompokBesar = KelompokBesarAntara::find($kelompokKecil->kelompok_besar_antara_id);
+            if (!$parentKelompokBesar) {
+                return response()->json([
+                    'message' => 'Kelompok besar induk tidak ditemukan'
+                ], 404);
+            }
 
-            foreach ($existingKelompok as $kelompok) {
-                if (!empty($kelompok->mahasiswa_ids) && is_array($kelompok->mahasiswa_ids)) {
-                    $overlap = array_intersect($data['mahasiswa_ids'], $kelompok->mahasiswa_ids);
-                    if (!empty($overlap)) {
-                        $conflictingMahasiswa = array_merge($conflictingMahasiswa, $overlap);
-                    }
+            $parentMahasiswaIds = $parentKelompokBesar->mahasiswa_ids ?? [];
+            $invalidMahasiswaIds = array_diff($data['mahasiswa_ids'], $parentMahasiswaIds);
+            
+            if (!empty($invalidMahasiswaIds)) {
+                $invalidNames = User::whereIn('id', $invalidMahasiswaIds)->pluck('name')->toArray();
+                return response()->json([
+                    'message' => 'Beberapa mahasiswa tidak ada di kelompok besar induk: ' . implode(', ', $invalidNames)
+                ], 422);
+            }
+
+            // Check for overlap with other kelompok kecil (excluding current)
+            $conflictingMahasiswa = [];
+            $otherKelompokKecil = KelompokKecilAntara::where('mata_kuliah_kode', $mataKuliahKode)
+                ->where('id', '!=', $id)
+                ->get();
+
+            foreach ($otherKelompokKecil as $kelompok) {
+                $overlap = array_intersect($data['mahasiswa_ids'], $kelompok->mahasiswa_ids);
+                if (!empty($overlap)) {
+                    $conflictingMahasiswa = array_merge($conflictingMahasiswa, $overlap);
                 }
             }
 
@@ -154,7 +171,7 @@ class KelompokKecilAntaraController extends Controller
     /**
      * Delete kelompok kecil antara
      */
-    public function destroy($mataKuliahKode = null, $id)
+    public function destroy($id)
     {
         $kelompokKecil = KelompokKecilAntara::findOrFail($id);
 
@@ -164,13 +181,62 @@ class KelompokKecilAntaraController extends Controller
             ->withProperties([
                 'nama_kelompok' => $kelompokKecil->nama_kelompok,
                 'mahasiswa_count' => count($kelompokKecil->mahasiswa_ids),
-                'mata_kuliah_kode' => $mataKuliahKode
             ])
             ->log("Kelompok Kecil Antara deleted: {$kelompokKecil->nama_kelompok}");
 
         $kelompokKecil->delete();
 
         return response()->json(['message' => 'Kelompok kecil berhasil dihapus'], Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * Unassign mahasiswa from kelompok kecil antara
+     */
+    public function unassignMahasiswa(Request $request, $id)
+    {
+        try {
+            $data = $request->validate([
+                'mahasiswa_ids' => 'required|array|min:1',
+                'mahasiswa_ids.*' => 'exists:users,id',
+            ]);
+
+            $kelompokKecil = KelompokKecilAntara::findOrFail($id);
+            
+            // Remove mahasiswa from the kelompok
+            $currentMahasiswaIds = $kelompokKecil->mahasiswa_ids ?? [];
+            $remainingMahasiswaIds = array_values(array_diff($currentMahasiswaIds, $data['mahasiswa_ids']));
+            
+            $kelompokKecil->update(['mahasiswa_ids' => $remainingMahasiswaIds]);
+
+            // Get names of unassigned mahasiswa for logging
+            $unassignedNames = User::whereIn('id', $data['mahasiswa_ids'])->pluck('name')->toArray();
+            
+            // Log activity
+            activity()
+                ->performedOn($kelompokKecil)
+                ->withProperties([
+                    'nama_kelompok' => $kelompokKecil->nama_kelompok,
+                    'unassigned_mahasiswa' => $unassignedNames,
+                    'remaining_count' => count($remainingMahasiswaIds),
+                ])
+                ->log("Mahasiswa unassigned from Kelompok Kecil Antara: " . implode(', ', $unassignedNames));
+
+            return response()->json([
+                'message' => count($data['mahasiswa_ids']) . ' mahasiswa berhasil di-unassign dari kelompok',
+                'remaining_mahasiswa_ids' => $remainingMahasiswaIds,
+                'remaining_count' => count($remainingMahasiswaIds)
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error unassigning mahasiswa from Kelompok Kecil Antara: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+                'kelompok_id' => $id
+            ]);
+            return response()->json([
+                'message' => 'Gagal meng-unassign mahasiswa. Silakan coba lagi.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 
     /**

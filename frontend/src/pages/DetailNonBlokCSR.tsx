@@ -2605,10 +2605,10 @@ export default function DetailNonBlokCSR() {
                         })}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jam_mulai?.replace('.', ':')}–{row.jam_selesai?.replace('.', ':')}</td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi}x50'</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi || 1} x 50 menit</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.dosen?.name || '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.ruangan?.nama || '-'}</td>
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` : '-'}</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.kelompok_kecil?.nama_kelompok || '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap max-w-xs truncate" title={row.topik || '-'}>{row.topik || '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {(() => {

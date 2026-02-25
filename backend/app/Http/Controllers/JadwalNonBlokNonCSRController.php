@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\Notification;
 use App\Models\KelompokBesar;
 use App\Models\AbsensiNonBlokNonCSR;
+use App\Models\MataKuliah;
+use App\Services\JadwalValidationService;
 use App\Traits\SendsWhatsAppNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -15,10 +17,37 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Illuminate\Validation\Rule;
 
 class JadwalNonBlokNonCSRController extends Controller
 {
     use SendsWhatsAppNotification;
+
+    private JadwalValidationService $validationService;
+
+    public function __construct(JadwalValidationService $validationService)
+    {
+        $this->validationService = $validationService;
+    }
+
+    private function resolveScheduleType(string $jenisBaris): string
+    {
+        return match ($jenisBaris) {
+            'materi' => 'jadwal_non_blok_non_csr',
+            'agenda' => 'agenda_khusus',
+            'seminar_proposal' => 'seminar_proposal',
+            'sidang_skripsi' => 'sidang_skripsi',
+            default => 'jadwal_non_blok_non_csr',
+        };
+    }
+
+    private function getAllowedJenisBaris(bool $isSemesterAntara): array
+    {
+        return $isSemesterAntara
+            ? ['materi', 'agenda']
+            : ['materi', 'agenda', 'seminar_proposal', 'sidang_skripsi'];
+    }
+
     public function show($id)
     {
         try {
@@ -631,12 +660,21 @@ class JadwalNonBlokNonCSRController extends Controller
     public function store(Request $request, $kode)
     {
         try {
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            if (!$mataKuliah) {
+                return response()->json([
+                    'message' => 'Mata kuliah tidak ditemukan'
+                ], 404);
+            }
+
+            $isSemesterAntara = $mataKuliah->semester === 'Antara';
+
             $request->validate([
                 'tanggal' => 'required|date',
                 'jam_mulai' => 'required',
                 'jam_selesai' => 'required',
                 'jumlah_sesi' => 'required|integer',
-                'jenis_baris' => 'required|in:materi,agenda,seminar_proposal,sidang_skripsi',
+                'jenis_baris' => ['required', Rule::in($this->getAllowedJenisBaris($isSemesterAntara))],
                 'agenda' => 'nullable|string',
                 'materi' => 'nullable|string',
                 'dosen_id' => 'nullable|exists:users,id',
@@ -653,6 +691,12 @@ class JadwalNonBlokNonCSRController extends Controller
                 'kelompok_besar_antara_id' => 'nullable|exists:kelompok_besar_antara,id',
                 'use_ruangan' => 'boolean'
             ]);
+
+            if ($isSemesterAntara && in_array($request->jenis_baris, ['seminar_proposal', 'sidang_skripsi'], true)) {
+                return response()->json([
+                    'message' => 'Jenis jadwal tidak tersedia untuk Semester Antara.'
+                ], 422);
+            }
 
             // Validasi: Cek apakah ada dosen yang sama di pembimbing dan komentator (untuk Seminar Proposal)
             if ($request->jenis_baris === 'seminar_proposal') {
@@ -680,91 +724,38 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             }
 
-            // Validasi kapasitas ruangan untuk jenis materi dan agenda (jika menggunakan ruangan)
-            if ($request->ruangan_id && ($request->use_ruangan ?? true)) {
-                if ($request->jenis_baris === 'seminar_proposal') {
-                    // Untuk seminar proposal: hitung pembimbing (1) + komentator + mahasiswa
-                    $jumlahPembimbing = $request->pembimbing_id ? 1 : 0;
-                    $jumlahKomentator = count($request->komentator_ids ?? []);
-                    $jumlahMahasiswa = count($request->mahasiswa_nims ?? []);
-                    $totalPeserta = $jumlahPembimbing + $jumlahKomentator + $jumlahMahasiswa;
-                    
-                    if ($totalPeserta > 0) {
-                        // Optimized: Use cache for ruangan lookup
-                        $cacheKey = 'ruangan_' . $request->ruangan_id;
-                        $ruangan = Cache::remember($cacheKey, 3600, function () use ($request) {
-                            return \App\Models\Ruangan::find($request->ruangan_id, ['id', 'nama', 'kapasitas']);
-                        });
-                        if ($ruangan && $totalPeserta > $ruangan->kapasitas) {
-                            $detailPeserta = [];
-                            if ($jumlahPembimbing > 0) $detailPeserta[] = "{$jumlahPembimbing} pembimbing";
-                            if ($jumlahKomentator > 0) $detailPeserta[] = "{$jumlahKomentator} komentator";
-                            if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
-                            $detailPesertaStr = implode(" + ", $detailPeserta);
-                            
-                            return response()->json([
-                                'message' => "Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr})."
-                            ], 422);
-                        }
-                    }
-                } elseif ($request->jenis_baris === 'sidang_skripsi') {
-                    // Untuk sidang skripsi: hitung pembimbing (1) + penguji + mahasiswa
-                    $jumlahPembimbing = $request->pembimbing_id ? 1 : 0;
-                    $jumlahPenguji = count($request->penguji_ids ?? []);
-                    $jumlahMahasiswa = count($request->mahasiswa_nims ?? []);
-                    $totalPeserta = $jumlahPembimbing + $jumlahPenguji + $jumlahMahasiswa;
-                    
-                    if ($totalPeserta > 0) {
-                        // Optimized: Use cache for ruangan lookup
-                        $cacheKey = 'ruangan_' . $request->ruangan_id;
-                        $ruangan = Cache::remember($cacheKey, 3600, function () use ($request) {
-                            return \App\Models\Ruangan::find($request->ruangan_id, ['id', 'nama', 'kapasitas']);
-                        });
-                        if ($ruangan && $totalPeserta > $ruangan->kapasitas) {
-                            $detailPeserta = [];
-                            if ($jumlahPembimbing > 0) $detailPeserta[] = "{$jumlahPembimbing} pembimbing";
-                            if ($jumlahPenguji > 0) $detailPeserta[] = "{$jumlahPenguji} penguji";
-                            if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
-                            $detailPesertaStr = implode(" + ", $detailPeserta);
-                            
-                            return response()->json([
-                                'message' => "Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr})."
-                            ], 422);
-                        }
-                    }
-                } elseif ($request->kelompok_besar_id) {
-                    // Untuk materi: hitung mahasiswa + 1 dosen
-                    // Untuk agenda: hitung mahasiswa saja (tidak ada dosen)
-                    $includeDosen = $request->jenis_baris === 'materi';
-                    $capacityError = $this->validateRuanganCapacity($request->ruangan_id, $request->kelompok_besar_id, $includeDosen);
-                    if ($capacityError) {
-                        return response()->json([
-                            'message' => $capacityError
-                        ], 422);
-                    }
-                }
-            }
+            $scheduleType = $this->resolveScheduleType($request->jenis_baris);
 
-            // Validasi bentrok dengan jadwal lain
-            $dataForBentrokCheck = [
+            $dataForValidation = [
                 'mata_kuliah_kode' => $kode,
                 'tanggal' => $request->tanggal,
                 'jam_mulai' => $request->jam_mulai,
                 'jam_selesai' => $request->jam_selesai,
                 'dosen_id' => $request->dosen_id,
+                'dosen_ids' => $request->dosen_ids,
                 'pembimbing_id' => $request->pembimbing_id,
                 'komentator_ids' => $request->komentator_ids,
                 'penguji_ids' => $request->penguji_ids,
-                'ruangan_id' => $request->ruangan_id,
+                'ruangan_id' => ($request->use_ruangan ?? true) ? $request->ruangan_id : null,
                 'kelompok_besar_id' => $request->kelompok_besar_id,
+                'kelompok_besar_antara_id' => $request->kelompok_besar_antara_id,
                 'mahasiswa_nims' => $request->mahasiswa_nims,
                 'jenis_baris' => $request->jenis_baris,
             ];
-            $bentrokMessage = $this->checkBentrokWithDetail($dataForBentrokCheck, null);
+
+            $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
+            if ($tanggalMessage) {
+                return response()->json(['message' => $tanggalMessage], 422);
+            }
+
+            $kapasitasMessage = $this->validationService->validateRoomCapacity($dataForValidation, $scheduleType, $isSemesterAntara);
+            if ($kapasitasMessage) {
+                return response()->json(['message' => $kapasitasMessage], 422);
+            }
+
+            $bentrokMessage = $this->validationService->validateConflict($dataForValidation, $scheduleType, null, $isSemesterAntara);
             if ($bentrokMessage) {
-                return response()->json([
-                    'message' => $bentrokMessage
-                ], 422);
+                return response()->json(['message' => $bentrokMessage], 422);
             }
 
             $jadwal = JadwalNonBlokNonCSR::create([
@@ -993,12 +984,20 @@ class JadwalNonBlokNonCSRController extends Controller
     public function update(Request $request, $kode, $id)
     {
         try {
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            if (!$mataKuliah) {
+                return response()->json([
+                    'message' => 'Mata kuliah tidak ditemukan'
+                ], 404);
+            }
+            $isSemesterAntara = $mataKuliah->semester === 'Antara';
+
             $request->validate([
                 'tanggal' => 'required|date',
                 'jam_mulai' => 'required',
                 'jam_selesai' => 'required',
                 'jumlah_sesi' => 'required|integer',
-                'jenis_baris' => 'required|in:materi,agenda,seminar_proposal,sidang_skripsi',
+                'jenis_baris' => ['required', Rule::in($this->getAllowedJenisBaris($isSemesterAntara))],
                 'agenda' => 'nullable|string',
                 'materi' => 'nullable|string',
                 'dosen_id' => 'nullable|exists:users,id',
@@ -1046,72 +1045,38 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             }
 
-            // Validasi kapasitas ruangan untuk jenis materi dan agenda (jika menggunakan ruangan)
-            if ($request->ruangan_id && ($request->use_ruangan ?? true)) {
-                if ($request->jenis_baris === 'seminar_proposal' || $request->jenis_baris === 'sidang_skripsi') {
-                    // Untuk seminar proposal: hitung pembimbing (1) + komentator + mahasiswa
-                    // Untuk sidang skripsi: hitung pembimbing (1) + penguji + mahasiswa
-                    $jumlahPembimbing = $request->pembimbing_id ? 1 : 0;
-                    $jumlahKomentator = count($request->komentator_ids ?? []);
-                    $jumlahPenguji = count($request->penguji_ids ?? []);
-                    $jumlahMahasiswa = count($request->mahasiswa_nims ?? []);
-                    $totalPeserta = $jumlahPembimbing + ($request->jenis_baris === 'seminar_proposal' ? $jumlahKomentator : $jumlahPenguji) + $jumlahMahasiswa;
-                    
-                    if ($totalPeserta > 0) {
-                        // Optimized: Use cache for ruangan lookup
-                        $cacheKey = 'ruangan_' . $request->ruangan_id;
-                        $ruangan = Cache::remember($cacheKey, 3600, function () use ($request) {
-                            return \App\Models\Ruangan::find($request->ruangan_id, ['id', 'nama', 'kapasitas']);
-                        });
-                        if ($ruangan && $totalPeserta > $ruangan->kapasitas) {
-                            $detailPeserta = [];
-                            if ($jumlahPembimbing > 0) $detailPeserta[] = "{$jumlahPembimbing} pembimbing";
-                            if ($request->jenis_baris === 'seminar_proposal' && $jumlahKomentator > 0) {
-                                $detailPeserta[] = "{$jumlahKomentator} komentator";
-                            } elseif ($request->jenis_baris === 'sidang_skripsi' && $jumlahPenguji > 0) {
-                                $detailPeserta[] = "{$jumlahPenguji} penguji";
-                            }
-                            if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
-                            $detailPesertaStr = implode(" + ", $detailPeserta);
-                            
-                            return response()->json([
-                                'message' => "Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr})."
-                            ], 422);
-                        }
-                    }
-                } elseif ($request->kelompok_besar_id) {
-                    // Untuk materi: hitung mahasiswa + 1 dosen
-                    // Untuk agenda: hitung mahasiswa saja (tidak ada dosen)
-                    $includeDosen = $request->jenis_baris === 'materi';
-                    $capacityError = $this->validateRuanganCapacity($request->ruangan_id, $request->kelompok_besar_id, $includeDosen);
-                    if ($capacityError) {
-                        return response()->json([
-                            'message' => $capacityError
-                        ], 422);
-                    }
-                }
-            }
+            $scheduleType = $this->resolveScheduleType($request->jenis_baris);
 
-            // Validasi bentrok dengan jadwal lain (exclude jadwal yang sedang di-update)
-            $dataForBentrokCheck = [
+            $dataForValidation = [
                 'mata_kuliah_kode' => $kode,
                 'tanggal' => $request->tanggal,
                 'jam_mulai' => $request->jam_mulai,
                 'jam_selesai' => $request->jam_selesai,
                 'dosen_id' => $request->dosen_id,
+                'dosen_ids' => $request->dosen_ids,
                 'pembimbing_id' => $request->pembimbing_id,
                 'komentator_ids' => $request->komentator_ids,
                 'penguji_ids' => $request->penguji_ids,
-                'ruangan_id' => $request->ruangan_id,
+                'ruangan_id' => ($request->use_ruangan ?? true) ? $request->ruangan_id : null,
                 'kelompok_besar_id' => $request->kelompok_besar_id,
+                'kelompok_besar_antara_id' => $request->kelompok_besar_antara_id,
                 'mahasiswa_nims' => $request->mahasiswa_nims,
                 'jenis_baris' => $request->jenis_baris,
             ];
-            $bentrokMessage = $this->checkBentrokWithDetail($dataForBentrokCheck, $id);
+
+            $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
+            if ($tanggalMessage) {
+                return response()->json(['message' => $tanggalMessage], 422);
+            }
+
+            $kapasitasMessage = $this->validationService->validateRoomCapacity($dataForValidation, $scheduleType, $isSemesterAntara);
+            if ($kapasitasMessage) {
+                return response()->json(['message' => $kapasitasMessage], 422);
+            }
+
+            $bentrokMessage = $this->validationService->validateConflict($dataForValidation, $scheduleType, $id, $isSemesterAntara);
             if ($bentrokMessage) {
-                return response()->json([
-                    'message' => $bentrokMessage
-                ], 422);
+                return response()->json(['message' => $bentrokMessage], 422);
             }
 
             $jadwal->update([
@@ -1297,7 +1262,9 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data.*.penguji_ids.*' => 'exists:users,id',
                 'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
                 'data.*.kelompok_besar_id' => 'nullable|integer',
+                'data.*.kelompok_besar_antara_id' => 'nullable|exists:kelompok_besar_antara,id',
                 'data.*.dosen_id' => 'nullable|exists:users,id',
+                'data.*.dosen_ids' => 'nullable|array',
                 'data.*.pembimbing_id' => 'nullable|exists:users,id',
                 'data.*.komentator_ids' => 'nullable|array|max:2',
                 'data.*.komentator_ids.*' => 'exists:users,id',
@@ -1309,10 +1276,9 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data.*.use_ruangan' => 'boolean'
             ]);
 
-            // Optimized: Use cache for frequently accessed mata kuliah data
             $cacheKey = 'mata_kuliah_' . $kode;
             $mataKuliah = Cache::remember($cacheKey, 3600, function () use ($kode) {
-                return \App\Models\MataKuliah::where('kode', $kode)->first();
+                return MataKuliah::where('kode', $kode)->first();
             });
             if (!$mataKuliah) {
                 return response()->json([
@@ -1320,53 +1286,105 @@ class JadwalNonBlokNonCSRController extends Controller
                 ], 404);
             }
 
+            $isSemesterAntara = $mataKuliah->semester === 'Antara';
+            $allowedJenisBaris = $this->getAllowedJenisBaris($isSemesterAntara);
 
             $errors = [];
             $excelData = $request->data;
 
-            // Pre-load semua dosen dan ruangan yang diperlukan untuk optimisasi performa
-            $dosenIds = array_filter(array_column($excelData, 'dosen_id'));
-            $ruanganIds = array_filter(array_column($excelData, 'ruangan_id'));
-            $dosenList = !empty($dosenIds) ? \App\Models\User::whereIn('id', $dosenIds)->get()->keyBy('id') : collect();
-            $ruanganList = !empty($ruanganIds) ? \App\Models\Ruangan::whereIn('id', $ruanganIds)->get()->keyBy('id') : collect();
+            foreach ($excelData as $index => $row) {
+                if (!isset($row['jenis_baris']) || !in_array($row['jenis_baris'], $allowedJenisBaris, true)) {
+                    $errors[] = "Baris " . ($index + 1) . ": Jenis jadwal tidak tersedia untuk semester ini.";
+                }
+            }
 
-            // Validasi semua data terlebih dahulu (all-or-nothing approach)
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
+                ], 422);
+            }
+
+            // Validasi bentrok antar baris import (all-or-nothing)
+            for ($i = 0; $i < count($excelData); $i++) {
+                for ($j = 0; $j < $i; $j++) {
+                    $row1 = $excelData[$i];
+                    $row2 = $excelData[$j];
+
+                    $row1['mata_kuliah_kode'] = $kode;
+                    $row2['mata_kuliah_kode'] = $kode;
+
+                    if (isset($row1['use_ruangan']) && $row1['use_ruangan'] === false) {
+                        $row1['ruangan_id'] = null;
+                    }
+                    if (isset($row2['use_ruangan']) && $row2['use_ruangan'] === false) {
+                        $row2['ruangan_id'] = null;
+                    }
+
+                    $type1 = $this->resolveScheduleType($row1['jenis_baris']);
+                    $type2 = $this->resolveScheduleType($row2['jenis_baris']);
+
+                    $detail =
+                        $this->validationService->validateImportDataConflictDetail($row1, $row2, $type1, $isSemesterAntara)
+                        ?? $this->validationService->validateImportDataConflictDetail($row1, $row2, $type2, $isSemesterAntara);
+
+                    if ($detail) {
+                        $errors[] = "Baris " . ($i + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (" . $detail . ")";
+                        break 2;
+                    }
+                }
+            }
+
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
+                ], 422);
+            }
+
+            // Validasi per baris (tanggal, kapasitas, bentrok database)
             foreach ($excelData as $index => $row) {
                 try {
-                    // Validasi tanggal dalam rentang mata kuliah
-                    $tanggal = Carbon::parse($row['tanggal']);
-                    if ($tanggal < Carbon::parse($mataKuliah->tanggal_mulai) || $tanggal > Carbon::parse($mataKuliah->tanggal_akhir)) {
-                        $errors[] = "Baris " . ($index + 1) . ": Tanggal di luar rentang mata kuliah";
+                    $row['mata_kuliah_kode'] = $kode;
+
+                    if (isset($row['use_ruangan']) && $row['use_ruangan'] === false) {
+                        $row['ruangan_id'] = null;
+                    }
+
+                    $tanggalMessage = $this->validationService->validateTanggalMataKuliah($row, $mataKuliah);
+                    if ($tanggalMessage) {
+                        $errors[] = "Baris " . ($index + 1) . ": " . $tanggalMessage;
                         continue;
                     }
 
-                    // Validasi khusus untuk jenis materi
-                    if ($row['jenis_baris'] === 'materi') {
-                        if (!$row['dosen_id']) {
+                    if (($row['jenis_baris'] ?? null) === 'materi') {
+                        if (empty($row['dosen_id'])) {
                             $errors[] = "Baris " . ($index + 1) . ": Dosen wajib diisi untuk jenis materi";
                             continue;
                         }
-                        if (!$row['materi']) {
+                        if (empty($row['materi'])) {
                             $errors[] = "Baris " . ($index + 1) . ": Materi wajib diisi untuk jenis materi";
                             continue;
                         }
-                        if (!$row['ruangan_id']) {
+                        if (empty($row['ruangan_id'])) {
                             $errors[] = "Baris " . ($index + 1) . ": Ruangan wajib diisi untuk jenis materi";
                             continue;
                         }
                     }
 
-                    // Validasi khusus untuk jenis agenda
-                    if ($row['jenis_baris'] === 'agenda') {
-                        if (!$row['agenda']) {
+                    if (($row['jenis_baris'] ?? null) === 'agenda') {
+                        if (empty($row['agenda'])) {
                             $errors[] = "Baris " . ($index + 1) . ": Agenda wajib diisi untuk jenis agenda";
                             continue;
                         }
                     }
 
-                    // Validasi khusus untuk jenis seminar_proposal
-                    if ($row['jenis_baris'] === 'seminar_proposal') {
-                        if (!$row['pembimbing_id']) {
+                    if (($row['jenis_baris'] ?? null) === 'seminar_proposal') {
+                        if (empty($row['pembimbing_id'])) {
                             $errors[] = "Baris " . ($index + 1) . ": Pembimbing wajib diisi untuk Seminar Proposal";
                             continue;
                         }
@@ -1378,14 +1396,11 @@ class JadwalNonBlokNonCSRController extends Controller
                             $errors[] = "Baris " . ($index + 1) . ": Komentator maksimal 2 untuk Seminar Proposal";
                             continue;
                         }
-                        // Validasi: Cek apakah ada dosen yang sama di pembimbing dan komentator
-                        if ($row['pembimbing_id'] && !empty($row['komentator_ids'])) {
-                            $duplicateIds = array_intersect([$row['pembimbing_id']], $row['komentator_ids']);
-                            if (!empty($duplicateIds)) {
-                                $duplicateNames = \App\Models\User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
-                                $errors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator: " . implode(', ', $duplicateNames);
-                                continue;
-                            }
+                        $duplicateIds = array_intersect([$row['pembimbing_id']], $row['komentator_ids']);
+                        if (!empty($duplicateIds)) {
+                            $duplicateNames = User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
+                            $errors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator: " . implode(', ', $duplicateNames);
+                            continue;
                         }
                         if (empty($row['mahasiswa_nims']) || count($row['mahasiswa_nims']) === 0) {
                             $errors[] = "Baris " . ($index + 1) . ": Mahasiswa wajib diisi (minimal 1) untuk Seminar Proposal";
@@ -1393,9 +1408,8 @@ class JadwalNonBlokNonCSRController extends Controller
                         }
                     }
 
-                    // Validasi khusus untuk jenis sidang_skripsi
-                    if ($row['jenis_baris'] === 'sidang_skripsi') {
-                        if (!$row['pembimbing_id']) {
+                    if (($row['jenis_baris'] ?? null) === 'sidang_skripsi') {
+                        if (empty($row['pembimbing_id'])) {
                             $errors[] = "Baris " . ($index + 1) . ": Pembimbing wajib diisi untuk Sidang Skripsi";
                             continue;
                         }
@@ -1407,14 +1421,11 @@ class JadwalNonBlokNonCSRController extends Controller
                             $errors[] = "Baris " . ($index + 1) . ": Penguji maksimal 2 untuk Sidang Skripsi";
                             continue;
                         }
-                        // Validasi: Cek apakah ada dosen yang sama di pembimbing dan penguji
-                        if ($row['pembimbing_id'] && !empty($row['penguji_ids'])) {
-                            $duplicateIds = array_intersect([$row['pembimbing_id']], $row['penguji_ids']);
-                            if (!empty($duplicateIds)) {
-                                $duplicateNames = \App\Models\User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
-                                $errors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji: " . implode(', ', $duplicateNames);
-                                continue;
-                            }
+                        $duplicateIds = array_intersect([$row['pembimbing_id']], $row['penguji_ids']);
+                        if (!empty($duplicateIds)) {
+                            $duplicateNames = User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
+                            $errors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji: " . implode(', ', $duplicateNames);
+                            continue;
                         }
                         if (empty($row['mahasiswa_nims']) || count($row['mahasiswa_nims']) === 0) {
                             $errors[] = "Baris " . ($index + 1) . ": Mahasiswa wajib diisi (minimal 1) untuk Sidang Skripsi";
@@ -1422,203 +1433,24 @@ class JadwalNonBlokNonCSRController extends Controller
                         }
                     }
 
-                    // Validasi kelompok besar sesuai semester (hanya untuk materi dan agenda, bukan seminar_proposal atau sidang_skripsi)
-                    if ($row['jenis_baris'] !== 'seminar_proposal' && $row['jenis_baris'] !== 'sidang_skripsi' && isset($row['kelompok_besar_id']) && $row['kelompok_besar_id']) {
-                        // kelompok_besar_id yang dikirim dari frontend adalah semester
-                        $semesterKelompokBesar = $row['kelompok_besar_id'];
+                    $scheduleType = $this->resolveScheduleType($row['jenis_baris']);
 
-                        // Cek apakah ada kelompok besar untuk semester tersebut
-                        $kelompokBesarExists = KelompokBesar::where('semester', $semesterKelompokBesar)->exists();
-                        if (!$kelompokBesarExists) {
-                            $errors[] = "Baris " . ($index + 1) . ": Kelompok besar semester {$semesterKelompokBesar} tidak ditemukan";
-                            continue;
-                        }
-
-                        // Cek apakah semester kelompok besar sesuai dengan semester mata kuliah
-                        if ($semesterKelompokBesar != $mataKuliah->semester) {
-                            $errors[] = "Baris " . ($index + 1) . ": Kelompok besar semester {$semesterKelompokBesar} tidak sesuai dengan semester mata kuliah ({$mataKuliah->semester}). Hanya boleh menggunakan kelompok besar semester {$mataKuliah->semester}.";
-                            continue;
-                        }
+                    $kapasitasMessage = $this->validationService->validateRoomCapacity($row, $scheduleType, $isSemesterAntara);
+                    if ($kapasitasMessage) {
+                        $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                        continue;
                     }
 
-                    // Validasi bentrok dengan semua jadwal (mempertimbangkan semester)
-                    $row['mata_kuliah_kode'] = $kode;
-                    $rowForBentrok = [
-                        'mata_kuliah_kode' => $kode,
-                        'tanggal' => $row['tanggal'],
-                        'jam_mulai' => $row['jam_mulai'],
-                        'jam_selesai' => $row['jam_selesai'],
-                        'dosen_id' => $row['dosen_id'] ?? null,
-                        'pembimbing_id' => $row['pembimbing_id'] ?? null,
-                        'komentator_ids' => $row['komentator_ids'] ?? null,
-                        'penguji_ids' => $row['penguji_ids'] ?? null,
-                        'ruangan_id' => $row['ruangan_id'] ?? null,
-                        'kelompok_besar_id' => $row['kelompok_besar_id'] ?? null,
-                        'mahasiswa_nims' => $row['mahasiswa_nims'] ?? null,
-                        'jenis_baris' => $row['jenis_baris'],
-                    ];
-                    $bentrokMessage = $this->checkBentrokWithDetail($rowForBentrok, null);
+                    $bentrokMessage = $this->validationService->validateConflict($row, $scheduleType, null, $isSemesterAntara);
                     if ($bentrokMessage) {
                         $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
                         continue;
                     }
-
-                    // Validasi kapasitas ruangan (untuk materi, agenda, seminar_proposal, dan sidang_skripsi jika menggunakan ruangan)
-                    if ($row['ruangan_id'] && ($row['use_ruangan'] ?? true)) {
-                        if ($row['jenis_baris'] === 'seminar_proposal' || $row['jenis_baris'] === 'sidang_skripsi') {
-                            // Untuk seminar proposal: hitung pembimbing (1) + komentator + mahasiswa
-                            // Untuk sidang skripsi: hitung pembimbing (1) + penguji + mahasiswa
-                            $jumlahPembimbing = isset($row['pembimbing_id']) && $row['pembimbing_id'] ? 1 : 0;
-                            $jumlahKomentator = count($row['komentator_ids'] ?? []);
-                            $jumlahPenguji = count($row['penguji_ids'] ?? []);
-                            $jumlahMahasiswa = count($row['mahasiswa_nims'] ?? []);
-                            $totalPeserta = $jumlahPembimbing + ($row['jenis_baris'] === 'seminar_proposal' ? $jumlahKomentator : $jumlahPenguji) + $jumlahMahasiswa;
-                            
-                            if ($totalPeserta > 0) {
-                                // Optimized: Use pre-loaded ruanganList instead of individual query
-                                $ruangan = $ruanganList->get($row['ruangan_id']);
-                                if ($ruangan && $totalPeserta > $ruangan->kapasitas) {
-                                    $detailPeserta = [];
-                                    if ($jumlahPembimbing > 0) $detailPeserta[] = "{$jumlahPembimbing} pembimbing";
-                                    if ($row['jenis_baris'] === 'seminar_proposal' && $jumlahKomentator > 0) {
-                                        $detailPeserta[] = "{$jumlahKomentator} komentator";
-                                    } elseif ($row['jenis_baris'] === 'sidang_skripsi' && $jumlahPenguji > 0) {
-                                        $detailPeserta[] = "{$jumlahPenguji} penguji";
-                                    }
-                                    if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
-                                    $detailPesertaStr = implode(" + ", $detailPeserta);
-                                    
-                                    $errors[] = "Baris " . ($index + 1) . ": Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr}).";
-                                    continue;
-                                }
-                            }
-                        } elseif ($row['jenis_baris'] !== 'seminar_proposal' && $row['jenis_baris'] !== 'sidang_skripsi' && isset($row['kelompok_besar_id']) && $row['kelompok_besar_id']) {
-                        // kelompok_besar_id yang dikirim dari frontend adalah semester
-                        $semesterKelompokBesar = $row['kelompok_besar_id'];
-                        
-                            // Untuk materi: hitung mahasiswa + 1 dosen
-                            // Untuk agenda: hitung mahasiswa saja (tidak ada dosen)
-                            $includeDosen = ($row['jenis_baris'] ?? 'materi') === 'materi';
-                            
-                            // Validasi kapasitas ruangan (method validateRuanganCapacity mengharapkan semester, bukan ID)
-                            $capacityError = $this->validateRuanganCapacity($row['ruangan_id'], $semesterKelompokBesar, $includeDosen);
-                            if ($capacityError) {
-                                $errors[] = "Baris " . ($index + 1) . ": " . $capacityError;
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Validasi bentrok antar data yang sedang di-import
-                    for ($j = 0; $j < $index; $j++) {
-                        $previousData = $excelData[$j];
-                        $bentrokInfo = $this->isDataBentrok($row, $previousData);
-                        if ($bentrokInfo) {
-                            // Tentukan jenis bentrok dan detail
-                            $bentrokTypes = [];
-                            $conflictDetails = [];
-                            
-                            if ($bentrokInfo['dosen']) {
-                                $bentrokTypes[] = 'dosen';
-                                $dosenName = $row['dosen_id'] && $dosenList->has($row['dosen_id']) 
-                                    ? $dosenList->get($row['dosen_id'])->name 
-                                    : 'N/A';
-                                $conflictDetails[] = 'Dosen: ' . $dosenName;
-                            }
-                            
-                            if ($bentrokInfo['pembimbing_komentator']) {
-                                $bentrokTypes[] = 'pembimbing/komentator';
-                                $pembimbingKomentatorNames = [];
-                                if (isset($row['pembimbing_id']) && $row['pembimbing_id'] && $dosenList->has($row['pembimbing_id'])) {
-                                    $pembimbingKomentatorNames[] = $dosenList->get($row['pembimbing_id'])->name . ' (Pembimbing)';
-                                }
-                                if (isset($row['komentator_ids']) && is_array($row['komentator_ids'])) {
-                                    foreach ($row['komentator_ids'] as $komentatorId) {
-                                        if ($dosenList->has($komentatorId)) {
-                                            $pembimbingKomentatorNames[] = $dosenList->get($komentatorId)->name . ' (Komentator)';
-                                        }
-                                    }
-                                }
-                                if (!empty($pembimbingKomentatorNames)) {
-                                    $conflictDetails[] = 'Pembimbing/Komentator: ' . implode(', ', $pembimbingKomentatorNames);
-                                }
-                            }
-                            
-                            if ($bentrokInfo['pembimbing_penguji']) {
-                                $bentrokTypes[] = 'pembimbing/penguji';
-                                $pembimbingPengujiNames = [];
-                                if (isset($row['pembimbing_id']) && $row['pembimbing_id'] && $dosenList->has($row['pembimbing_id'])) {
-                                    $pembimbingPengujiNames[] = $dosenList->get($row['pembimbing_id'])->name . ' (Pembimbing)';
-                                }
-                                if (isset($row['penguji_ids']) && is_array($row['penguji_ids'])) {
-                                    foreach ($row['penguji_ids'] as $pengujiId) {
-                                        if ($dosenList->has($pengujiId)) {
-                                            $pembimbingPengujiNames[] = $dosenList->get($pengujiId)->name . ' (Penguji)';
-                                        }
-                                    }
-                                }
-                                if (!empty($pembimbingPengujiNames)) {
-                                    $conflictDetails[] = 'Pembimbing/Penguji: ' . implode(', ', $pembimbingPengujiNames);
-                                }
-                            }
-                            
-                            if ($bentrokInfo['mahasiswa']) {
-                                $bentrokTypes[] = 'mahasiswa';
-                                // Ambil nama mahasiswa yang bentrok (bukan NIM)
-                                $mahasiswaNames = [];
-                                if (isset($row['mahasiswa_nims']) && is_array($row['mahasiswa_nims']) && !empty($row['mahasiswa_nims'])) {
-                                    // Query nama mahasiswa dari database berdasarkan NIM
-                                    $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
-                                        ->whereIn('nim', $row['mahasiswa_nims'])
-                                        ->pluck('name', 'nim')
-                                        ->toArray();
-                                    
-                                    // Ambil nama mahasiswa yang bentrok (dari intersection dengan previousData)
-                                    $previousMahasiswaNims = isset($previousData['mahasiswa_nims']) && is_array($previousData['mahasiswa_nims']) ? $previousData['mahasiswa_nims'] : [];
-                                    $intersectionNims = array_intersect($row['mahasiswa_nims'], $previousMahasiswaNims);
-                                    
-                                    foreach ($intersectionNims as $nim) {
-                                        if (isset($mahasiswaList[$nim])) {
-                                            $mahasiswaNames[] = $mahasiswaList[$nim];
-                                        } else {
-                                            $mahasiswaNames[] = $nim; // Fallback jika nama tidak ditemukan
-                                        }
-                                    }
-                                    
-                                    // Tampilkan semua nama mahasiswa tanpa truncate
-                                }
-                                if (!empty($mahasiswaNames)) {
-                                    $conflictDetails[] = 'Mahasiswa: ' . implode(', ', $mahasiswaNames);
-                                }
-                            }
-                            
-                            if ($bentrokInfo['ruangan']) {
-                                $bentrokTypes[] = 'ruangan';
-                                $ruanganName = $row['ruangan_id'] && $ruanganList->has($row['ruangan_id']) 
-                                    ? $ruanganList->get($row['ruangan_id'])->nama 
-                                    : 'N/A';
-                                $conflictDetails[] = 'Ruangan: ' . $ruanganName;
-                            }
-                            
-                            if ($bentrokInfo['kelompok_besar']) {
-                                $bentrokTypes[] = 'kelompok besar';
-                            }
-                            
-                            $bentrokTypeStr = implode(', ', $bentrokTypes);
-                            $conflictDetailsStr = !empty($conflictDetails) ? ' (' . implode(', ', $conflictDetails) . ')' : '';
-                            
-                            $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . ". Konflik pada: {$bentrokTypeStr}{$conflictDetailsStr}";
-                            break;
-                        }
-                    }
-
-                    // Jika semua validasi berhasil, data akan diimport setelah loop selesai
                 } catch (\Exception $e) {
                     $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
                 }
             }
 
-            // Jika ada error validasi, return status 422 dan tidak import data sama sekali (all-or-nothing)
             if (count($errors) > 0) {
                 return response()->json([
                     'success' => false,
@@ -1628,12 +1460,14 @@ class JadwalNonBlokNonCSRController extends Controller
                 ], 422);
             }
 
-            // Jika tidak ada error, import semua data menggunakan database transaction
             DB::beginTransaction();
             try {
                 $importedCount = 0;
-                foreach ($excelData as $index => $row) {
-                    // Create jadwal
+                foreach ($excelData as $row) {
+                    if (isset($row['use_ruangan']) && $row['use_ruangan'] === false) {
+                        $row['ruangan_id'] = null;
+                    }
+
                     $jadwal = JadwalNonBlokNonCSR::create([
                         'mata_kuliah_kode' => $kode,
                         'created_by' => Auth::id(),
@@ -1657,16 +1491,13 @@ class JadwalNonBlokNonCSRController extends Controller
                         'status_konfirmasi' => 'belum_konfirmasi'
                     ]);
 
-                    // Load relationships for notifications
                     $jadwal->load(['mataKuliah', 'dosen', 'ruangan', 'createdBy']);
-
                     $this->sendJadwalNotifications($jadwal);
                     $importedCount++;
                 }
 
                 DB::commit();
 
-                // Log activity
                 activity()
                     ->log("Imported {$importedCount} jadwal Non Blok Non CSR for mata kuliah {$kode}");
 
@@ -1695,1190 +1526,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-
-    private function checkBentrokWithDetail($data, $ignoreId = null): ?string
-    {
-        // Ambil data mata kuliah untuk mendapatkan semester - optimized with cache
-        $cacheKey = 'mata_kuliah_' . $data['mata_kuliah_kode'];
-        $mataKuliah = Cache::remember($cacheKey, 3600, function () use ($data) {
-            return \App\Models\MataKuliah::where('kode', $data['mata_kuliah_kode'])->first(['kode', 'semester']);
-        });
-        $semester = $mataKuliah ? $mataKuliah->semester : null;
-
-        // Cek bentrok dengan jadwal Non Blok Non CSR (dengan filter semester)
-        // Validasi realistis: bentrok jika tanggal sama, jam overlap, DAN minimal salah satu dari:
-        // - dosen sama, ATAU
-        // - ruangan sama, ATAU  
-        // - kelompok besar sama
-        $nonBlokNonCSRBentrok = JadwalNonBlokNonCSR::with(['mataKuliah', 'dosen', 'ruangan'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->where(function ($q) use ($data) {
-                // Minimal salah satu dari: dosen sama, ruangan sama, atau kelompok besar sama
-                // Gunakan nested where untuk OR logic
-                $q->where(function ($subQ) use ($data) {
-                    $hasAnyCondition = false;
-                    
-                    // Cek dosen sama (jika dosen_id ada)
-                    if (isset($data['dosen_id']) && $data['dosen_id']) {
-                        $subQ->where('dosen_id', $data['dosen_id']);
-                        $hasAnyCondition = true;
-                    }
-                    
-                    // Cek pembimbing sama dengan dosen di jadwal lain (untuk Seminar Proposal)
-                    // Jika pembimbing_id ada, cek apakah ada jadwal lain yang memiliki dosen_id yang sama
-                    if (isset($data['pembimbing_id']) && $data['pembimbing_id']) {
-                        if ($hasAnyCondition) {
-                            $subQ->orWhere('dosen_id', $data['pembimbing_id'])
-                                 ->orWhere('pembimbing_id', $data['pembimbing_id']);
-                        } else {
-                            $subQ->where(function ($pembimbingQ) use ($data) {
-                                $pembimbingQ->where('dosen_id', $data['pembimbing_id'])
-                                           ->orWhere('pembimbing_id', $data['pembimbing_id']);
-                            });
-                            $hasAnyCondition = true;
-                        }
-                    }
-                    
-                    // Cek komentator sama dengan dosen di jadwal lain (untuk Seminar Proposal)
-                    // Jika komentator_ids ada, cek apakah ada jadwal lain yang memiliki dosen_id yang sama dengan salah satu komentator
-                    if (isset($data['komentator_ids']) && !empty($data['komentator_ids'])) {
-                        foreach ($data['komentator_ids'] as $komentatorId) {
-                            if ($hasAnyCondition) {
-                                $subQ->orWhere('dosen_id', $komentatorId)
-                                     ->orWhere('pembimbing_id', $komentatorId)
-                                     ->orWhereJsonContains('komentator_ids', $komentatorId);
-                            } else {
-                                $subQ->where(function ($komentatorQ) use ($komentatorId) {
-                                    $komentatorQ->where('dosen_id', $komentatorId)
-                                                ->orWhere('pembimbing_id', $komentatorId)
-                                                ->orWhereJsonContains('komentator_ids', $komentatorId);
-                                });
-                                $hasAnyCondition = true;
-                            }
-                        }
-                    }
-                    
-                    // Cek penguji sama dengan dosen di jadwal lain (untuk Sidang Skripsi)
-                    // Jika penguji_ids ada, cek apakah ada jadwal lain yang memiliki dosen_id yang sama dengan salah satu penguji
-                    if (isset($data['penguji_ids']) && !empty($data['penguji_ids'])) {
-                        foreach ($data['penguji_ids'] as $pengujiId) {
-                            if ($hasAnyCondition) {
-                                $subQ->orWhere('dosen_id', $pengujiId)
-                                     ->orWhere('pembimbing_id', $pengujiId)
-                                     ->orWhereJsonContains('komentator_ids', $pengujiId)
-                                     ->orWhereJsonContains('penguji_ids', $pengujiId);
-                            } else {
-                                $subQ->where(function ($pengujiQ) use ($pengujiId) {
-                                    $pengujiQ->where('dosen_id', $pengujiId)
-                                             ->orWhere('pembimbing_id', $pengujiId)
-                                             ->orWhereJsonContains('komentator_ids', $pengujiId)
-                                             ->orWhereJsonContains('penguji_ids', $pengujiId);
-                                });
-                                $hasAnyCondition = true;
-                            }
-                        }
-                    }
-                    
-                    // Cek ruangan sama (jika ruangan_id ada)
-                    if (isset($data['ruangan_id']) && $data['ruangan_id']) {
-                        if ($hasAnyCondition) {
-                            $subQ->orWhere('ruangan_id', $data['ruangan_id']);
-                        } else {
-                            $subQ->where('ruangan_id', $data['ruangan_id']);
-                            $hasAnyCondition = true;
-                        }
-                    }
-                    
-                    // Cek kelompok besar sama (jika kelompok_besar_id ada)
-                    if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
-                        if ($hasAnyCondition) {
-                            $subQ->orWhere('kelompok_besar_id', $data['kelompok_besar_id']);
-                        } else {
-                            $subQ->where('kelompok_besar_id', $data['kelompok_besar_id']);
-                            $hasAnyCondition = true;
-                        }
-                    }
-                    
-                    // Cek mahasiswa sama (untuk Seminar Proposal dan Sidang Skripsi)
-                    // Cek overlap NIM dengan menggunakan whereJsonContains untuk setiap NIM
-                    if (isset($data['mahasiswa_nims']) && !empty($data['mahasiswa_nims']) && isset($data['jenis_baris']) && ($data['jenis_baris'] === 'seminar_proposal' || $data['jenis_baris'] === 'sidang_skripsi')) {
-                        foreach ($data['mahasiswa_nims'] as $nim) {
-                            if ($hasAnyCondition) {
-                                $subQ->orWhereJsonContains('mahasiswa_nims', $nim);
-                            } else {
-                                $subQ->whereJsonContains('mahasiswa_nims', $nim);
-                                $hasAnyCondition = true;
-                            }
-                        }
-                    }
-                    
-                    // Jika tidak ada kondisi sama sekali, tidak ada yang bisa bentrok
-                    if (!$hasAnyCondition) {
-                        $subQ->whereRaw('1 = 0'); // Always false
-                    }
-                });
-            });
-        
-        if ($ignoreId) {
-            $nonBlokNonCSRBentrok->where('id', '!=', $ignoreId);
-        }
-        
-        // Ambil semua jadwal yang bentrok untuk mendapatkan yang paling relevan
-        $conflicts = $nonBlokNonCSRBentrok->get();
-        
-        // Pastikan semua relasi ter-load
-        if ($conflicts->count() > 0) {
-            $conflicts->load(['mataKuliah', 'dosen', 'ruangan', 'pembimbing']);
-        }
-        
-        // Cari jadwal yang benar-benar bentrok (prioritaskan yang memiliki lebih banyak kondisi yang sama)
-        $conflict = null;
-        $maxMatches = 0;
-        
-        foreach ($conflicts as $c) {
-            $matches = 0;
-            // Cek dosen sama
-            if (isset($data['dosen_id']) && $data['dosen_id'] && $c->dosen_id == $data['dosen_id']) {
-                $matches++;
-            }
-            // Cek pembimbing sama dengan dosen di jadwal lain (untuk Seminar Proposal)
-            if (isset($data['pembimbing_id']) && $data['pembimbing_id']) {
-                if ($c->dosen_id == $data['pembimbing_id'] || $c->pembimbing_id == $data['pembimbing_id']) {
-                    $matches++;
-                }
-            }
-            // Cek komentator sama dengan dosen di jadwal lain (untuk Seminar Proposal)
-            if (isset($data['komentator_ids']) && !empty($data['komentator_ids'])) {
-                foreach ($data['komentator_ids'] as $komentatorId) {
-                    if ($c->dosen_id == $komentatorId || 
-                        $c->pembimbing_id == $komentatorId || 
-                        ($c->komentator_ids && in_array($komentatorId, $c->komentator_ids)) ||
-                        ($c->penguji_ids && in_array($komentatorId, $c->penguji_ids))) {
-                        $matches++;
-                        break; // Hanya hitung sekali per komentator
-                    }
-                }
-            }
-            // Cek penguji sama dengan dosen di jadwal lain (untuk Sidang Skripsi)
-            if (isset($data['penguji_ids']) && !empty($data['penguji_ids'])) {
-                foreach ($data['penguji_ids'] as $pengujiId) {
-                    if ($c->dosen_id == $pengujiId || 
-                        $c->pembimbing_id == $pengujiId || 
-                        ($c->komentator_ids && in_array($pengujiId, $c->komentator_ids)) ||
-                        ($c->penguji_ids && in_array($pengujiId, $c->penguji_ids))) {
-                        $matches++;
-                        break; // Hanya hitung sekali per penguji
-                    }
-                }
-            }
-            if (isset($data['ruangan_id']) && $data['ruangan_id'] && $c->ruangan_id == $data['ruangan_id']) {
-                $matches++;
-            }
-            if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id'] && $c->kelompok_besar_id == $data['kelompok_besar_id']) {
-                $matches++;
-            }
-            // Cek overlap mahasiswa (untuk Seminar Proposal dan Sidang Skripsi)
-            if (isset($data['mahasiswa_nims']) && !empty($data['mahasiswa_nims']) && isset($data['jenis_baris']) && ($data['jenis_baris'] === 'seminar_proposal' || $data['jenis_baris'] === 'sidang_skripsi') && $c->mahasiswa_nims) {
-                $overlapNims = array_intersect($data['mahasiswa_nims'], $c->mahasiswa_nims);
-                if (!empty($overlapNims)) {
-                    $matches++;
-                }
-            }
-            
-            if ($matches > $maxMatches) {
-                $maxMatches = $matches;
-                $conflict = $c;
-            }
-        }
-        
-        // Jika tidak ada yang match lebih dari 0, ambil yang pertama (fallback)
-        if (!$conflict && $conflicts->count() > 0) {
-            $conflict = $conflicts->first();
-        }
-        
-        if ($conflict) {
-            // Pastikan relasi ter-load
-            if (!$conflict->relationLoaded('mataKuliah')) {
-                $conflict->load('mataKuliah');
-            }
-            if (!$conflict->relationLoaded('dosen')) {
-                $conflict->load('dosen');
-            }
-            if (!$conflict->relationLoaded('ruangan')) {
-                $conflict->load('ruangan');
-            }
-            if (!$conflict->relationLoaded('pembimbing')) {
-                $conflict->load('pembimbing');
-            }
-            
-            // Pastikan data JSON ter-decode dengan benar
-            if ($conflict->komentator_ids && is_string($conflict->komentator_ids)) {
-                $conflict->komentator_ids = json_decode($conflict->komentator_ids, true);
-            }
-            if ($conflict->penguji_ids && is_string($conflict->penguji_ids)) {
-                $conflict->penguji_ids = json_decode($conflict->penguji_ids, true);
-            }
-            if ($conflict->mahasiswa_nims && is_string($conflict->mahasiswa_nims)) {
-                $conflict->mahasiswa_nims = json_decode($conflict->mahasiswa_nims, true);
-            }
-            
-            // Pastikan mataKuliah tidak null
-            if (!$conflict->mataKuliah) {
-                // Jika relasi tidak ter-load, ambil langsung dari database
-                // Optimized: Use cache for mata kuliah lookup
-                $cacheKey = 'mata_kuliah_' . $conflict->mata_kuliah_kode;
-                $mataKuliah = Cache::remember($cacheKey, 3600, function () use ($conflict) {
-                    return \App\Models\MataKuliah::where('kode', $conflict->mata_kuliah_kode)->first(['kode', 'nama']);
-                });
-                $mataKuliahBentrok = $mataKuliah ? $mataKuliah->nama : 'N/A';
-            } else {
-                $mataKuliahBentrok = $conflict->mataKuliah->nama;
-            }
-            
-            // Tentukan jenis jadwal yang bentrok
-            $jenisJadwalBentrok = $conflict->jenis_baris === 'materi' ? 'Materi Kuliah' : ($conflict->jenis_baris === 'agenda' ? 'Agenda Khusus' : ($conflict->jenis_baris === 'seminar_proposal' ? 'Seminar Proposal' : 'Sidang Skripsi'));
-            $tanggalBentrok = $conflict->tanggal ? \Carbon\Carbon::parse($conflict->tanggal)->format('d/m/Y') : 'N/A';
-            $jamBentrok = $conflict->jam_mulai && $conflict->jam_selesai ? "{$conflict->jam_mulai} - {$conflict->jam_selesai}" : 'N/A';
-            
-            // Tentukan jenis bentrok berdasarkan kondisi yang sebenarnya menyebabkan bentrok
-            $bentrokTypes = [];
-            $conflictDetails = [];
-            
-            // Cek apakah bentrok karena dosen sama
-            if (isset($data['dosen_id']) && $data['dosen_id'] && $conflict->dosen_id == $data['dosen_id']) {
-                $bentrokTypes[] = 'dosen';
-                $conflictDetails[] = 'Dosen: ' . ($conflict->dosen ? $conflict->dosen->name : 'N/A');
-            }
-            
-            // Cek apakah bentrok karena pembimbing sama dengan dosen/pembimbing/komentator/penguji di jadwal lain (untuk Seminar Proposal dan Sidang Skripsi)
-            if (isset($data['pembimbing_id']) && $data['pembimbing_id']) {
-                if ($conflict->dosen_id == $data['pembimbing_id']) {
-                    $bentrokTypes[] = 'pembimbing';
-                    $pembimbing = User::find($data['pembimbing_id']);
-                    $conflictDetails[] = 'Pembimbing: ' . ($pembimbing ? $pembimbing->name : 'N/A') . ' (bentrok dengan dosen di jadwal lain)';
-                } elseif ($conflict->pembimbing_id == $data['pembimbing_id']) {
-                    $bentrokTypes[] = 'pembimbing';
-                    $pembimbing = User::find($data['pembimbing_id']);
-                    $conflictDetails[] = 'Pembimbing: ' . ($pembimbing ? $pembimbing->name : 'N/A');
-                } elseif ($conflict->komentator_ids && in_array($data['pembimbing_id'], $conflict->komentator_ids)) {
-                    $bentrokTypes[] = 'pembimbing';
-                    $pembimbing = User::find($data['pembimbing_id']);
-                    $conflictDetails[] = 'Pembimbing: ' . ($pembimbing ? $pembimbing->name : 'N/A') . ' (bentrok dengan komentator di jadwal lain)';
-                } elseif ($conflict->penguji_ids && in_array($data['pembimbing_id'], $conflict->penguji_ids)) {
-                    $bentrokTypes[] = 'pembimbing';
-                    $pembimbing = User::find($data['pembimbing_id']);
-                    $conflictDetails[] = 'Pembimbing: ' . ($pembimbing ? $pembimbing->name : 'N/A') . ' (bentrok dengan penguji di jadwal lain)';
-                }
-            }
-            
-            // Cek apakah bentrok karena komentator sama dengan dosen/pembimbing/komentator di jadwal lain (untuk Seminar Proposal)
-            if (isset($data['komentator_ids']) && !empty($data['komentator_ids'])) {
-                $overlapKomentator = [];
-                foreach ($data['komentator_ids'] as $komentatorId) {
-                    if ($conflict->dosen_id == $komentatorId) {
-                        $overlapKomentator[] = $komentatorId;
-                    } elseif ($conflict->pembimbing_id == $komentatorId) {
-                        $overlapKomentator[] = $komentatorId;
-                    } elseif ($conflict->komentator_ids && in_array($komentatorId, $conflict->komentator_ids)) {
-                        $overlapKomentator[] = $komentatorId;
-                    } elseif ($conflict->penguji_ids && in_array($komentatorId, $conflict->penguji_ids)) {
-                        $overlapKomentator[] = $komentatorId;
-                    }
-                }
-                if (!empty($overlapKomentator)) {
-                    $bentrokTypes[] = 'komentator';
-                    $komentatorNames = User::whereIn('id', $overlapKomentator)->pluck('name')->toArray();
-                    $conflictDetails[] = 'Komentator: ' . implode(', ', $komentatorNames);
-                }
-            }
-            
-            // Cek apakah bentrok karena penguji sama dengan dosen/pembimbing/komentator/penguji di jadwal lain (untuk Sidang Skripsi)
-            if (isset($data['penguji_ids']) && !empty($data['penguji_ids'])) {
-                $overlapPenguji = [];
-                foreach ($data['penguji_ids'] as $pengujiId) {
-                    if ($conflict->dosen_id == $pengujiId) {
-                        $overlapPenguji[] = $pengujiId;
-                    } elseif ($conflict->pembimbing_id == $pengujiId) {
-                        $overlapPenguji[] = $pengujiId;
-                    } elseif ($conflict->komentator_ids && in_array($pengujiId, $conflict->komentator_ids)) {
-                        $overlapPenguji[] = $pengujiId;
-                    } elseif ($conflict->penguji_ids && in_array($pengujiId, $conflict->penguji_ids)) {
-                        $overlapPenguji[] = $pengujiId;
-                    }
-                }
-                if (!empty($overlapPenguji)) {
-                    $bentrokTypes[] = 'penguji';
-                    $pengujiNames = User::whereIn('id', $overlapPenguji)->pluck('name')->toArray();
-                    $conflictDetails[] = 'Penguji: ' . implode(', ', $pengujiNames);
-                }
-            }
-            
-            // Cek apakah bentrok karena ruangan sama
-            if (isset($data['ruangan_id']) && $data['ruangan_id'] && $conflict->ruangan_id == $data['ruangan_id']) {
-                $bentrokTypes[] = 'ruangan';
-                $conflictDetails[] = 'Ruangan: ' . ($conflict->ruangan ? $conflict->ruangan->nama : 'N/A');
-            }
-            
-            // Cek apakah bentrok karena kelompok besar sama
-            if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id'] && $conflict->kelompok_besar_id == $data['kelompok_besar_id']) {
-                $bentrokTypes[] = 'kelompok besar';
-                // Untuk kelompok besar, tambahkan detail semester
-                $conflictDetails[] = 'Kelompok Besar: Semester ' . $conflict->kelompok_besar_id;
-            }
-            
-            // Cek apakah bentrok karena mahasiswa sama (untuk Seminar Proposal dan Sidang Skripsi)
-            if (isset($data['mahasiswa_nims']) && !empty($data['mahasiswa_nims']) && isset($data['jenis_baris']) && ($data['jenis_baris'] === 'seminar_proposal' || $data['jenis_baris'] === 'sidang_skripsi') && $conflict->mahasiswa_nims) {
-                $overlapNims = array_intersect($data['mahasiswa_nims'], $conflict->mahasiswa_nims);
-                if (!empty($overlapNims)) {
-                    $bentrokTypes[] = 'mahasiswa';
-                    // Ambil nama mahasiswa dari database berdasarkan NIM (bukan menampilkan NIM)
-                    $mahasiswaNames = \App\Models\User::where('role', 'mahasiswa')
-                        ->whereIn('nim', $overlapNims)
-                        ->pluck('name', 'nim')
-                        ->toArray();
-                    
-                    // Buat array nama mahasiswa (jika nama tidak ditemukan, gunakan NIM sebagai fallback)
-                    $mahasiswaNamesList = [];
-                    foreach ($overlapNims as $nim) {
-                        if (isset($mahasiswaNames[$nim])) {
-                            $mahasiswaNamesList[] = $mahasiswaNames[$nim];
-                        } else {
-                            $mahasiswaNamesList[] = $nim; // Fallback jika nama tidak ditemukan
-                        }
-                    }
-                    
-                    $conflictDetails[] = 'Mahasiswa: ' . implode(', ', $mahasiswaNamesList);
-                }
-            }
-            
-            $bentrokTypeStr = implode(', ', $bentrokTypes);
-            $conflictDetailsStr = !empty($conflictDetails) ? ' (' . implode(', ', $conflictDetails) . ')' : '';
-            
-            // Buat pesan error yang lebih informatif
-            // Untuk Agenda Khusus, prioritaskan menampilkan agenda daripada nama mata kuliah
-            // Untuk Materi Kuliah, prioritaskan menampilkan materi daripada nama mata kuliah
-            // Untuk Seminar Proposal, tampilkan sebagai Seminar Proposal
-            if ($conflict->jenis_baris === 'agenda' && $conflict->agenda) {
-                // Jika agenda ada, tampilkan agenda sebagai identitas utama
-                return "Jadwal bentrok dengan jadwal Agenda Khusus \"{$conflict->agenda}\" (Mata Kuliah: {$mataKuliahBentrok}) pada {$tanggalBentrok} jam {$jamBentrok}. Konflik pada: {$bentrokTypeStr}{$conflictDetailsStr}";
-            } elseif ($conflict->jenis_baris === 'materi' && $conflict->materi) {
-                // Jika materi ada, tampilkan materi sebagai identitas utama
-                return "Jadwal bentrok dengan jadwal Materi Kuliah \"{$conflict->materi}\" (Mata Kuliah: {$mataKuliahBentrok}) pada {$tanggalBentrok} jam {$jamBentrok}. Konflik pada: {$bentrokTypeStr}{$conflictDetailsStr}";
-            } elseif ($conflict->jenis_baris === 'seminar_proposal') {
-                // Untuk Seminar Proposal, tampilkan sebagai Seminar Proposal
-                return "Jadwal bentrok dengan jadwal Seminar Proposal (Mata Kuliah: {$mataKuliahBentrok}) pada {$tanggalBentrok} jam {$jamBentrok}. Konflik pada: {$bentrokTypeStr}{$conflictDetailsStr}";
-            } elseif ($conflict->jenis_baris === 'sidang_skripsi') {
-                // Untuk Sidang Skripsi, tampilkan sebagai Sidang Skripsi
-                return "Jadwal bentrok dengan jadwal Sidang Skripsi (Mata Kuliah: {$mataKuliahBentrok}) pada {$tanggalBentrok} jam {$jamBentrok}. Konflik pada: {$bentrokTypeStr}{$conflictDetailsStr}";
-            } else {
-                // Fallback: tampilkan nama mata kuliah
-                $agendaInfo = $conflict->jenis_baris === 'agenda' && $conflict->agenda ? " - {$conflict->agenda}" : '';
-                $materiInfo = $conflict->jenis_baris === 'materi' && $conflict->materi ? " - {$conflict->materi}" : '';
-                return "Jadwal bentrok dengan jadwal {$jenisJadwalBentrok} \"{$mataKuliahBentrok}\"{$agendaInfo}{$materiInfo} pada {$tanggalBentrok} jam {$jamBentrok}. Konflik pada: {$bentrokTypeStr}{$conflictDetailsStr}";
-            }
-        }
-
-        // Cek bentrok kelompok besar vs kelompok besar (dari JadwalKuliahBesar, JadwalAgendaKhusus di DetailBlok)
-        if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
-            $kelompokBesarVsKelompokBesarBentrok = $this->checkKelompokBesarVsKelompokBesarBentrokWithDetail($data, $semester);
-            if ($kelompokBesarVsKelompokBesarBentrok) {
-                return $kelompokBesarVsKelompokBesarBentrok;
-            }
-        }
-
-        // Cek bentrok kelompok besar vs kelompok kecil (dari JadwalPBL, JadwalJurnalReading)
-        if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
-            $kelompokBesarVsKelompokKecilBentrok = $this->checkKelompokBesarVsKelompokKecilBentrokWithDetail($data, $semester);
-            if ($kelompokBesarVsKelompokKecilBentrok) {
-                return $kelompokBesarVsKelompokKecilBentrok;
-            }
-        }
-
-        // Cek bentrok dosen dengan jadwal dari DetailBlok (selain hanya ruangan)
-        if (isset($data['dosen_id']) && $data['dosen_id']) {
-            $dosenBentrok = $this->checkDosenBentrokWithDetailBlok($data, $semester);
-            if ($dosenBentrok) {
-                return $dosenBentrok;
-            }
-        }
-
-        // Cek bentrok kelompok besar vs kelompok kecil (dari JadwalCSR di DetailNonBlokCSR)
-        if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
-            $kelompokBesarVsKelompokKecilCSRBentrok = $this->checkKelompokBesarVsKelompokKecilCSRBentrokWithDetail($data, $semester);
-            if ($kelompokBesarVsKelompokKecilCSRBentrok) {
-                return $kelompokBesarVsKelompokKecilCSRBentrok;
-            }
-        }
-
-        // Cek bentrok mahasiswa vs kelompok besar/kecil untuk Seminar Proposal dan Sidang Skripsi
-        if (isset($data['jenis_baris']) && ($data['jenis_baris'] === 'seminar_proposal' || $data['jenis_baris'] === 'sidang_skripsi') && isset($data['mahasiswa_nims']) && !empty($data['mahasiswa_nims'])) {
-            $mahasiswaBentrok = $this->checkMahasiswaBentrokWithKelompok($data, $semester);
-            if ($mahasiswaBentrok) {
-                return $mahasiswaBentrok;
-            }
-        }
-
-        // Cek bentrok pembimbing dan komentator untuk Seminar Proposal
-        if (isset($data['jenis_baris']) && $data['jenis_baris'] === 'seminar_proposal') {
-            if (isset($data['pembimbing_id']) && $data['pembimbing_id']) {
-                $pembimbingBentrok = $this->checkDosenBentrokWithDetailBlok(['dosen_id' => $data['pembimbing_id'], 'tanggal' => $data['tanggal'], 'jam_mulai' => $data['jam_mulai'], 'jam_selesai' => $data['jam_selesai']], $semester);
-                if ($pembimbingBentrok) {
-                    return "Pembimbing: " . $pembimbingBentrok;
-                }
-            }
-            if (isset($data['komentator_ids']) && !empty($data['komentator_ids'])) {
-                foreach ($data['komentator_ids'] as $komentatorId) {
-                    $komentatorBentrok = $this->checkDosenBentrokWithDetailBlok(['dosen_id' => $komentatorId, 'tanggal' => $data['tanggal'], 'jam_mulai' => $data['jam_mulai'], 'jam_selesai' => $data['jam_selesai']], $semester);
-                    if ($komentatorBentrok) {
-                        return "Komentator: " . $komentatorBentrok;
-                    }
-                }
-            }
-        }
-
-        // Cek bentrok pembimbing dan penguji untuk Sidang Skripsi
-        if (isset($data['jenis_baris']) && $data['jenis_baris'] === 'sidang_skripsi') {
-            if (isset($data['pembimbing_id']) && $data['pembimbing_id']) {
-                $pembimbingBentrok = $this->checkDosenBentrokWithDetailBlok(['dosen_id' => $data['pembimbing_id'], 'tanggal' => $data['tanggal'], 'jam_mulai' => $data['jam_mulai'], 'jam_selesai' => $data['jam_selesai']], $semester);
-                if ($pembimbingBentrok) {
-                    return "Pembimbing: " . $pembimbingBentrok;
-                }
-            }
-            if (isset($data['penguji_ids']) && !empty($data['penguji_ids'])) {
-                foreach ($data['penguji_ids'] as $pengujiId) {
-                    $pengujiBentrok = $this->checkDosenBentrokWithDetailBlok(['dosen_id' => $pengujiId, 'tanggal' => $data['tanggal'], 'jam_mulai' => $data['jam_mulai'], 'jam_selesai' => $data['jam_selesai']], $semester);
-                    if ($pengujiBentrok) {
-                        return "Penguji: " . $pengujiBentrok;
-                    }
-                }
-            }
-        }
-
-        // Cek bentrok dengan jadwal PBL (dengan filter semester) - cek ruangan dan dosen
-        $pblBentrok = null;
-        if (isset($data['ruangan_id']) && $data['ruangan_id']) {
-            $pblBentrok = \App\Models\JadwalPBL::with(['mataKuliah', 'ruangan', 'dosen'])
-                ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-        }
-
-        // Cek bentrok dengan jadwal Kuliah Besar (dengan filter semester) - cek ruangan dan dosen
-        $kuliahBesarBentrok = null;
-        if (isset($data['ruangan_id']) && $data['ruangan_id']) {
-            $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'ruangan', 'dosen'])
-                ->where('tanggal', $data['tanggal'])
-                ->whereHas('mataKuliah', function ($q) use ($semester) {
-                    if ($semester) {
-                        $q->where('semester', $semester);
-                    }
-                })
-                ->where('ruangan_id', $data['ruangan_id'])
-                ->where(function ($q) use ($data) {
-                    $q->where('jam_mulai', '<', $data['jam_selesai'])
-                        ->where('jam_selesai', '>', $data['jam_mulai']);
-                })
-                ->first();
-        }
-
-        // Cek bentrok dengan jadwal Agenda Khusus (dengan filter semester) - cek ruangan
-        $agendaKhususBentrok = null;
-        if (isset($data['ruangan_id']) && $data['ruangan_id']) {
-            $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::with(['mataKuliah', 'ruangan'])
-                ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-                })
-                ->first();
-        }
-
-        // Cek bentrok dengan jadwal Praktikum (dengan filter semester) - cek ruangan dan dosen
-        $praktikumBentrok = null;
-        if (isset($data['ruangan_id']) && $data['ruangan_id']) {
-            $praktikumBentrok = \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen'])
-                ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-                })
-                ->first();
-        }
-
-        // Cek bentrok dengan jadwal Jurnal Reading (dengan filter semester) - cek ruangan dan dosen
-        $jurnalBentrok = null;
-        if (isset($data['ruangan_id']) && $data['ruangan_id']) {
-            $jurnalBentrok = \App\Models\JadwalJurnalReading::with(['mataKuliah', 'ruangan', 'dosen'])
-                ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-                })
-                ->first();
-        }
-
-        // Cek bentrok dengan jadwal CSR (dengan filter semester) - cek ruangan dan dosen
-        $csrBentrok = null;
-        if (isset($data['ruangan_id']) && $data['ruangan_id']) {
-            $csrBentrok = \App\Models\JadwalCSR::with(['mataKuliah', 'ruangan', 'dosen'])
-                ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-                })
-                ->first();
-        }
-
-        // Kembalikan pesan error yang jelas untuk setiap jenis bentrok
-        if ($pblBentrok) {
-            $mataKuliahName = $pblBentrok->mataKuliah ? $pblBentrok->mataKuliah->nama : 'N/A';
-            $ruanganName = $pblBentrok->ruangan ? $pblBentrok->ruangan->nama : 'N/A';
-            $tanggalFormatted = $pblBentrok->tanggal ? \Carbon\Carbon::parse($pblBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $pblBentrok->jam_mulai && $pblBentrok->jam_selesai ? "{$pblBentrok->jam_mulai} - {$pblBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal PBL \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
-        }
-        
-        if ($kuliahBesarBentrok) {
-            $mataKuliahName = $kuliahBesarBentrok->mataKuliah ? $kuliahBesarBentrok->mataKuliah->nama : 'N/A';
-            $ruanganName = $kuliahBesarBentrok->ruangan ? $kuliahBesarBentrok->ruangan->nama : 'N/A';
-            $tanggalFormatted = $kuliahBesarBentrok->tanggal ? \Carbon\Carbon::parse($kuliahBesarBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $kuliahBesarBentrok->jam_mulai && $kuliahBesarBentrok->jam_selesai ? "{$kuliahBesarBentrok->jam_mulai} - {$kuliahBesarBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Kuliah Besar \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
-        }
-        
-        if ($agendaKhususBentrok) {
-            $mataKuliahName = $agendaKhususBentrok->mataKuliah ? $agendaKhususBentrok->mataKuliah->nama : 'N/A';
-            $ruanganName = $agendaKhususBentrok->ruangan ? $agendaKhususBentrok->ruangan->nama : 'N/A';
-            $tanggalFormatted = $agendaKhususBentrok->tanggal ? \Carbon\Carbon::parse($agendaKhususBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $agendaKhususBentrok->jam_mulai && $agendaKhususBentrok->jam_selesai ? "{$agendaKhususBentrok->jam_mulai} - {$agendaKhususBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Agenda Khusus \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
-        }
-        
-        if ($praktikumBentrok) {
-            $mataKuliahName = $praktikumBentrok->mataKuliah ? $praktikumBentrok->mataKuliah->nama : 'N/A';
-            $ruanganName = $praktikumBentrok->ruangan ? $praktikumBentrok->ruangan->nama : 'N/A';
-            $tanggalFormatted = $praktikumBentrok->tanggal ? \Carbon\Carbon::parse($praktikumBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $praktikumBentrok->jam_mulai && $praktikumBentrok->jam_selesai ? "{$praktikumBentrok->jam_mulai} - {$praktikumBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Praktikum \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
-        }
-        
-        if ($jurnalBentrok) {
-            $mataKuliahName = $jurnalBentrok->mataKuliah ? $jurnalBentrok->mataKuliah->nama : 'N/A';
-            $ruanganName = $jurnalBentrok->ruangan ? $jurnalBentrok->ruangan->nama : 'N/A';
-            $tanggalFormatted = $jurnalBentrok->tanggal ? \Carbon\Carbon::parse($jurnalBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $jurnalBentrok->jam_mulai && $jurnalBentrok->jam_selesai ? "{$jurnalBentrok->jam_mulai} - {$jurnalBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Jurnal Reading \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
-        }
-        
-        if ($csrBentrok) {
-            $mataKuliahName = $csrBentrok->mataKuliah ? $csrBentrok->mataKuliah->nama : 'N/A';
-            $ruanganName = $csrBentrok->ruangan ? $csrBentrok->ruangan->nama : 'N/A';
-            $tanggalFormatted = $csrBentrok->tanggal ? \Carbon\Carbon::parse($csrBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $csrBentrok->jam_mulai && $csrBentrok->jam_selesai ? "{$csrBentrok->jam_mulai} - {$csrBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal CSR \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
-        }
-
-        return null;
-    }
-
-    /**
-     * Cek bentrok kelompok besar vs kelompok besar (dari JadwalKuliahBesar, JadwalAgendaKhusus di DetailBlok)
-     */
-    private function checkKelompokBesarVsKelompokBesarBentrokWithDetail($data, $semester): ?string
-    {
-        if (!isset($data['kelompok_besar_id']) || !$data['kelompok_besar_id']) {
-            return null;
-        }
-
-        // Cek bentrok dengan jadwal Kuliah Besar yang menggunakan kelompok besar yang sama
-        $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::with(['mataKuliah'])
-            ->where('tanggal', $data['tanggal'])
-            ->where('kelompok_besar_id', $data['kelompok_besar_id'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($kuliahBesarBentrok) {
-            $mataKuliahName = $kuliahBesarBentrok->mataKuliah ? $kuliahBesarBentrok->mataKuliah->nama : 'N/A';
-            $tanggalFormatted = $kuliahBesarBentrok->tanggal ? \Carbon\Carbon::parse($kuliahBesarBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $kuliahBesarBentrok->jam_mulai && $kuliahBesarBentrok->jam_selesai ? "{$kuliahBesarBentrok->jam_mulai} - {$kuliahBesarBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Kuliah Besar \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: kelompok besar (Kelompok Besar: Semester {$data['kelompok_besar_id']})";
-        }
-
-        // Cek bentrok dengan jadwal Agenda Khusus yang menggunakan kelompok besar yang sama
-        $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::with(['mataKuliah'])
-            ->where('tanggal', $data['tanggal'])
-            ->where('kelompok_besar_id', $data['kelompok_besar_id'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($agendaKhususBentrok) {
-            // Pastikan relasi mataKuliah ter-load
-            if (!$agendaKhususBentrok->relationLoaded('mataKuliah')) {
-                $agendaKhususBentrok->load('mataKuliah');
-            }
-            
-            // Pastikan mataKuliah tidak null
-            if (!$agendaKhususBentrok->mataKuliah) {
-                // Jika relasi tidak ter-load, ambil langsung dari database
-                // Optimized: Use cache for mata kuliah lookup
-                $cacheKey = 'mata_kuliah_' . $agendaKhususBentrok->mata_kuliah_kode;
-                $mataKuliah = Cache::remember($cacheKey, 3600, function () use ($agendaKhususBentrok) {
-                    return \App\Models\MataKuliah::where('kode', $agendaKhususBentrok->mata_kuliah_kode)->first(['kode', 'nama']);
-                });
-                $mataKuliahName = $mataKuliah ? $mataKuliah->nama : 'N/A';
-            } else {
-                $mataKuliahName = $agendaKhususBentrok->mataKuliah->nama;
-            }
-            
-            $tanggalFormatted = $agendaKhususBentrok->tanggal ? \Carbon\Carbon::parse($agendaKhususBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $agendaKhususBentrok->jam_mulai && $agendaKhususBentrok->jam_selesai ? "{$agendaKhususBentrok->jam_mulai} - {$agendaKhususBentrok->jam_selesai}" : 'N/A';
-            $agendaInfo = $agendaKhususBentrok->agenda ? " - {$agendaKhususBentrok->agenda}" : '';
-            
-            return "Jadwal bentrok dengan jadwal Agenda Khusus \"{$mataKuliahName}\"{$agendaInfo} pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: kelompok besar (Kelompok Besar: Semester {$data['kelompok_besar_id']})";
-        }
-
-        return null;
-    }
-
-    /**
-     * Cek bentrok kelompok besar vs kelompok kecil (dari JadwalPBL, JadwalJurnalReading di DetailBlok)
-     */
-    private function checkKelompokBesarVsKelompokKecilBentrokWithDetail($data, $semester): ?string
-    {
-        if (!isset($data['kelompok_besar_id']) || !$data['kelompok_besar_id']) {
-            return null;
-        }
-
-        // Ambil mahasiswa dalam kelompok besar yang dipilih
-        $mahasiswaIds = \App\Models\KelompokBesar::where('semester', $data['kelompok_besar_id'])
-            ->pluck('mahasiswa_id')
-            ->toArray();
-
-        if (empty($mahasiswaIds)) {
-            return null;
-        }
-
-        // Cek bentrok dengan jadwal PBL yang menggunakan kelompok kecil dari mahasiswa yang sama
-        $pblBentrok = \App\Models\JadwalPBL::with(['mataKuliah', 'kelompokKecil'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->whereHas('kelompokKecil', function ($q) use ($mahasiswaIds) {
-                $q->whereIn('mahasiswa_id', $mahasiswaIds);
-            })
-            ->first();
-
-        if ($pblBentrok) {
-            $mataKuliahName = $pblBentrok->mataKuliah ? $pblBentrok->mataKuliah->nama : 'N/A';
-            $tanggalFormatted = $pblBentrok->tanggal ? \Carbon\Carbon::parse($pblBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $pblBentrok->jam_mulai && $pblBentrok->jam_selesai ? "{$pblBentrok->jam_mulai} - {$pblBentrok->jam_selesai}" : 'N/A';
-            $kelompokKecil = $pblBentrok->kelompokKecil ? $pblBentrok->kelompokKecil->first() : null;
-            $kelompokKecilName = $kelompokKecil ? $kelompokKecil->nama_kelompok : 'N/A';
-            return "Jadwal bentrok dengan jadwal PBL \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: kelompok besar vs kelompok kecil (Kelompok Besar: Semester {$data['kelompok_besar_id']}, Kelompok Kecil: {$kelompokKecilName})";
-        }
-
-        // Cek bentrok dengan jadwal Jurnal Reading yang menggunakan kelompok kecil dari mahasiswa yang sama
-        $jurnalBentrok = \App\Models\JadwalJurnalReading::with(['mataKuliah', 'kelompokKecil'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->whereHas('kelompokKecil', function ($q) use ($mahasiswaIds) {
-                $q->whereIn('mahasiswa_id', $mahasiswaIds);
-            })
-            ->first();
-
-        if ($jurnalBentrok) {
-            $mataKuliahName = $jurnalBentrok->mataKuliah ? $jurnalBentrok->mataKuliah->nama : 'N/A';
-            $tanggalFormatted = $jurnalBentrok->tanggal ? \Carbon\Carbon::parse($jurnalBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $jurnalBentrok->jam_mulai && $jurnalBentrok->jam_selesai ? "{$jurnalBentrok->jam_mulai} - {$jurnalBentrok->jam_selesai}" : 'N/A';
-            $kelompokKecil = $jurnalBentrok->kelompokKecil ? $jurnalBentrok->kelompokKecil->first() : null;
-            $kelompokKecilName = $kelompokKecil ? $kelompokKecil->nama_kelompok : 'N/A';
-            return "Jadwal bentrok dengan jadwal Jurnal Reading \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: kelompok besar vs kelompok kecil (Kelompok Besar: Semester {$data['kelompok_besar_id']}, Kelompok Kecil: {$kelompokKecilName})";
-        }
-
-        return null;
-    }
-
-    /**
-     * Cek bentrok dosen dengan jadwal dari DetailBlok (selain hanya ruangan)
-     */
-    private function checkDosenBentrokWithDetailBlok($data, $semester): ?string
-    {
-        if (!isset($data['dosen_id']) || !$data['dosen_id']) {
-            return null;
-        }
-
-        // Cek bentrok dengan jadwal PBL yang menggunakan dosen yang sama
-        $pblBentrok = \App\Models\JadwalPBL::with(['mataKuliah', 'dosen'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('dosen_id', $data['dosen_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($pblBentrok) {
-            $mataKuliahName = $pblBentrok->mataKuliah ? $pblBentrok->mataKuliah->nama : 'N/A';
-            $dosenName = $pblBentrok->dosen ? $pblBentrok->dosen->name : 'N/A';
-            $tanggalFormatted = $pblBentrok->tanggal ? \Carbon\Carbon::parse($pblBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $pblBentrok->jam_mulai && $pblBentrok->jam_selesai ? "{$pblBentrok->jam_mulai} - {$pblBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal PBL \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: dosen (Dosen: {$dosenName})";
-        }
-
-        // Cek bentrok dengan jadwal Kuliah Besar yang menggunakan dosen yang sama
-        $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'dosen'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('dosen_id', $data['dosen_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($kuliahBesarBentrok) {
-            $mataKuliahName = $kuliahBesarBentrok->mataKuliah ? $kuliahBesarBentrok->mataKuliah->nama : 'N/A';
-            $dosenName = $kuliahBesarBentrok->dosen ? $kuliahBesarBentrok->dosen->name : 'N/A';
-            $tanggalFormatted = $kuliahBesarBentrok->tanggal ? \Carbon\Carbon::parse($kuliahBesarBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $kuliahBesarBentrok->jam_mulai && $kuliahBesarBentrok->jam_selesai ? "{$kuliahBesarBentrok->jam_mulai} - {$kuliahBesarBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Kuliah Besar \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: dosen (Dosen: {$dosenName})";
-        }
-
-        // Cek bentrok dengan jadwal Praktikum yang menggunakan dosen yang sama
-        // Catatan: JadwalPraktikum menggunakan relasi many-to-many dengan dosen
-        $praktikumBentrok = \App\Models\JadwalPraktikum::with(['mataKuliah', 'dosen'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->whereHas('dosen', function ($q) use ($data) {
-                $q->where('users.id', $data['dosen_id']);
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($praktikumBentrok) {
-            $mataKuliahName = $praktikumBentrok->mataKuliah ? $praktikumBentrok->mataKuliah->nama : 'N/A';
-            // Karena relasi dosen adalah many-to-many, ambil dosen pertama yang terlibat
-            $dosenName = $praktikumBentrok->dosen && $praktikumBentrok->dosen->isNotEmpty() 
-                ? $praktikumBentrok->dosen->first()->name 
-                : 'N/A';
-            $tanggalFormatted = $praktikumBentrok->tanggal ? \Carbon\Carbon::parse($praktikumBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $praktikumBentrok->jam_mulai && $praktikumBentrok->jam_selesai ? "{$praktikumBentrok->jam_mulai} - {$praktikumBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Praktikum \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: dosen (Dosen: {$dosenName})";
-        }
-
-        // Cek bentrok dengan jadwal Jurnal Reading yang menggunakan dosen yang sama
-        $jurnalBentrok = \App\Models\JadwalJurnalReading::with(['mataKuliah', 'dosen'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('dosen_id', $data['dosen_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($jurnalBentrok) {
-            $mataKuliahName = $jurnalBentrok->mataKuliah ? $jurnalBentrok->mataKuliah->nama : 'N/A';
-            $dosenName = $jurnalBentrok->dosen ? $jurnalBentrok->dosen->name : 'N/A';
-            $tanggalFormatted = $jurnalBentrok->tanggal ? \Carbon\Carbon::parse($jurnalBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $jurnalBentrok->jam_mulai && $jurnalBentrok->jam_selesai ? "{$jurnalBentrok->jam_mulai} - {$jurnalBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal Jurnal Reading \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: dosen (Dosen: {$dosenName})";
-        }
-
-        // Cek bentrok dengan jadwal CSR yang menggunakan dosen yang sama
-        $csrBentrok = \App\Models\JadwalCSR::with(['mataKuliah', 'dosen'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where('dosen_id', $data['dosen_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($csrBentrok) {
-            $mataKuliahName = $csrBentrok->mataKuliah ? $csrBentrok->mataKuliah->nama : 'N/A';
-            $dosenName = $csrBentrok->dosen ? $csrBentrok->dosen->name : 'N/A';
-            $tanggalFormatted = $csrBentrok->tanggal ? \Carbon\Carbon::parse($csrBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $csrBentrok->jam_mulai && $csrBentrok->jam_selesai ? "{$csrBentrok->jam_mulai} - {$csrBentrok->jam_selesai}" : 'N/A';
-            return "Jadwal bentrok dengan jadwal CSR \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: dosen (Dosen: {$dosenName})";
-        }
-
-        return null;
-    }
-
-    /**
-     * Cek bentrok kelompok besar vs kelompok kecil (dari JadwalCSR di DetailNonBlokCSR)
-     */
-    private function checkKelompokBesarVsKelompokKecilCSRBentrokWithDetail($data, $semester): ?string
-    {
-        if (!isset($data['kelompok_besar_id']) || !$data['kelompok_besar_id']) {
-            return null;
-        }
-
-        // Ambil mahasiswa dalam kelompok besar yang dipilih
-        $mahasiswaIds = \App\Models\KelompokBesar::where('semester', $data['kelompok_besar_id'])
-            ->pluck('mahasiswa_id')
-            ->toArray();
-
-        if (empty($mahasiswaIds)) {
-            return null;
-        }
-
-        // Cek bentrok dengan jadwal CSR yang menggunakan kelompok kecil dari mahasiswa yang sama
-        $csrBentrok = \App\Models\JadwalCSR::with(['mataKuliah', 'kelompokKecil'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->whereHas('kelompokKecil', function ($q) use ($mahasiswaIds) {
-                $q->whereIn('mahasiswa_id', $mahasiswaIds);
-            })
-            ->first();
-
-        if ($csrBentrok) {
-            $mataKuliahName = $csrBentrok->mataKuliah ? $csrBentrok->mataKuliah->nama : 'N/A';
-            $tanggalFormatted = $csrBentrok->tanggal ? \Carbon\Carbon::parse($csrBentrok->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $csrBentrok->jam_mulai && $csrBentrok->jam_selesai ? "{$csrBentrok->jam_mulai} - {$csrBentrok->jam_selesai}" : 'N/A';
-            $kelompokKecil = $csrBentrok->kelompokKecil;
-            $kelompokKecilName = $kelompokKecil ? $kelompokKecil->nama_kelompok : 'N/A';
-            return "Jadwal bentrok dengan jadwal CSR \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: kelompok besar vs kelompok kecil (Kelompok Besar: Semester {$data['kelompok_besar_id']}, Kelompok Kecil: {$kelompokKecilName})";
-        }
-
-        return null;
-    }
-
-    private function checkKelompokBesarBentrok($data, $ignoreId = null)
-    {
-        if (!isset($data['kelompok_besar_id']) || !$data['kelompok_besar_id']) {
-            return false;
-        }
-
-        // Cek bentrok dengan jadwal yang menggunakan kelompok besar yang sama
-        $bentrok = JadwalNonBlokNonCSR::where('tanggal', $data['tanggal'])
-            ->where('kelompok_besar_id', $data['kelompok_besar_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            });
-
-        if ($ignoreId) {
-            $bentrok->where('id', '!=', $ignoreId);
-        }
-
-        return $bentrok->exists();
-    }
-
-    private function validateRuanganCapacity($ruanganId, $kelompokBesarId, $includeDosen = true)
-    {
-        // Optimized: Use cache for frequently accessed ruangan data
-        $cacheKey = 'ruangan_' . $ruanganId;
-        $ruangan = Cache::remember($cacheKey, 3600, function () use ($ruanganId) {
-            return \App\Models\Ruangan::find($ruanganId, ['id', 'nama', 'kapasitas']);
-        });
-        
-        if (!$ruangan) {
-            return "Data ruangan tidak ditemukan";
-        }
-
-        // kelompok_besar_id menyimpan semester, bukan ID kelompok besar
-        // Hitung jumlah mahasiswa di semester tersebut - optimized with cache
-        $cacheKeyMahasiswa = 'kelompok_besar_count_' . $kelompokBesarId;
-        $jumlahMahasiswa = Cache::remember($cacheKeyMahasiswa, 1800, function () use ($kelompokBesarId) {
-            return KelompokBesar::where('semester', $kelompokBesarId)->count();
-        });
-        
-        // Total peserta = jumlah mahasiswa + (1 dosen jika includeDosen = true)
-        $totalPeserta = $jumlahMahasiswa + ($includeDosen ? 1 : 0);
-
-        // Validasi kapasitas
-        if ($totalPeserta > $ruangan->kapasitas) {
-            if ($includeDosen) {
-                return "Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$totalPeserta} orang ({$jumlahMahasiswa} mahasiswa + 1 dosen).";
-            } else {
-                return "Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$totalPeserta} orang ({$jumlahMahasiswa} mahasiswa).";
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Cek apakah dua data bentrok (untuk validasi import)
-     * Konsisten dengan checkBentrokWithDetail: bentrok jika tanggal sama, jam overlap, DAN minimal salah satu dari:
-     * - dosen sama, ATAU
-     * - ruangan sama, ATAU
-     * - kelompok besar sama
-     * 
-     * @return array|null Array dengan informasi bentrok [dosen, ruangan, kelompok_besar] atau null jika tidak bentrok
-     */
-    private function isDataBentrok($data1, $data2): ?array
-    {
-        // Cek apakah tanggal sama
-        if ($data1['tanggal'] !== $data2['tanggal']) {
-            return null;
-        }
-
-        // Cek apakah jam bentrok
-        $jamMulai1 = $data1['jam_mulai'];
-        $jamSelesai1 = $data1['jam_selesai'];
-        $jamMulai2 = $data2['jam_mulai'];
-        $jamSelesai2 = $data2['jam_selesai'];
-
-        // Konversi jam ke format yang bisa dibandingkan
-        $jamMulai1Formatted = str_replace('.', ':', $jamMulai1);
-        $jamSelesai1Formatted = str_replace('.', ':', $jamSelesai1);
-        $jamMulai2Formatted = str_replace('.', ':', $jamMulai2);
-        $jamSelesai2Formatted = str_replace('.', ':', $jamSelesai2);
-
-        // Cek apakah jam bentrok
-        $jamBentrok = ($jamMulai1Formatted < $jamSelesai2Formatted && $jamSelesai1Formatted > $jamMulai2Formatted);
-
-        if (!$jamBentrok) {
-            return null;
-        }
-
-        // Cek bentrok dosen (untuk materi/agenda)
-        $dosenBentrok = false;
-        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] && $data2['dosen_id'] && $data1['dosen_id'] == $data2['dosen_id']) {
-            $dosenBentrok = true;
-        }
-
-        // Cek bentrok pembimbing dan komentator (untuk Seminar Proposal)
-        $pembimbingKomentatorBentrok = false;
-        
-        // Cek pembimbing data1 dengan pembimbing/komentator/dosen data2
-        if (isset($data1['pembimbing_id']) && $data1['pembimbing_id']) {
-            if (isset($data2['pembimbing_id']) && $data2['pembimbing_id'] && $data1['pembimbing_id'] == $data2['pembimbing_id']) {
-                $pembimbingKomentatorBentrok = true;
-            }
-            if (isset($data2['komentator_ids']) && is_array($data2['komentator_ids']) && in_array($data1['pembimbing_id'], $data2['komentator_ids'])) {
-                $pembimbingKomentatorBentrok = true;
-            }
-            if (isset($data2['penguji_ids']) && is_array($data2['penguji_ids']) && in_array($data1['pembimbing_id'], $data2['penguji_ids'])) {
-                $pembimbingKomentatorBentrok = true;
-            }
-            if (isset($data2['dosen_id']) && $data2['dosen_id'] && $data1['pembimbing_id'] == $data2['dosen_id']) {
-                $pembimbingKomentatorBentrok = true;
-            }
-        }
-        
-        // Cek komentator data1 dengan pembimbing/komentator/dosen data2
-        if (isset($data1['komentator_ids']) && is_array($data1['komentator_ids']) && !empty($data1['komentator_ids'])) {
-            foreach ($data1['komentator_ids'] as $komentatorId1) {
-                if (isset($data2['pembimbing_id']) && $data2['pembimbing_id'] && $komentatorId1 == $data2['pembimbing_id']) {
-                    $pembimbingKomentatorBentrok = true;
-                    break;
-                }
-                if (isset($data2['komentator_ids']) && is_array($data2['komentator_ids']) && in_array($komentatorId1, $data2['komentator_ids'])) {
-                    $pembimbingKomentatorBentrok = true;
-                    break;
-                }
-                if (isset($data2['penguji_ids']) && is_array($data2['penguji_ids']) && in_array($komentatorId1, $data2['penguji_ids'])) {
-                    $pembimbingKomentatorBentrok = true;
-                    break;
-                }
-                if (isset($data2['dosen_id']) && $data2['dosen_id'] && $komentatorId1 == $data2['dosen_id']) {
-                    $pembimbingKomentatorBentrok = true;
-                    break;
-                }
-            }
-        }
-        
-        // Cek bentrok pembimbing dan penguji (untuk Sidang Skripsi)
-        $pembimbingPengujiBentrok = false;
-        
-        // Cek pembimbing data1 dengan pembimbing/penguji/dosen data2
-        if (isset($data1['pembimbing_id']) && $data1['pembimbing_id']) {
-            if (isset($data2['pembimbing_id']) && $data2['pembimbing_id'] && $data1['pembimbing_id'] == $data2['pembimbing_id']) {
-                $pembimbingPengujiBentrok = true;
-            }
-            if (isset($data2['penguji_ids']) && is_array($data2['penguji_ids']) && in_array($data1['pembimbing_id'], $data2['penguji_ids'])) {
-                $pembimbingPengujiBentrok = true;
-            }
-            if (isset($data2['komentator_ids']) && is_array($data2['komentator_ids']) && in_array($data1['pembimbing_id'], $data2['komentator_ids'])) {
-                $pembimbingPengujiBentrok = true;
-            }
-            if (isset($data2['dosen_id']) && $data2['dosen_id'] && $data1['pembimbing_id'] == $data2['dosen_id']) {
-                $pembimbingPengujiBentrok = true;
-            }
-        }
-        
-        // Cek penguji data1 dengan pembimbing/penguji/dosen data2
-        if (isset($data1['penguji_ids']) && is_array($data1['penguji_ids']) && !empty($data1['penguji_ids'])) {
-            foreach ($data1['penguji_ids'] as $pengujiId1) {
-                if (isset($data2['pembimbing_id']) && $data2['pembimbing_id'] && $pengujiId1 == $data2['pembimbing_id']) {
-                    $pembimbingPengujiBentrok = true;
-                    break;
-                }
-                if (isset($data2['penguji_ids']) && is_array($data2['penguji_ids']) && in_array($pengujiId1, $data2['penguji_ids'])) {
-                    $pembimbingPengujiBentrok = true;
-                    break;
-                }
-                if (isset($data2['komentator_ids']) && is_array($data2['komentator_ids']) && in_array($pengujiId1, $data2['komentator_ids'])) {
-                    $pembimbingPengujiBentrok = true;
-                    break;
-                }
-                if (isset($data2['dosen_id']) && $data2['dosen_id'] && $pengujiId1 == $data2['dosen_id']) {
-                    $pembimbingPengujiBentrok = true;
-                    break;
-                }
-            }
-        }
-        
-        // Cek pembimbing data2 dengan komentator/dosen data1 (untuk kasus sebaliknya)
-        if (isset($data2['pembimbing_id']) && $data2['pembimbing_id']) {
-            if (isset($data1['komentator_ids']) && is_array($data1['komentator_ids']) && in_array($data2['pembimbing_id'], $data1['komentator_ids'])) {
-                $pembimbingKomentatorBentrok = true;
-            }
-            if (isset($data1['dosen_id']) && $data1['dosen_id'] && $data2['pembimbing_id'] == $data1['dosen_id']) {
-                $pembimbingKomentatorBentrok = true;
-            }
-        }
-
-        // Cek bentrok mahasiswa (untuk Seminar Proposal dan Sidang Skripsi)
-        $mahasiswaBentrok = false;
-        if (isset($data1['mahasiswa_nims']) && isset($data2['mahasiswa_nims']) && 
-            is_array($data1['mahasiswa_nims']) && is_array($data2['mahasiswa_nims']) &&
-            !empty($data1['mahasiswa_nims']) && !empty($data2['mahasiswa_nims'])) {
-            // Cek apakah ada mahasiswa yang sama di kedua data
-            $intersection = array_intersect($data1['mahasiswa_nims'], $data2['mahasiswa_nims']);
-            if (!empty($intersection)) {
-                $mahasiswaBentrok = true;
-            }
-        }
-
-        // Cek bentrok ruangan
-        $ruanganBentrok = false;
-        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] && $data2['ruangan_id'] && $data1['ruangan_id'] == $data2['ruangan_id']) {
-            $ruanganBentrok = true;
-        }
-
-        // Cek bentrok kelompok besar (konsisten dengan checkBentrokWithDetail)
-        $kelompokBesarBentrok = false;
-        if (isset($data1['kelompok_besar_id']) && isset($data2['kelompok_besar_id']) && $data1['kelompok_besar_id'] && $data2['kelompok_besar_id'] && $data1['kelompok_besar_id'] == $data2['kelompok_besar_id']) {
-            $kelompokBesarBentrok = true;
-        }
-
-        // Return null jika tidak ada yang bentrok
-        if (!$dosenBentrok && !$pembimbingKomentatorBentrok && !$pembimbingPengujiBentrok && !$mahasiswaBentrok && !$ruanganBentrok && !$kelompokBesarBentrok) {
-            return null;
-        }
-
-        // Return array dengan informasi bentrok
-        return [
-            'dosen' => $dosenBentrok,
-            'pembimbing_komentator' => $pembimbingKomentatorBentrok,
-            'pembimbing_penguji' => $pembimbingPengujiBentrok,
-            'mahasiswa' => $mahasiswaBentrok,
-            'ruangan' => $ruanganBentrok,
-            'kelompok_besar' => $kelompokBesarBentrok
-        ];
     }
 
     // Get jadwal Non Blok Non CSR for mahasiswa
@@ -3488,261 +2135,5 @@ class JadwalNonBlokNonCSRController extends Controller
             // Silently fail
 
         }
-    }
-
-    /**
-     * Cek bentrok mahasiswa (dari Seminar Proposal) vs kelompok besar/kecil di jadwal lain
-     */
-    private function checkMahasiswaBentrokWithKelompok($data, $semester): ?string
-    {
-        if (!isset($data['mahasiswa_nims']) || empty($data['mahasiswa_nims'])) {
-            return null;
-        }
-
-        $mahasiswaNims = $data['mahasiswa_nims'];
-        
-        // Ambil mahasiswa_id dari NIM
-        $mahasiswaIds = User::whereIn('nim', $mahasiswaNims)
-            ->where('role', 'mahasiswa')
-            ->pluck('id')
-            ->toArray();
-
-        if (empty($mahasiswaIds)) {
-            return null;
-        }
-
-        // Cek bentrok dengan jadwal yang menggunakan kelompok besar
-        // (JadwalKuliahBesar, JadwalAgendaKhusus dari DetailBlok, JadwalNonBlokNonCSR dari DetailNonBlokNonCSR)
-        $kelompokBesarSemesters = KelompokBesar::whereIn('mahasiswa_id', $mahasiswaIds)
-            ->where('semester', $semester)
-            ->pluck('semester')
-            ->unique()
-            ->toArray();
-
-        if (!empty($kelompokBesarSemesters)) {
-            foreach ($kelompokBesarSemesters as $semesterConflict) {
-                // Cek apakah ada jadwal Kuliah Besar yang menggunakan kelompok besar ini pada waktu yang sama
-                $jadwalKuliahBesar = \App\Models\JadwalKuliahBesar::with(['mataKuliah'])
-                    ->where('tanggal', $data['tanggal'])
-                    ->where('kelompok_besar_id', $semesterConflict)
-                    ->whereHas('mataKuliah', function ($q) use ($semester) {
-                        if ($semester) {
-                            $q->where('semester', $semester);
-                        }
-                    })
-                    ->where(function ($q) use ($data) {
-                        $q->where('jam_mulai', '<', $data['jam_selesai'])
-                            ->where('jam_selesai', '>', $data['jam_mulai']);
-                    })
-                    ->first();
-
-                if ($jadwalKuliahBesar) {
-                    // Ambil mahasiswa yang bentrok (yang ada di kelompok besar dan juga di mahasiswa_nims)
-                    $mahasiswaBentrok = KelompokBesar::where('semester', $semesterConflict)
-                        ->whereIn('mahasiswa_id', $mahasiswaIds)
-                        ->with('mahasiswa')
-                        ->get()
-                        ->map(function ($kb) {
-                            return $kb->mahasiswa ? $kb->mahasiswa->name : 'N/A';
-                        })
-                        ->toArray();
-                    
-                    $mataKuliahName = $jadwalKuliahBesar->mataKuliah ? $jadwalKuliahBesar->mataKuliah->nama : 'N/A';
-                    $tanggalFormatted = $jadwalKuliahBesar->tanggal ? \Carbon\Carbon::parse($jadwalKuliahBesar->tanggal)->format('d/m/Y') : 'N/A';
-                    $jamFormatted = $jadwalKuliahBesar->jam_mulai && $jadwalKuliahBesar->jam_selesai ? "{$jadwalKuliahBesar->jam_mulai} - {$jadwalKuliahBesar->jam_selesai}" : 'N/A';
-                    $mahasiswaList = !empty($mahasiswaBentrok) ? implode(', ', $mahasiswaBentrok) : 'N/A';
-                    return "Jadwal bentrok dengan jadwal Kuliah Besar \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: mahasiswa (Mahasiswa: {$mahasiswaList} terdaftar di Kelompok Besar Semester {$semesterConflict})";
-                }
-
-                // Cek apakah ada jadwal Agenda Khusus yang menggunakan kelompok besar ini pada waktu yang sama
-                $jadwalAgendaKhusus = \App\Models\JadwalAgendaKhusus::with(['mataKuliah'])
-                    ->where('tanggal', $data['tanggal'])
-                    ->where('kelompok_besar_id', $semesterConflict)
-                    ->whereHas('mataKuliah', function ($q) use ($semester) {
-                        if ($semester) {
-                            $q->where('semester', $semester);
-                        }
-                    })
-                    ->where(function ($q) use ($data) {
-                        $q->where('jam_mulai', '<', $data['jam_selesai'])
-                            ->where('jam_selesai', '>', $data['jam_mulai']);
-                    })
-                    ->first();
-
-                if ($jadwalAgendaKhusus) {
-                    // Ambil mahasiswa yang bentrok (yang ada di kelompok besar dan juga di mahasiswa_nims)
-                    $mahasiswaBentrok = KelompokBesar::where('semester', $semesterConflict)
-                        ->whereIn('mahasiswa_id', $mahasiswaIds)
-                        ->with('mahasiswa')
-                        ->get()
-                        ->map(function ($kb) {
-                            return $kb->mahasiswa ? $kb->mahasiswa->name : 'N/A';
-                        })
-                        ->toArray();
-                    
-                    $mataKuliahName = $jadwalAgendaKhusus->mataKuliah ? $jadwalAgendaKhusus->mataKuliah->nama : 'N/A';
-                    $agendaName = $jadwalAgendaKhusus->agenda ? $jadwalAgendaKhusus->agenda : 'N/A';
-                    $tanggalFormatted = $jadwalAgendaKhusus->tanggal ? \Carbon\Carbon::parse($jadwalAgendaKhusus->tanggal)->format('d/m/Y') : 'N/A';
-                    $jamFormatted = $jadwalAgendaKhusus->jam_mulai && $jadwalAgendaKhusus->jam_selesai ? "{$jadwalAgendaKhusus->jam_mulai} - {$jadwalAgendaKhusus->jam_selesai}" : 'N/A';
-                    $mahasiswaList = !empty($mahasiswaBentrok) ? implode(', ', $mahasiswaBentrok) : 'N/A';
-                    return "Jadwal bentrok dengan jadwal Agenda Khusus \"{$agendaName}\" (Mata Kuliah: {$mataKuliahName}) pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: mahasiswa (Mahasiswa: {$mahasiswaList} terdaftar di Kelompok Besar Semester {$semesterConflict})";
-                }
-
-                // Cek apakah ada jadwal Non Blok Non CSR (Materi Kuliah atau Agenda Khusus) yang menggunakan kelompok besar ini pada waktu yang sama
-                $jadwalNonBlokNonCSR = JadwalNonBlokNonCSR::with(['mataKuliah'])
-                    ->where('tanggal', $data['tanggal'])
-                    ->where('kelompok_besar_id', $semesterConflict)
-                    ->whereIn('jenis_baris', ['materi', 'agenda'])
-                    ->whereHas('mataKuliah', function ($q) use ($semester) {
-                        if ($semester) {
-                            $q->where('semester', $semester);
-                        }
-                    })
-                    ->where(function ($q) use ($data) {
-                        $q->where('jam_mulai', '<', $data['jam_selesai'])
-                            ->where('jam_selesai', '>', $data['jam_mulai']);
-                    })
-                    ->first();
-
-                if ($jadwalNonBlokNonCSR) {
-                    // Ambil mahasiswa yang bentrok (yang ada di kelompok besar dan juga di mahasiswa_nims)
-                    $mahasiswaBentrok = KelompokBesar::where('semester', $semesterConflict)
-                        ->whereIn('mahasiswa_id', $mahasiswaIds)
-                        ->with('mahasiswa')
-                        ->get()
-                        ->map(function ($kb) {
-                            return $kb->mahasiswa ? $kb->mahasiswa->name : 'N/A';
-                        })
-                        ->toArray();
-                    
-                    $mataKuliahName = $jadwalNonBlokNonCSR->mataKuliah ? $jadwalNonBlokNonCSR->mataKuliah->nama : 'N/A';
-                    $jenisJadwal = $jadwalNonBlokNonCSR->jenis_baris === 'materi' ? 'Materi Kuliah' : 'Agenda Khusus';
-                    $materiOrAgenda = $jadwalNonBlokNonCSR->jenis_baris === 'materi' ? ($jadwalNonBlokNonCSR->materi ?: 'N/A') : ($jadwalNonBlokNonCSR->agenda ?: 'N/A');
-                    $tanggalFormatted = $jadwalNonBlokNonCSR->tanggal ? \Carbon\Carbon::parse($jadwalNonBlokNonCSR->tanggal)->format('d/m/Y') : 'N/A';
-                    $jamFormatted = $jadwalNonBlokNonCSR->jam_mulai && $jadwalNonBlokNonCSR->jam_selesai ? "{$jadwalNonBlokNonCSR->jam_mulai} - {$jadwalNonBlokNonCSR->jam_selesai}" : 'N/A';
-                    $mahasiswaList = !empty($mahasiswaBentrok) ? implode(', ', $mahasiswaBentrok) : 'N/A';
-                    return "Jadwal bentrok dengan jadwal {$jenisJadwal} \"{$materiOrAgenda}\" (Mata Kuliah: {$mataKuliahName}) pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: mahasiswa (Mahasiswa: {$mahasiswaList} terdaftar di Kelompok Besar Semester {$semesterConflict})";
-                }
-            }
-        }
-
-        // Cek bentrok dengan jadwal yang menggunakan kelompok kecil
-        // (JadwalPBL, JadwalJurnalReading dari DetailBlok)
-        $kelompokKecilIds = \App\Models\KelompokKecil::whereHas('mahasiswa', function ($q) use ($mahasiswaIds) {
-            $q->whereIn('id', $mahasiswaIds);
-        })->pluck('id')->toArray();
-
-        if (!empty($kelompokKecilIds)) {
-            $jadwalPBL = \App\Models\JadwalPBL::with(['mataKuliah'])
-                ->where('tanggal', $data['tanggal'])
-                ->whereIn('kelompok_kecil_id', $kelompokKecilIds)
-                ->whereHas('mataKuliah', function ($q) use ($semester) {
-                    if ($semester) {
-                        $q->where('semester', $semester);
-                    }
-                })
-                ->where(function ($q) use ($data) {
-                    $q->where('jam_mulai', '<', $data['jam_selesai'])
-                        ->where('jam_selesai', '>', $data['jam_mulai']);
-                })
-                ->first();
-
-            if ($jadwalPBL) {
-                // Ambil mahasiswa yang bentrok (yang ada di kelompok kecil dan juga di mahasiswa_nims)
-                $mahasiswaBentrok = \App\Models\KelompokKecil::whereIn('id', $kelompokKecilIds)
-                    ->whereIn('mahasiswa_id', $mahasiswaIds)
-                    ->with('mahasiswa')
-                    ->get()
-                    ->map(function ($kk) {
-                        return $kk->mahasiswa ? $kk->mahasiswa->name : 'N/A';
-                    })
-                    ->unique()
-                    ->toArray();
-                
-                $mataKuliahName = $jadwalPBL->mataKuliah ? $jadwalPBL->mataKuliah->nama : 'N/A';
-                $tanggalFormatted = $jadwalPBL->tanggal ? \Carbon\Carbon::parse($jadwalPBL->tanggal)->format('d/m/Y') : 'N/A';
-                $jamFormatted = $jadwalPBL->jam_mulai && $jadwalPBL->jam_selesai ? "{$jadwalPBL->jam_mulai} - {$jadwalPBL->jam_selesai}" : 'N/A';
-                $mahasiswaList = !empty($mahasiswaBentrok) ? implode(', ', $mahasiswaBentrok) : 'N/A';
-                $kelompokKecilInfo = $jadwalPBL->kelompokKecil ? "Kelompok Kecil ID: {$jadwalPBL->kelompok_kecil_id}" : 'Kelompok Kecil';
-                return "Jadwal bentrok dengan jadwal PBL \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: mahasiswa (Mahasiswa: {$mahasiswaList} terdaftar di {$kelompokKecilInfo})";
-            }
-
-            $jadwalJurnal = \App\Models\JadwalJurnalReading::with(['mataKuliah'])
-                ->where('tanggal', $data['tanggal'])
-                ->whereIn('kelompok_kecil_id', $kelompokKecilIds)
-                ->whereHas('mataKuliah', function ($q) use ($semester) {
-                    if ($semester) {
-                        $q->where('semester', $semester);
-                    }
-                })
-                ->where(function ($q) use ($data) {
-                    $q->where('jam_mulai', '<', $data['jam_selesai'])
-                        ->where('jam_selesai', '>', $data['jam_mulai']);
-                })
-                ->first();
-
-            if ($jadwalJurnal) {
-                // Ambil mahasiswa yang bentrok (yang ada di kelompok kecil dan juga di mahasiswa_nims)
-                $mahasiswaBentrok = \App\Models\KelompokKecil::whereIn('id', $kelompokKecilIds)
-                    ->whereIn('mahasiswa_id', $mahasiswaIds)
-                    ->with('mahasiswa')
-                    ->get()
-                    ->map(function ($kk) {
-                        return $kk->mahasiswa ? $kk->mahasiswa->name : 'N/A';
-                    })
-                    ->unique()
-                    ->toArray();
-                
-                $mataKuliahName = $jadwalJurnal->mataKuliah ? $jadwalJurnal->mataKuliah->nama : 'N/A';
-                $tanggalFormatted = $jadwalJurnal->tanggal ? \Carbon\Carbon::parse($jadwalJurnal->tanggal)->format('d/m/Y') : 'N/A';
-                $jamFormatted = $jadwalJurnal->jam_mulai && $jadwalJurnal->jam_selesai ? "{$jadwalJurnal->jam_mulai} - {$jadwalJurnal->jam_selesai}" : 'N/A';
-                $mahasiswaList = !empty($mahasiswaBentrok) ? implode(', ', $mahasiswaBentrok) : 'N/A';
-                $kelompokKecilInfo = $jadwalJurnal->kelompokKecil ? "Kelompok Kecil ID: {$jadwalJurnal->kelompok_kecil_id}" : 'Kelompok Kecil';
-                return "Jadwal bentrok dengan jadwal Jurnal Reading \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: mahasiswa (Mahasiswa: {$mahasiswaList} terdaftar di {$kelompokKecilInfo})";
-            }
-        }
-
-        // Cek bentrok dengan jadwal CSR (dari DetailNonBlokCSR)
-        $jadwalCSR = \App\Models\JadwalCSR::with(['mataKuliah'])
-            ->where('tanggal', $data['tanggal'])
-            ->whereHas('mataKuliah', function ($q) use ($semester) {
-                if ($semester) {
-                    $q->where('semester', $semester);
-                }
-            })
-            ->whereHas('kelompokKecil', function ($q) use ($mahasiswaIds) {
-                $q->whereHas('mahasiswa', function ($subQ) use ($mahasiswaIds) {
-                    $subQ->whereIn('id', $mahasiswaIds);
-                });
-            })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
-            })
-            ->first();
-
-        if ($jadwalCSR) {
-            // Ambil mahasiswa yang bentrok (yang ada di kelompok kecil dan juga di mahasiswa_nims)
-            $kelompokKecilCSR = $jadwalCSR->kelompokKecil;
-            $mahasiswaBentrok = [];
-            // Karena CSR menggunakan relasi many-to-many, kita perlu ambil semua mahasiswa dari kelompok kecil yang terkait
-            if ($kelompokKecilCSR) {
-                $kelompokKecilCSR->load('mahasiswa');
-                foreach ($kelompokKecilCSR->mahasiswa as $mahasiswa) {
-                    if (in_array($mahasiswa->id, $mahasiswaIds)) {
-                        $mahasiswaBentrok[] = $mahasiswa->name;
-                    }
-                }
-            }
-            
-            $mataKuliahName = $jadwalCSR->mataKuliah ? $jadwalCSR->mataKuliah->nama : 'N/A';
-            $tanggalFormatted = $jadwalCSR->tanggal ? \Carbon\Carbon::parse($jadwalCSR->tanggal)->format('d/m/Y') : 'N/A';
-            $jamFormatted = $jadwalCSR->jam_mulai && $jadwalCSR->jam_selesai ? "{$jadwalCSR->jam_mulai} - {$jadwalCSR->jam_selesai}" : 'N/A';
-            $mahasiswaList = !empty($mahasiswaBentrok) ? implode(', ', $mahasiswaBentrok) : 'N/A';
-            $kelompokKecilInfo = $kelompokKecilCSR ? "Kelompok Kecil ID: {$jadwalCSR->kelompok_kecil_id}" : 'Kelompok Kecil';
-            return "Jadwal bentrok dengan jadwal CSR \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: mahasiswa (Mahasiswa: {$mahasiswaList} terdaftar di {$kelompokKecilInfo})";
-        }
-
-        return null;
     }
 }
