@@ -25,6 +25,9 @@ export interface Mahasiswa {
   veteran_status?: string;
   semester_saat_lulus?: number;
   veteran_semester_count?: number;
+  veteran_completed_at?: string;
+  veteran_duration_months?: number;
+  veteran_total_semesters?: number;
   veteranSetBy?: {
     id: number;
     name: string;

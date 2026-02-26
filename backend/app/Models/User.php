@@ -59,6 +59,9 @@ class User extends Authenticatable
         'veteran_semesters',
         'veteran_history',
         'veteran_status',
+        'veteran_completed_at',
+        'veteran_duration_months',
+        'veteran_total_semesters',
         // WhatsApp fields untuk Wablas
         'whatsapp_phone',
         'whatsapp_email',
@@ -95,6 +98,7 @@ class User extends Authenticatable
             'veteran_semesters' => 'array',
             'veteran_history' => 'array',
             'veteran_set_at' => 'datetime',
+            'veteran_completed_at' => 'datetime',
             // WhatsApp fields casts
             'whatsapp_birth_day' => 'date',
             'wablas_synced_at' => 'datetime',

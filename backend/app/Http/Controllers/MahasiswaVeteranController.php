@@ -20,7 +20,8 @@ class MahasiswaVeteranController extends Controller
                     ->with('veteranSetBy:id,name')
                     ->select([
                         'id', 'name', 'nim', 'gender', 'ipk', 'status', 'angkatan', 'semester',
-                        'is_veteran', 'is_multi_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester', 'veteran_semesters', 'veteran_status'
+                        'is_veteran', 'is_multi_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester', 'veteran_semesters', 'veteran_status',
+                        'veteran_completed_at', 'veteran_duration_months', 'veteran_total_semesters'
                     ]);
 
             // Filter by veteran status
@@ -134,12 +135,27 @@ class MahasiswaVeteranController extends Controller
 
                 // Handle hapus veteran status
                 if ($user->veteran_status === 'aktif') {
-                    // Jika veteran yang dihapus
+                    // Jika veteran aktif yang dihapus (selesai veteran)
+                    $completionDate = now();
+                    $durationMonths = $user->veteran_set_at ? 
+                        $completionDate->diffInMonths($user->veteran_set_at) : 0;
+                    
                     $user->status = 'lulus';
                     $user->veteran_status = 'non_veteran';
+                    $user->veteran_completed_at = $completionDate;
+                    $user->veteran_duration_months = $durationMonths;
+                    $user->veteran_total_semesters = $user->veteran_semester_count ?? 0;
                     
                     // Semester saat lulus adalah semester veteran terakhir
                     $user->semester = $user->semester; // Tetap semester veteran terakhir
+                } elseif ($user->veteran_status === 'pre_veteran') {
+                    // Jika pre-veteran yang dihapus, kembali ke mahasiswa normal
+                    $user->veteran_status = 'non_veteran';
+                    // Reset completion tracking (karena belum veteran aktif)
+                    $user->veteran_completed_at = null;
+                    $user->veteran_duration_months = null;
+                    $user->veteran_total_semesters = null;
+                    // Status tetap aktif, semester tetap (karena belum veteran aktif)
                 }
 
                 // Hapus veteran_semesters (status aktif)
@@ -151,7 +167,8 @@ class MahasiswaVeteranController extends Controller
                     'semester' => null,
                     'active' => false,
                     'created_at' => now()->toISOString(),
-                    'action' => 'remove_veteran'
+                    'action' => 'remove_veteran',
+                    'previous_status' => $user->veteran_status === 'pre_veteran' ? 'pre_veteran' : 'aktif'
                 ];
                 $user->veteran_history = $history;
             }
@@ -164,7 +181,8 @@ class MahasiswaVeteranController extends Controller
                 ->withProperties([
                     'is_veteran' => $request->is_veteran,
                     'veteran_notes' => $request->veteran_notes,
-                    'veteran_semester' => $request->veteran_semester ?? null
+                    'veteran_semester' => $request->veteran_semester ?? null,
+                    'previous_veteran_status' => $user->veteran_status
                 ])
                 ->log($request->is_veteran ? 'Mahasiswa ditetapkan sebagai veteran' : 'Status veteran mahasiswa dihapus');
 

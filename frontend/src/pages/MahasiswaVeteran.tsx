@@ -715,6 +715,17 @@ const MahasiswaVeteran: React.FC = () => {
                       </span>
                     </div>
                   )}
+                  
+                  {/* Veteran Completion Info */}
+                  {mahasiswa.veteran_completed_at && (
+                    <div className="mt-1 mb-2">
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        🎓 Selesai: {new Date(mahasiswa.veteran_completed_at).toLocaleDateString('id-ID')}
+                        {mahasiswa.veteran_duration_months && ` • ${mahasiswa.veteran_duration_months} bulan`}
+                        {mahasiswa.veteran_total_semesters && ` • ${mahasiswa.veteran_total_semesters} semester`}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                       {mahasiswa.angkatan}
@@ -753,17 +764,28 @@ const MahasiswaVeteran: React.FC = () => {
                         handleToggleVeteran(mahasiswa);
                       }}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 ${mahasiswa.is_veteran
-                          ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-md'
+                          ? (mahasiswa.veteran_status === 'aktif' 
+                              ? 'bg-green-500 text-white hover:bg-green-600 hover:shadow-md'
+                              : 'bg-red-500 text-white hover:bg-red-600 hover:shadow-md')
                           : 'bg-green-500 text-white hover:bg-green-600 hover:shadow-md'
                         }`}
                     >
                       {mahasiswa.is_veteran ? (
-                        <>
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Hapus
-                        </>
+                        mahasiswa.veteran_status === 'aktif' ? (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Selesai
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Batal
+                          </>
+                        )
                       ) : (
                         <>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -985,20 +1007,28 @@ const MahasiswaVeteran: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
-                    {selectedMahasiswa.is_veteran ? 'Hapus Status Veteran' : 'Set sebagai Veteran'}
+                    {selectedMahasiswa.is_veteran ? (
+                      selectedMahasiswa.veteran_status === 'aktif' ? 'Selesaikan Veteran' : 'Batalkan Veteran'
+                    ) : 'Set sebagai Veteran'}
                   </h2>
                 </div>
 
                 <div className="mb-6">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${selectedMahasiswa.is_veteran
-                        ? 'bg-red-100 dark:bg-red-900/20'
+                        ? (selectedMahasiswa.veteran_status === 'aktif' ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20')
                         : 'bg-green-100 dark:bg-green-900/20'
                       }`}>
                       {selectedMahasiswa.is_veteran ? (
-                        <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        selectedMahasiswa.veteran_status === 'aktif' ? (
+                          <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        )
                       ) : (
                         <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1020,7 +1050,9 @@ const MahasiswaVeteran: React.FC = () => {
                     <textarea
                       value={veteranNotes}
                       onChange={(e) => setVeteranNotes(e.target.value)}
-                      placeholder="Masukkan catatan mengapa mahasiswa ditetapkan sebagai veteran..."
+                      placeholder={`Masukkan catatan mengapa mahasiswa ${selectedMahasiswa.is_veteran ? (
+                        selectedMahasiswa.veteran_status === 'aktif' ? 'akan diselesaikan veteran-nya' : 'akan dibatalkan veteran-nya'
+                      ) : 'akan ditetapkan sebagai veteran'}...`}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-800 dark:text-white transition-colors resize-none"
                       rows={3}
                     />
@@ -1039,7 +1071,7 @@ const MahasiswaVeteran: React.FC = () => {
                     onClick={confirmToggleVeteran}
                     disabled={isToggling}
                     className={`px-3 sm:px-4 py-2 rounded-lg text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10 ${selectedMahasiswa.is_veteran
-                        ? 'bg-red-600 hover:bg-red-700'
+                        ? (selectedMahasiswa.veteran_status === 'aktif' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')
                         : 'bg-green-600 hover:bg-green-700'
                       }`}
                   >
@@ -1052,7 +1084,7 @@ const MahasiswaVeteran: React.FC = () => {
                         Memproses...
                       </>
                     ) : selectedMahasiswa.is_veteran ? (
-                      'Hapus Veteran'
+                      selectedMahasiswa.veteran_status === 'aktif' ? 'Selesaikan Veteran' : 'Batalkan Veteran'
                     ) : (
                       'Set Veteran'
                     )}
@@ -1142,7 +1174,7 @@ const MahasiswaVeteran: React.FC = () => {
                     <textarea
                       value={veteranNotes}
                       onChange={(e) => setVeteranNotes(e.target.value)}
-                      placeholder={`Masukkan catatan mengapa ${selectedMahasiswaIds.length} mahasiswa ${bulkAction === 'set' ? 'ditetapkan sebagai veteran' : 'dihapus status veteran'}...`}
+                      placeholder={`Masukkan catatan mengapa ${selectedMahasiswaIds.length} mahasiswa ${bulkAction === 'set' ? 'ditetapkan sebagai veteran' : 'status veteran-nya akan dihapus (selesai/batal)'}...`}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-800 dark:text-white transition-colors resize-none"
                       rows={3}
                     />
