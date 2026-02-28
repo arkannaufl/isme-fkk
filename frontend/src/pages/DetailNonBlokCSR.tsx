@@ -1994,14 +1994,13 @@ export default function DetailNonBlokCSR() {
       }
 
       // Transform data untuk export
-      const exportData = jadwalCSR.map((row, index) => {
+      const exportData = jadwalCSR.map((row) => {
         const dosen = dosenList.find(d => d.id === row.dosen_id);
         const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
         const kelompokKecil = kelompokKecilList.find(k => k.id === row.kelompok_kecil_id);
         const kategori = kategoriList.find(k => k.id === row.kategori_id);
 
         return {
-          'No': index + 1,
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai || '',
           'Jenis CSR': row.jenis_csr === 'reguler' ? 'reguler' : row.jenis_csr === 'responsi' ? 'responsi' : row.jenis_csr,
@@ -2018,12 +2017,11 @@ export default function DetailNonBlokCSR() {
 
       // Sheet 1: Data CSR
       const ws = XLSX.utils.json_to_sheet(exportData, {
-        header: ['No', 'Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
+        header: ['Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
       });
 
       // Set lebar kolom
       const colWidths = [
-        { wch: 5 },  // No
         { wch: 12 }, // Tanggal
         { wch: 10 }, // Jam Mulai
         { wch: 12 }, // Jenis CSR

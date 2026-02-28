@@ -7,6 +7,7 @@ import Select from 'react-select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare, faTrash, faStar, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import { getRuanganOptions } from '../utils/ruanganHelper';
+import KelolaKelompokAntaraModal from '../components/common/KelolaKelompokAntaraModal';
 
 // Constants
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
@@ -829,52 +830,11 @@ export default function DetailBlokAntara() {
       setForm({
         hariTanggal: tglISO,
         jamMulai: String(row.jamMulai || row.pukul?.split('-')[0] || ''),
-        jumlahKali: Number(row.jumlahKali || (row.waktu ? row.waktu.split('x')[0] : 2)),
-        jamSelesai: String(row.jamSelesai || row.pukul?.split('-')[1] || ''),
-        pengampu: row.dosen_ids && row.dosen_ids.length > 0 ? row.dosen_ids : (row.dosen_id ? [row.dosen_id] : []),
-        materi: String(row.materi || ''),
-        topik: String(row.topik || ''),
-        lokasi: Number(row.lokasi || row.ruangan_id || 0),
-        jenisBaris: row.jenisBaris || 'materi',
-        agenda: String(row.agenda || ''),
-        pblTipe: String((row as any).pbl_tipe ?? row.pblTipe ?? ''),
-        modul: Number(row.modul || row.modul_pbl_id || 0),
-        kelompok: String(row.kelompok || ''),
-        kelompokBesar: null,
-        useRuangan: true,
-        fileJurnal: null,
-      });
-    } else if (row.jenisBaris === 'pbl' || jenisBaris === 'pbl') {
-      // Cari nama kelompok dari transform backend atau relasi
-      const namaKelompok = row.nama_kelompok || row.kelompok_kecil_antara?.nama_kelompok || '';
-
-      setForm({
-        hariTanggal: row.tanggal, // Gunakan tanggal langsung dari backend
-        jamMulai: String(row.jam_mulai || ''),
-        jumlahKali: Number(row.jumlah_sesi || 2),
-        jamSelesai: String(row.jam_selesai || ''),
-        pengampu: row.dosen_ids && row.dosen_ids.length > 0 ? row.dosen_ids : (row.dosen_id ? [row.dosen_id] : []),
-        materi: '',
-        topik: '',
-        lokasi: Number(row.ruangan_id || 0),
-        jenisBaris: 'pbl',
-        agenda: '',
-        pblTipe: String(row.pbl_tipe || ''),
-        modul: Number(row.modul_pbl_id || 0),
-        kelompok: namaKelompok,
-        kelompokBesar: null,
-        useRuangan: true,
-        fileJurnal: null,
-      });
-    } else if (row.jenisBaris === 'jurnal') {
-      setForm({
-        hariTanggal: tglISO,
-        jamMulai: String(row.jamMulai || row.pukul?.split('-')[0] || ''),
         jumlahKali: Number(row.jumlahKali || (row.waktu ? row.waktu.split('x')[0] : 1)),
         jamSelesai: String(row.jamSelesai || row.pukul?.split('-')[1] || ''),
         pengampu: row.dosen_ids && row.dosen_ids.length > 0 ? row.dosen_ids : (row.dosen_id ? [row.dosen_id] : []),
-        materi: '',
-        topik: '',
+        materi: String(row.materi || row.topik || ''),
+        topik: String(row.topik || row.materi || ''),
         lokasi: Number(row.lokasi || row.ruangan_id || 0),
         jenisBaris: 'jurnal',
         agenda: '',
@@ -884,6 +844,43 @@ export default function DetailBlokAntara() {
         kelompokBesar: null,
         useRuangan: true,
         fileJurnal: null, // Tambahkan fileJurnal
+      });
+    } else if (row.jenisBaris === 'pbl' || jenisBaris === 'pbl') {
+      // Cari nama kelompok dari transform backend atau relasi
+      const namaKelompok = row.nama_kelompok || row.kelompok_kecil_antara?.nama_kelompok || '';
+      
+      // Handle tanggal dengan fallback yang lebih robust
+      let tanggalValue = '';
+      if (row.tanggal) {
+        // Jika sudah format ISO (YYYY-MM-DD), gunakan langsung
+        if (/^\d{4}-\d{2}-\d{2}$/.test(row.tanggal)) {
+          tanggalValue = row.tanggal;
+        } else {
+          // Coba parse dari format lain
+          const date = new Date(row.tanggal);
+          if (!isNaN(date.getTime())) {
+            tanggalValue = date.toISOString().split('T')[0];
+          }
+        }
+      }
+
+      setForm({
+        hariTanggal: tanggalValue, // Gunakan tanggal yang sudah diproses
+        jamMulai: String(row.jam_mulai || ''),
+        jumlahKali: Number(row.jumlah_sesi || 2),
+        jamSelesai: String(row.jam_selesai || ''),
+        pengampu: row.dosen_ids && row.dosen_ids.length > 0 ? row.dosen_ids : (row.dosen_id ? [row.dosen_id] : []),
+        materi: '',
+        topik: '',
+        lokasi: Number(row.ruangan_id || 0),
+        jenisBaris: 'pbl', // BENAR: PBL
+        agenda: '',
+        pblTipe: String(row.pbl_tipe || ''),
+        modul: Number(row.modul_pbl_id || 0),
+        kelompok: namaKelompok,
+        kelompokBesar: null,
+        useRuangan: true,
+        fileJurnal: null,
       });
     } else {
       setForm({
@@ -902,7 +899,7 @@ export default function DetailBlokAntara() {
         kelompok: '',
         kelompokBesar: null,
         useRuangan: true,
-        fileJurnal: null, // Tambahkan fileJurnal
+        fileJurnal: null,
       });
     }
     setEditIndex(idx);
@@ -5505,7 +5502,7 @@ export default function DetailBlokAntara() {
       </div>
       <AnimatePresence>
         {showDeleteModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 hide-scroll">
               <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">Konfirmasi Hapus</h2>
@@ -5534,7 +5531,7 @@ export default function DetailBlokAntara() {
       </AnimatePresence>
       <AnimatePresence>
         {showDeleteAgendaModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm" onClick={() => setShowDeleteAgendaModal(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 hide-scroll">
               <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">Konfirmasi Hapus</h2>
@@ -5549,7 +5546,7 @@ export default function DetailBlokAntara() {
       </AnimatePresence>
       <AnimatePresence>
         {showDeleteJurnalReadingModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm" onClick={() => setShowDeleteJurnalReadingModal(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 hide-scroll">
               <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">Konfirmasi Hapus</h2>
@@ -5565,12 +5562,12 @@ export default function DetailBlokAntara() {
 
         <AnimatePresence>
         {showPengampuModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowPengampuModal(false)}
             />
             <motion.div
@@ -5578,7 +5575,7 @@ export default function DetailBlokAntara() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               <button
                 onClick={() => setShowPengampuModal(false)}
@@ -5757,882 +5754,105 @@ export default function DetailBlokAntara() {
 
       {/* Modal Kelola Kelompok Antara */}
       <AnimatePresence>
-        {showKelompokBesarAntaraModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
+        <KelolaKelompokAntaraModal
+          isOpen={showKelompokBesarAntaraModal}
+          onClose={() => setShowKelompokBesarAntaraModal(false)}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          selectedMahasiswa={selectedMahasiswa}
+          setSelectedMahasiswa={setSelectedMahasiswa}
+          allMahasiswaOptions={allMahasiswaOptions}
+          isLoadingMahasiswa={isLoadingMahasiswa}
+          isLoadingKelompok={isLoadingKelompok}
+          searchMahasiswa={searchMahasiswa}
+          setSearchMahasiswa={setSearchMahasiswa}
+          filterIPK={filterIPK}
+          setFilterIPK={setFilterIPK}
+          searchMahasiswaKelompokKecil={searchMahasiswaKelompokKecil}
+          setSearchMahasiswaKelompokKecil={setSearchMahasiswaKelompokKecil}
+          filterIPKKelompokKecil={filterIPKKelompokKecil}
+          setFilterIPKKelompokKecil={setFilterIPKKelompokKecil}
+          getFilteredMahasiswa={getFilteredMahasiswa}
+          getTotalGroupedStudents={getTotalGroupedStudents}
+          kelompokBesarOptions={kelompokBesarAntaraOptions}
+          kelompokBesarAntaraForm={kelompokBesarAntaraForm}
+          setKelompokBesarAntaraForm={setKelompokBesarAntaraForm}
+          isCreatingKelompok={isCreatingKelompok}
+          createKelompokBesarAntara={createKelompokBesarAntara}
+          deleteKelompokBesarAntara={deleteKelompokBesarAntara}
+          unassignMode={unassignMode}
+          setUnassignMode={setUnassignMode}
+          handleUnassignMahasiswa={handleUnassignMahasiswa}
+          showUnassignKelompokKecil={true}
+          kelompokKecilAntaraList={kelompokKecilAntaraList}
+          isLoadingKelompokKecilAntara={isLoadingKelompokKecilAntara}
+          kelompokKecilAntaraForm={kelompokKecilAntaraForm}
+          setKelompokKecilAntaraForm={setKelompokKecilAntaraForm}
+          isCreatingKelompokKecilAntara={isCreatingKelompokKecilAntara}
+          createKelompokKecilAntara={createKelompokKecilAntara}
+          deleteKelompokKecilAntara={deleteKelompokKecilAntara}
+        />
+      </AnimatePresence>
+
+      {/* Modal Konfirmasi Bulk Delete */}
+      <AnimatePresence>
+        {showBulkDeleteModal && (
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
+
+            <div
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowBulkDeleteModal(false)}
+            ></div>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-              onClick={() => setShowKelompokBesarAntaraModal(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-7xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 max-h-[90vh] overflow-hidden"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001"
             >
-              {/* Enhanced Header */}
-              <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/20 rounded-xl flex items-center justify-center">
-                    <svg className="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">Kelola Kelompok Antara</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                      Buat dan kelola kelompok besar dan kecil untuk semester antara
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowKelompokBesarAntaraModal(false)}
-                  className="p-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-200 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
               </div>
-
-              {/* Tab Navigation */}
-              <div className="mt-8 mb-8">
-                <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1.5 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
+                    {bulkDeleteType === 'kuliah-besar' && selectedKuliahBesarItems.length}
+                    {bulkDeleteType === 'agenda-khusus' && selectedAgendaKhususItems.length}
+                    {bulkDeleteType === 'pbl' && selectedPBLItems.length}
+                    {bulkDeleteType === 'jurnal-reading' && selectedJurnalReadingItems.length}
+                  </span> jadwal {bulkDeleteType === 'kuliah-besar' && 'kuliah besar'}
+                  {bulkDeleteType === 'agenda-khusus' && 'agenda khusus'}
+                  {bulkDeleteType === 'pbl' && 'PBL'}
+                  {bulkDeleteType === 'jurnal-reading' && 'jurnal reading'} terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
                   <button
-                    onClick={() => setActiveTab('besar')}
-                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${activeTab === 'besar'
-                      ? 'bg-white dark:bg-gray-700 text-brand-600 dark:text-brand-400 shadow-md'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                      }`}
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                   >
-                    Kelompok Besar
+                    Batal
                   </button>
                   <button
-                    onClick={() => setActiveTab('kecil')}
-                    className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${activeTab === 'kecil'
-                      ? 'bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-md'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                      }`}
+                    onClick={confirmBulkDelete}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
+                    disabled={isBulkDeleting}
                   >
-                    Kelompok Kecil
+                    {isBulkDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Menghapus...
+                      </>
+                    ) : (
+                      'Hapus'
+                    )}
                   </button>
                 </div>
-              </div>
-
-              {/* Content */}
-              <div className="flex h-[calc(90vh-200px)] min-h-0">
-                {activeTab === 'besar' ? (
-                  <>
-                    {/* Left Panel - Create New Group */}
-                    <div className="w-1/2 h-full min-h-0 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                        <div className="flex items-center space-x-2 mb-6">
-                          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                          </div>
-                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Baru</h3>
-                        </div>
-
-                        <div className="space-y-4">
-                          {/* Nama Kelompok */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Nama Kelompok
-                            </label>
-                            <input
-                              type="text"
-                              value={kelompokBesarAntaraForm.nama_kelompok}
-                              onChange={(e) => setKelompokBesarAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 shadow-sm"
-                              placeholder="Contoh: Kelompok Besar 1"
-                            />
-                          </div>
-
-                          {/* Selected Count */}
-                          {selectedMahasiswa.length > 0 && (
-                            <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-xl p-4 shadow-sm">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
-                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                </div>
-                                <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
-                                  {selectedMahasiswa.length} mahasiswa dipilih
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Mahasiswa List */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                              Pilih Mahasiswa ({allMahasiswaOptions.length} tersedia, {getTotalGroupedStudents()} sudah dikelompokkan)
-                            </label>
-
-                            {/* Search and Filter */}
-                            <div className="flex gap-3 mb-3">
-                              {/* Search Input */}
-                              <div className="relative flex-1">
-                                <input
-                                  type="text"
-                                  value={searchMahasiswa}
-                                  onChange={(e) => setSearchMahasiswa(e.target.value)}
-                                  placeholder="Cari nama atau email mahasiswa..."
-                                  className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
-                                />
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                  <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                  </svg>
-                                </div>
-                              </div>
-
-                              {/* IPK Filter */}
-                              <div className="w-40">
-                                <select
-                                  value={filterIPK}
-                                  onChange={(e) => setFilterIPK(e.target.value)}
-                                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
-                                >
-                                  <option value="semua">Semua IPK</option>
-                                  <option value="3.5+">IPK 3.5+ (Hijau)</option>
-                                  <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
-                                  <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
-                                  <option value="<2.5">IPK &lt;2.5 (Merah)</option>
-                                </select>
-                              </div>
-                            </div>
-
-                            <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
-                              {/* Search Results Info */}
-                              {(searchMahasiswa || filterIPK !== 'semua') && (
-                                <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    Menampilkan {getFilteredMahasiswa().length} dari {allMahasiswaOptions.length} mahasiswa
-                                    {searchMahasiswa && ` untuk pencarian "${searchMahasiswa}"`}
-                                    {searchMahasiswa && filterIPK !== 'semua' && ' | '}
-                                    {filterIPK !== 'semua' && ` dengan filter IPK ${filterIPK}`}
-                                  </p>
-                                </div>
-                              )}
-                              {isLoadingMahasiswa ? (
-                                // Skeleton loading untuk mahasiswa
-                                <div className="p-4 space-y-3">
-                                  {[...Array(6)].map((_, index) => (
-                                    <div key={index} className="flex items-center space-x-3 animate-pulse">
-                                      <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                      <div className="flex-1">
-                                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
-                                        <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
-                                      </div>
-                                      <div className="w-16 h-6 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <>
-                                  {getFilteredMahasiswa().map((mahasiswa) => {
-                                    const isSelected = selectedMahasiswa.some(m => m.id === mahasiswa.id);
-                                    const isInOtherGroup = kelompokBesarAntaraOptions.some(group =>
-                                      group.mahasiswa.some(m => m.id === mahasiswa.id)
-                                    );
-
-                                    return (
-                                      <div
-                                        key={mahasiswa.id}
-                                        className={`p-4 border-b border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''
-                                          } ${isInOtherGroup && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        onClick={() => {
-                                          if (isInOtherGroup && !isSelected) return;
-
-                                          if (isSelected) {
-                                            setSelectedMahasiswa(prev => prev.filter(m => m.id !== mahasiswa.id));
-                                            setKelompokBesarAntaraForm(prev => ({
-                                              ...prev,
-                                              mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
-                                            }));
-                                          } else {
-                                            setSelectedMahasiswa(prev => [...prev, mahasiswa]);
-                                            setKelompokBesarAntaraForm(prev => ({
-                                              ...prev,
-                                              mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
-                                            }));
-                                          }
-                                        }}
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center space-x-3">
-                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected
-                                              ? 'bg-brand-500 border-brand-500'
-                                              : 'border-gray-300 dark:border-gray-600'
-                                              }`}>
-                                              {isSelected && (
-                                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                              )}
-                                            </div>
-                                            <div>
-                                              <div className="flex items-center space-x-2">
-                                                <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
-                                                <span
-                                                  className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
-                                                    ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                                    : (mahasiswa.ipk || 0) >= 3.0
-                                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                                      : (mahasiswa.ipk || 0) >= 2.5
-                                                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                                        : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                                    }`}
-                                                >
-                                                  IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                                </span>
-                                              </div>
-                                              <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
-                                            </div>
-                                          </div>
-                                          {isInOtherGroup && !isSelected && (
-                                            <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Create Button */}
-                          <button
-                            onClick={createKelompokBesarAntara}
-                            disabled={!kelompokBesarAntaraForm.nama_kelompok || kelompokBesarAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompok}
-                            className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                          >
-                            <div className="flex items-center justify-center space-x-2">
-                              {isCreatingKelompok ? (
-                                <>
-                                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  <span>Membuat Kelompok...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                  </svg>
-                                  <span>Buat Kelompok ({selectedMahasiswa.length} mahasiswa)</span>
-                                </>
-                              )}
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Panel - Existing Groups */}
-                    <div className="w-1/2 h-full min-h-0 pl-4 overflow-y-auto hide-scroll">
-                      <div className="flex items-center space-x-2 mb-6">
-                        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                          </svg>
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                          Kelompok yang Sudah Ada ({kelompokBesarAntaraOptions.length})
-                        </h3>
-                      </div>
-
-                      <div className="space-y-3">
-                        {isLoadingKelompok ? (
-                          // Skeleton loading untuk kelompok yang sudah ada
-                          <div className="space-y-3">
-                            {[...Array(2)].map((_, index) => (
-                              <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
-                                <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                    <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
-                                  </div>
-                                  <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {[...Array(6)].map((_, studentIndex) => (
-                                    <div key={studentIndex} className="flex items-center space-x-2">
-                                      <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                      <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
-                                      <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <>
-                            {kelompokBesarAntaraOptions.map((kelompok: any) => (
-                              <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
-                                <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                                      <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                      </svg>
-                                    </div>
-                                    <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.label}</h4>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <button
-                                      onClick={() => {
-                                        // Toggle unassign mode for this kelompok
-                                        setUnassignMode(prev => ({
-                                          ...prev,
-                                          [kelompok.id]: !prev[kelompok.id]
-                                        }));
-                                      }}
-                                      className={`p-2 rounded-lg transition-all duration-200 ${
-                                        unassignMode[kelompok.id] 
-                                          ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' 
-                                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                      }`}
-                                      title={unassignMode[kelompok.id] ? "Selesai unassign" : "Unassign mahasiswa"}
-                                    >
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      onClick={() => deleteKelompokBesarAntara(kelompok.id)}
-                                      className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                      title="Hapus kelompok"
-                                    >
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {kelompok.mahasiswa.map((mahasiswa: any) => (
-                                    <div key={mahasiswa.id} className={`flex items-center text-sm text-gray-600 dark:text-gray-400 p-1.5 rounded-lg transition-colors ${
-                                      unassignMode[kelompok.id] ? 'justify-between hover:bg-gray-50 dark:hover:bg-gray-700' : ''
-                                    }`}>
-                                      <div className="flex items-center space-x-1.5">
-                                        <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                        <span>{mahasiswa.name}</span>
-                                        <span
-                                          className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
-                                            ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                            : (mahasiswa.ipk || 0) >= 3.0
-                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                              : (mahasiswa.ipk || 0) >= 2.5
-                                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                                : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                            }`}
-                                        >
-                                          IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                        </span>
-                                      </div>
-                                      {unassignMode[kelompok.id] && (
-                                        <button
-                                          onClick={() => handleUnassignMahasiswa(kelompok.id, mahasiswa.id, 'besar')}
-                                          className="p-1.5 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                          title="Unassign mahasiswa dari kelompok"
-                                        >
-                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
-                                        </button>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </>
-                        )}
-
-                        {!isLoadingKelompok && kelompokBesarAntaraOptions.length === 0 && (
-                          <div className="text-center py-12">
-                            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                              <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                              </svg>
-                            </div>
-                            <p className="text-gray-500 dark:text-gray-400 font-medium">
-                              Belum ada kelompok besar yang dibuat
-                            </p>
-                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                              Buat kelompok pertama di panel sebelah kiri
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Left Panel - Create New Kelompok Kecil */}
-                    <div className="w-1/2 h-full min-h-0 border-r border-gray-200 dark:border-gray-700 pr-4 overflow-y-auto hide-scroll">
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                        <div className="flex items-center space-x-2 mb-6">
-                          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                          </div>
-                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Buat Kelompok Kecil Baru</h3>
-                        </div>
-
-                        <div className="space-y-4">
-                          {/* Nama Kelompok */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Nama Kelompok Kecil
-                            </label>
-                            <input
-                              type="text"
-                              value={kelompokKecilAntaraForm.nama_kelompok}
-                              onChange={(e) => setKelompokKecilAntaraForm(prev => ({ ...prev, nama_kelompok: e.target.value }))}
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm"
-                              placeholder="Contoh: Kelompok Kecil 1"
-                            />
-                          </div>
-
-                          {/* Pilih Mahasiswa dari Kelompok Besar */}
-                          {/* Selected Count */}
-                          {kelompokKecilAntaraForm.mahasiswa_ids.length > 0 && (
-                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 shadow-sm mb-4">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                </div>
-                                <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                                  {kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa dipilih
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                              Pilih Mahasiswa dari Kelompok Besar Antara
-                            </label>
-
-                            {/* Search and Filter */}
-                            <div className="flex space-x-3 mb-3">
-                              {/* Search Input */}
-                              <div className="relative flex-1">
-                                <input
-                                  type="text"
-                                  value={searchMahasiswaKelompokKecil}
-                                  onChange={(e) => setSearchMahasiswaKelompokKecil(e.target.value)}
-                                  placeholder="Cari nama atau email mahasiswa..."
-                                  className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                                />
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                  <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                  </svg>
-                                </div>
-                              </div>
-
-                              {/* IPK Filter */}
-                              <div className="w-48">
-                                <select
-                                  value={filterIPKKelompokKecil}
-                                  onChange={(e) => setFilterIPKKelompokKecil(e.target.value)}
-                                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                                >
-                                  <option value="semua">Semua IPK</option>
-                                  <option value=">=3.5">IPK ≥3.5 (Hijau)</option>
-                                  <option value="3.0-3.49">IPK 3.0-3.49 (Biru)</option>
-                                  <option value="2.5-2.99">IPK 2.5-2.99 (Kuning)</option>
-                                  <option value="<2.5">IPK &lt;2.5 (Merah)</option>
-                                </select>
-                              </div>
-                            </div>
-                            {isLoadingKelompok ? (
-                              <div className="space-y-2">
-                                {[...Array(3)].map((_, index) => (
-                                  <div key={index} className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse"></div>
-                                ))}
-                              </div>
-                            ) : kelompokBesarAntaraOptions.length === 0 ? (
-                              <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada kelompok besar yang dibuat</p>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Buat kelompok besar terlebih dahulu</p>
-
-                              </div>
-                            ) : (
-                              <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 hide-scroll shadow-sm">
-                                {/* Search Results Info */}
-                                {(searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && (
-                                  <div className="p-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                                      {searchMahasiswaKelompokKecil && `Mencari: "${searchMahasiswaKelompokKecil}"`}
-                                      {searchMahasiswaKelompokKecil && filterIPKKelompokKecil !== 'semua' && ' | '}
-                                      {filterIPKKelompokKecil !== 'semua' && `Filter IPK: ${filterIPKKelompokKecil}`}
-                                    </p>
-                                  </div>
-                                )}
-                                {kelompokBesarAntaraOptions.map((kelompok: any) => {
-                                  // Filter mahasiswa berdasarkan search dan IPK
-                                  const filteredMahasiswa = kelompok.mahasiswa?.filter((mahasiswa: any) => {
-                                    // Filter berdasarkan search
-                                    const matchesSearch = !searchMahasiswaKelompokKecil ||
-                                      mahasiswa.name.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase()) ||
-                                      mahasiswa.email.toLowerCase().includes(searchMahasiswaKelompokKecil.toLowerCase());
-
-                                    // Filter berdasarkan IPK
-                                    const matchesIPK = filterIPKKelompokKecil === 'semua' ||
-                                      (filterIPKKelompokKecil === '>=3.5' && (mahasiswa.ipk || 0) >= 3.5) ||
-                                      (filterIPKKelompokKecil === '3.0-3.49' && (mahasiswa.ipk || 0) >= 3.0 && (mahasiswa.ipk || 0) < 3.5) ||
-                                      (filterIPKKelompokKecil === '2.5-2.99' && (mahasiswa.ipk || 0) >= 2.5 && (mahasiswa.ipk || 0) < 3.0) ||
-                                      (filterIPKKelompokKecil === '<2.5' && (mahasiswa.ipk || 0) < 2.5);
-
-                                    return matchesSearch && matchesIPK;
-                                  }) || [];
-
-                                  // Skip kelompok jika tidak ada mahasiswa yang cocok dengan filter
-                                  if ((searchMahasiswaKelompokKecil || filterIPKKelompokKecil !== 'semua') && filteredMahasiswa.length === 0) {
-                                    return null;
-                                  }
-
-                                  return (
-                                    <div key={kelompok.id} className="p-4 border-b border-gray-200 dark:border-gray-600">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center space-x-3">
-                                          <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                                            <svg className="w-3 h-3 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                            </svg>
-                                          </div>
-                                          <div>
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">{kelompok.mahasiswa?.length || 0} mahasiswa</span>
-                                            <span className="text-xs text-blue-600 dark:text-blue-400 block">{kelompok.label.split(' (')[0]}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="space-y-1">
-                                        {filteredMahasiswa.map((mahasiswa: any) => {
-                                          const isSelected = kelompokKecilAntaraForm.mahasiswa_ids.includes(mahasiswa.id);
-                                          const isInOtherKelompokKecil = kelompokKecilAntaraList.some(kelompok =>
-                                            kelompok.mahasiswa_ids.includes(mahasiswa.id)
-                                          );
-
-                                          return (
-                                            <div
-                                              key={mahasiswa.id}
-                                              className={`p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''
-                                                } ${isInOtherKelompokKecil && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                              onClick={() => {
-                                                if (isInOtherKelompokKecil && !isSelected) return;
-
-                                                if (isSelected) {
-                                                  setKelompokKecilAntaraForm(prev => ({
-                                                    ...prev,
-                                                    mahasiswa_ids: prev.mahasiswa_ids.filter(id => id !== mahasiswa.id)
-                                                  }));
-                                                } else {
-                                                  setKelompokKecilAntaraForm(prev => ({
-                                                    ...prev,
-                                                    mahasiswa_ids: [...prev.mahasiswa_ids, mahasiswa.id]
-                                                  }));
-                                                }
-                                              }}
-                                            >
-                                              <div className="flex items-center justify-between">
-                                                <div className="flex items-center space-x-3">
-                                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected
-                                                    ? 'bg-green-500 border-green-500'
-                                                    : 'border-gray-300 dark:border-gray-600'
-                                                    }`}>
-                                                    {isSelected && (
-                                                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                      </svg>
-                                                    )}
-                                                  </div>
-                                                  <div>
-                                                    <div className="flex items-center space-x-2">
-                                                      <p className="font-medium text-gray-800 dark:text-white text-sm">{mahasiswa.name}</p>
-                                                      <span
-                                                        className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
-                                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                                          : (mahasiswa.ipk || 0) >= 3.0
-                                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                                            : (mahasiswa.ipk || 0) >= 2.5
-                                                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                                              : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                                          }`}
-                                                      >
-                                                        IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                                      </span>
-                                                    </div>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{mahasiswa.email}</p>
-                                                  </div>
-                                                </div>
-                                                {isInOtherKelompokKecil && !isSelected && (
-                                                  <span className="text-xs text-gray-400">Sudah di kelompok lain</span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Create Button */}
-                          <button
-                            onClick={createKelompokKecilAntara}
-                            disabled={!kelompokKecilAntaraForm.nama_kelompok || kelompokKecilAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompokKecilAntara}
-                            className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                          >
-                            <div className="flex items-center justify-center space-x-2">
-                              {isCreatingKelompokKecilAntara ? (
-                                <>
-                                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  <span>Membuat Kelompok...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                  </svg>
-                                  <span>Buat Kelompok Kecil ({kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa)</span>
-                                </>
-                              )}
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Panel - Existing Kelompok Kecil */}
-                    <div className="w-1/2 h-full min-h-0 pl-4 overflow-y-auto hide-scroll">
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                        <div className="flex items-center space-x-2 mb-6">
-                          <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                            <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                          </div>
-                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Kelompok Kecil yang Sudah Dibuat</h3>
-                        </div>
-
-                        <div className="space-y-3">
-                          {isLoadingKelompokKecilAntara ? (
-                            // Skeleton loading untuk kelompok kecil yang sudah ada
-                            <div className="space-y-3">
-                              {[...Array(2)].map((_, index) => (
-                                <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm animate-pulse">
-                                  <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center space-x-3">
-                                      <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                      <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-48"></div>
-                                    </div>
-                                    <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg"></div>
-                                  </div>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {[...Array(6)].map((_, studentIndex) => (
-                                      <div key={studentIndex} className="flex items-center space-x-2">
-                                        <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-32"></div>
-                                        <div className="w-16 h-5 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : kelompokKecilAntaraList.length === 0 ? (
-                            <div className="text-center py-12">
-                              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                              </div>
-                              <p className="text-gray-500 dark:text-gray-400 font-medium">
-                                Belum ada kelompok kecil yang dibuat
-                              </p>
-                              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                                Buat kelompok pertama di panel sebelah kiri
-                              </p>
-                            </div>
-                          ) : (
-                            kelompokKecilAntaraList.map((kelompok) => (
-                              <div key={kelompok.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
-                                <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                                      <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                      </svg>
-                                    </div>
-                                    <h4 className="font-semibold text-gray-800 dark:text-white">{kelompok.nama_kelompok}</h4>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <button
-                                      onClick={() => {
-                                        // Toggle unassign mode for this kelompok
-                                        setUnassignMode(prev => ({
-                                          ...prev,
-                                          [kelompok.id]: !prev[kelompok.id]
-                                        }));
-                                      }}
-                                      className={`p-2 rounded-lg transition-all duration-200 ${
-                                        unassignMode[kelompok.id] 
-                                          ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' 
-                                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                      }`}
-                                      title={unassignMode[kelompok.id] ? "Selesai unassign" : "Unassign mahasiswa"}
-                                    >
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      onClick={() => deleteKelompokKecilAntara(kelompok.id)}
-                                      className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                      title="Hapus kelompok"
-                                    >
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {kelompok.mahasiswa_ids.map((mahasiswaId) => {
-                                    const mahasiswa = allMahasiswaOptions.find(m => m.id === mahasiswaId);
-                                    return mahasiswa ? (
-                                      <div key={mahasiswaId} className={`flex items-center text-sm text-gray-600 dark:text-gray-400 p-1.5 rounded-lg transition-colors ${
-                                        unassignMode[kelompok.id] ? 'justify-between hover:bg-gray-50 dark:hover:bg-gray-700' : ''
-                                      }`}>
-                                        <div className="flex items-center space-x-1.5">
-                                          <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                          <span>{mahasiswa.name}</span>
-                                          <span
-                                            className={`text-xs px-2 py-0.5 rounded-full ${(mahasiswa.ipk || 0) >= 3.5
-                                              ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                                              : (mahasiswa.ipk || 0) >= 3.0
-                                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                                                : (mahasiswa.ipk || 0) >= 2.5
-                                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
-                                                  : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                                              }`}
-                                          >
-                                            IPK {mahasiswa.ipk ? mahasiswa.ipk.toFixed(2) : "N/A"}
-                                          </span>
-                                        </div>
-                                        {unassignMode[kelompok.id] && (
-                                          <button
-                                            onClick={() => handleUnassignMahasiswa(kelompok.id, mahasiswaId, 'kecil')}
-                                            className="p-1.5 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                                            title="Unassign mahasiswa dari kelompok"
-                                          >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                          </button>
-                                        )}
-                                      </div>
-                                    ) : null;
-                                  })}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
               </div>
             </motion.div>
           </div>
         )}
-
-        {/* Modal Konfirmasi Bulk Delete */}
-        <AnimatePresence>
-          {showBulkDeleteModal && (
-            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-              <div
-                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-                onClick={() => setShowBulkDeleteModal(false)}
-              ></div>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
-              >
-                <div className="flex items-center justify-between pb-6">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
-                </div>
-                <div>
-                  <p className="mb-6 text-gray-500 dark:text-gray-400">
-                    Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
-                      {bulkDeleteType === 'kuliah-besar' && selectedKuliahBesarItems.length}
-                      {bulkDeleteType === 'agenda-khusus' && selectedAgendaKhususItems.length}
-                      {bulkDeleteType === 'pbl' && selectedPBLItems.length}
-                      {bulkDeleteType === 'jurnal-reading' && selectedJurnalReadingItems.length}
-                    </span> jadwal {bulkDeleteType === 'kuliah-besar' && 'kuliah besar'}
-                    {bulkDeleteType === 'agenda-khusus' && 'agenda khusus'}
-                    {bulkDeleteType === 'pbl' && 'PBL'}
-                    {bulkDeleteType === 'jurnal-reading' && 'jurnal reading'} terpilih? Data yang dihapus tidak dapat dikembalikan.
-                  </p>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      onClick={() => setShowBulkDeleteModal(false)}
-                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      onClick={confirmBulkDelete}
-                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
-                      disabled={isBulkDeleting}
-                    >
-                      {isBulkDeleting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                          Menghapus...
-                        </>
-                      ) : (
-                        'Hapus'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </AnimatePresence>
+
     </div>
   );
 }

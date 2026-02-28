@@ -840,19 +840,21 @@ export default function DetailBlok() {
     return "-";
   };
 
-  // Helper function untuk mendapatkan array nama dosen pengampu (khusus untuk praktikum)
-  const getPengampuNamesArray = (row: any): string[] => {
-    try {
-      // Jika ada pengampu_names langsung dari backend, gunakan itu
-      if (row.pengampu_names && row.pengampu_names.trim() !== "") {
-        return row.pengampu_names
-          .split(", ")
-          .filter((name: string) => name.trim() !== "");
+
+
+  const normalizePengampuNames = useCallback(
+    (row: any): string[] => {
+      if (row?.pengampu_names && typeof row.pengampu_names === "string") {
+        const parts = row.pengampu_names
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+        if (parts.length > 0) return parts;
       }
 
-      // Parse dosen_ids jika ada
+      // Fallback: Parse dosen_ids untuk praktikum dan seminar pleno
       let dosenIds: number[] = [];
-      if (row.dosen_ids) {
+      if (row?.dosen_ids) {
         dosenIds = Array.isArray(row.dosen_ids)
           ? row.dosen_ids
           : typeof row.dosen_ids === "string"
@@ -860,7 +862,6 @@ export default function DetailBlok() {
             : [];
       }
 
-      // Jika ada dosen_ids, ambil semua dosen (bukan hanya yang pertama)
       if (dosenIds.length > 0) {
         const dosenNames: string[] = [];
         dosenIds.forEach((dosenId) => {
@@ -879,8 +880,8 @@ export default function DetailBlok() {
         }
       }
 
-      // Fallback: jika ada row.dosen (untuk praktikum)
-      if (row.dosen && Array.isArray(row.dosen) && row.dosen.length > 0) {
+      // Fallback: gunakan dosen array (untuk praktikum)
+      if (row?.dosen && Array.isArray(row.dosen) && row.dosen.length > 0) {
         const dosenNames: string[] = [];
         row.dosen.forEach((d: any) => {
           const dosenId = d.id || d;
@@ -899,63 +900,9 @@ export default function DetailBlok() {
         }
       }
 
-      // Fallback: gunakan dosen_names jika ada (filter super admin)
-      if (row.dosen_names) {
-        const names = row.dosen_names.split(", ").filter((name: string) => {
-          const dosen = allDosenList.find((d) => d.name === name.trim());
-          return (
-            dosen &&
-            dosen.role !== "super_admin" &&
-            dosen.role !== "tim_akademik" &&
-            dosen.role !== "admin"
-          );
-        });
-        if (names.length > 0) {
-          return names;
-        }
-      }
-
-      // Fallback: gunakan dosen_id jika ada
-      if (row.dosen_id) {
-        const dosen = allDosenList.find((d) => d.id === Number(row.dosen_id));
-        if (
-          dosen &&
-          dosen.role !== "super_admin" &&
-          dosen.role !== "tim_akademik" &&
-          dosen.role !== "admin"
-        ) {
-          return [dosen.name];
-        }
-      }
-    } catch (error) {
-      // Silently handle error
-    }
-
-    return [];
-  };
-
-  // Helper function untuk mendapatkan semua nama dosen pengampu (khusus untuk praktikum) - untuk backward compatibility
-  const getAllPengampuNames = (row: any): string => {
-    const names = getPengampuNamesArray(row);
-    return names.length > 0 ? names.join(", ") : "-";
-  };
-
-  const normalizePengampuNames = useCallback(
-    (row: any): string[] => {
-      if (row?.pengampu_names && typeof row.pengampu_names === "string") {
-        const parts = row.pengampu_names
-          .split(",")
-          .map((s: string) => s.trim())
-          .filter(Boolean);
-        if (parts.length > 0) return parts;
-      }
-
-      const names = getPengampuNamesArray(row);
-      if (names.length > 0) return names;
-
       return [];
     },
-    [getPengampuNamesArray]
+    [allDosenList]
   );
 
   const normalizePengampuList = useCallback(
@@ -1078,10 +1025,6 @@ export default function DetailBlok() {
     DosenType[]
   >([]);
 
-  // State untuk tracking row praktikum yang menampilkan semua dosen
-  const [expandedPraktikumRows, setExpandedPraktikumRows] = useState<
-    Set<number>
-  >(new Set());
 
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<
     JadwalJurnalReadingType[]
@@ -14430,12 +14373,12 @@ export default function DetailBlok() {
 
       <AnimatePresence>
         {showPengampuModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <div className="fixed inset-0 z-100000 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-100000 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setShowPengampuModal(false)}
             />
             <motion.div
@@ -14443,7 +14386,7 @@ export default function DetailBlok() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-100001 max-h-[90vh] overflow-y-auto hide-scroll"
             >
               <button
                 onClick={() => setShowPengampuModal(false)}
@@ -14824,7 +14767,9 @@ export default function DetailBlok() {
                               ? row.kelompok_besar.nama_kelompok
                               : row.kelompok_besar_antara?.nama_kelompok
                                 ? row.kelompok_besar_antara.nama_kelompok
-                                : "-"}
+                                : row.kelompok_besar_id
+                                  ? `Kelompok Besar Semester ${row.kelompok_besar_id}`
+                                  : "-"}
                         </td>
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -15356,7 +15301,9 @@ export default function DetailBlok() {
                           row.kelompok_besar?.nama_kelompok ||
                           (row.kelompok_besar?.semester
                             ? `Kelompok Besar Semester ${row.kelompok_besar.semester}`
-                            : "-")}
+                            : row.kelompok_besar_id
+                              ? `Kelompok Besar Semester ${row.kelompok_besar_id}`
+                              : "-")}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {(() => {
@@ -15934,7 +15881,7 @@ export default function DetailBlok() {
                     Materi
                   </th>
 
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                  <th style={{ minWidth: 400 }} className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     Pengampu
                   </th>
 
@@ -16030,64 +15977,7 @@ export default function DetailBlok() {
                       </td>
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90">
-                        {(() => {
-                          const dosenNames = getPengampuNamesArray(row);
-                          const isExpanded = expandedPraktikumRows.has(row.id!);
-                          const maxVisible = 3;
-
-                          if (dosenNames.length === 0) {
-                            return "-";
-                          }
-
-                          if (dosenNames.length <= maxVisible || isExpanded) {
-                            return (
-                              <span
-                                className={
-                                  isExpanded ? "" : "whitespace-nowrap"
-                                }
-                              >
-                                {dosenNames.join(", ")}
-                                {isExpanded &&
-                                  dosenNames.length > maxVisible && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const newSet = new Set(
-                                          expandedPraktikumRows
-                                        );
-                                        newSet.delete(row.id!);
-                                        setExpandedPraktikumRows(newSet);
-                                      }}
-                                      className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs underline"
-                                    >
-                                      (sembunyikan)
-                                    </button>
-                                  )}
-                              </span>
-                            );
-                          }
-
-                          // Tampilkan 3 pertama + link "tampilkan semuanya"
-                          const visibleNames = dosenNames.slice(0, maxVisible);
-                          const remainingCount = dosenNames.length - maxVisible;
-
-                          return (
-                            <span className="whitespace-nowrap">
-                              {visibleNames.join(", ")}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const newSet = new Set(expandedPraktikumRows);
-                                  newSet.add(row.id!);
-                                  setExpandedPraktikumRows(newSet);
-                                }}
-                                className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs underline"
-                              >
-                                +{remainingCount} lainnya
-                              </button>
-                            </span>
-                          );
-                        })()}
+                        {renderPengampuCompact(row)}
                       </td>
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">

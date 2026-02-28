@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\KelompokBesarAntara;
+use App\Models\KelompokKecilAntara;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -176,9 +177,20 @@ class KelompokBesarAntaraController extends Controller
     {
         $kelompokBesar = KelompokBesarAntara::findOrFail($id);
 
-        // CASCADE: Find and delete all kelompok kecil that depend on this kelompok besar
-        $kelompokKecilToDelete = KelompokKecilAntara::where('kelompok_besar_antara_id', $kelompokBesar->id)->get();
-        $deletedKelompokKecilCount = $kelompokKecilToDelete->count();
+        // CASCADE: Find and delete all kelompok kecil that have mahasiswa from this kelompok besar
+        $kelompokKecilList = KelompokKecilAntara::where('semester_id', $kelompokBesar->semester_id)->get();
+        $deletedKelompokKecilCount = 0;
+        $kelompokKecilToDelete = [];
+        
+        foreach ($kelompokKecilList as $kelompokKecil) {
+            $kecilMahasiswaIds = $kelompokKecil->mahasiswa_ids ?? [];
+            $besarMahasiswaIds = $kelompokBesar->mahasiswa_ids ?? [];
+            
+            // Check if kelompok kecil has mahasiswa from this kelompok besar
+            if (!empty(array_intersect($kecilMahasiswaIds, $besarMahasiswaIds))) {
+                $kelompokKecilToDelete[] = $kelompokKecil;
+            }
+        }
         
         // Log cascade deletion before deleting kelompok kecil
         foreach ($kelompokKecilToDelete as $kelompokKecil) {
@@ -193,7 +205,10 @@ class KelompokBesarAntaraController extends Controller
         }
         
         // Delete all dependent kelompok kecil
-        KelompokKecilAntara::where('kelompok_besar_antara_id', $kelompokBesar->id)->delete();
+        $deletedKelompokKecilCount = count($kelompokKecilToDelete);
+        foreach ($kelompokKecilToDelete as $kelompokKecil) {
+            $kelompokKecil->delete();
+        }
 
         // Log activity before deletion of kelompok besar
         activity()
@@ -234,9 +249,9 @@ class KelompokBesarAntaraController extends Controller
             
             $kelompokBesar->update(['mahasiswa_ids' => $remainingMahasiswaIds]);
 
-            // CASCADE: Remove mahasiswa from kelompok kecil that depend on this kelompok besar
+            // CASCADE: Remove mahasiswa from kelompok kecil in the same semester
             $affectedKelompokKecil = [];
-            $kelompokKecilList = KelompokKecilAntara::where('kelompok_besar_antara_id', $kelompokBesar->id)->get();
+            $kelompokKecilList = KelompokKecilAntara::where('semester_id', $kelompokBesar->semester_id)->get();
             
             foreach ($kelompokKecilList as $kelompokKecil) {
                 $currentKecilMahasiswaIds = $kelompokKecil->mahasiswa_ids ?? [];

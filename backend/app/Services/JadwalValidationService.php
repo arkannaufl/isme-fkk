@@ -157,11 +157,6 @@ class JadwalValidationService
 
         // Cek bentrok dengan semua jenis jadwal yang relevan
         foreach (self::SCHEDULE_CONFIGS as $type => $typeConfig) {
-            // Skip self-check
-            if ($type === $scheduleType) {
-                continue;
-            }
-
             $shouldCheckRegular = $this->shouldCheckConflict($scheduleType, $type, false);
             $shouldCheckAntara = $this->shouldCheckConflict($scheduleType, $type, true);
             
@@ -248,10 +243,20 @@ class JadwalValidationService
             // When checking antara schedules, look for mata_kuliah.semester = "Antara"
             $query->where('mata_kuliah.semester', 'Antara');
         } else {
-            // When checking regular schedules, filter by the input's semester
-            $semester = $this->getMataKuliahSemester($data['mata_kuliah_kode']);
-            if ($semester && !$this->isCrossSemesterSchedule($checkType)) {
-                $query->where('mata_kuliah.semester', $semester);
+            // When checking regular schedules:
+            // - If source data is from semester antara, DO NOT filter by "Antara" (would make this check one-way).
+            //   Instead, explicitly exclude antara semester so we can find conflicts in regular schedules.
+            // - Otherwise, filter by the input's semester.
+            $sourceIsAntara = $this->isSourceSemesterAntara($data);
+            if (!$this->isCrossSemesterSchedule($checkType)) {
+                if ($sourceIsAntara) {
+                    $query->where('mata_kuliah.semester', '!=', 'Antara');
+                } else {
+                    $semester = $this->getMataKuliahSemester($data['mata_kuliah_kode']);
+                    if ($semester) {
+                        $query->where('mata_kuliah.semester', $semester);
+                    }
+                }
             }
         }
 
