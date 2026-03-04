@@ -856,14 +856,20 @@ export default function PetaAkademikPage() {
         yearsToFetch.add(new Date().getFullYear());
       }
 
-      // Fetch holidays for all determined years
+      // Fetch holidays for all determined years with error handling
       const holidayPromises = Array.from(yearsToFetch).map((year) =>
-        fetch(`https://api-harilibur.vercel.app/api?year=${year}`).then(
-          (res) => {
-            if (!res.ok) return []; // Return empty array on error to not break Promise.all
+        fetch(`https://api-harilibur.vercel.app/api?year=${year}`)
+          .then((res) => {
+            if (!res.ok) {
+              console.warn(`Holiday API failed for year ${year}: ${res.status} ${res.statusText}`);
+              return []; // Return empty array on error to not break Promise.all
+            }
             return res.json();
-          }
-        )
+          })
+          .catch((error) => {
+            console.warn(`Holiday API error for year ${year}:`, error);
+            return []; // Return empty array on network error
+          })
       );
 
       const holidayResults = await Promise.all(holidayPromises);
@@ -874,13 +880,30 @@ export default function PetaAkademikPage() {
         .filter((h) => h && h.holiday_date);
 
       setHolidays(allHolidays);
+      
+      // Log holiday fetch summary for debugging
+      const totalYears = yearsToFetch.size;
+      const successfulYears = holidayResults.filter(result => Array.isArray(result) && result.length > 0).length;
+      if (successfulYears < totalYears) {
+        console.warn(`Only ${successfulYears}/${totalYears} years of holiday data loaded successfully`);
+        // If no holiday data loaded, set empty array and let UI show error message
+        if (successfulYears === 0) {
+          setHolidays([]); // Empty array - no holidays when API fails
+          console.info("No holiday data available due to API failure");
+        }
+      }
     } catch (err) {
-      console.error("Error fetching data:", err);
-      console.error(
-        "Error details:",
-        handleApiError(err, "Memuat data peta akademik")
-      );
-      setError(handleApiError(err, "Memuat data peta akademik"));
+      // Only set error if main course data fails, not holiday API
+      if (err.message && !err.message.includes('holiday')) {
+        console.error("Error fetching main data:", err);
+        console.error(
+          "Error details:",
+          handleApiError(err, "Memuat data peta akademik")
+        );
+        setError(handleApiError(err, "Memuat data peta akademik"));
+      } else {
+        console.warn("Holiday API had issues but main data loaded successfully");
+      }
     } finally {
       setLoading(false);
     }
@@ -1194,12 +1217,22 @@ export default function PetaAkademikPage() {
                       </span>
                     </div>
                   ))}
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded-sm bg-red-500 dark:bg-red-400"></div>
-                    <span className="text-gray-700 dark:text-gray-300">
-                      Hari Libur Nasional
-                    </span>
-                  </div>
+                  {/* Holiday legend - show error message if API failed */}
+                  {holidays.length === 0 ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-4 h-4 rounded-sm bg-red-500 dark:bg-red-400 opacity-50"></div>
+                      <span className="text-gray-500 dark:text-gray-400 italic">
+                        Hari Libur Nasional (API Error/Maintenance)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-4 h-4 rounded-sm bg-red-500 dark:bg-red-400"></div>
+                      <span className="text-gray-700 dark:text-gray-300">
+                        Hari Libur Nasional
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-4 h-4 rounded-sm bg-gray-200 dark:bg-gray-700"></div>
                     <span className="text-gray-700 dark:text-gray-300">
