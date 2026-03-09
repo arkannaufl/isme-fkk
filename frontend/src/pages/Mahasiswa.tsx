@@ -743,9 +743,9 @@ export default function Mahasiswa() {
         errors.push(`Angkatan harus diisi dengan angka (Baris ${rowNum})`);
         newCellErrors.push({ row: index, field: 'angkatan', message: `Angkatan harus diisi dengan angka`, nim: rowNim });
       }
-      if (!row.semester || isNaN(Number(row.semester)) || Number(row.semester) < 1 || Number(row.semester) > 7) {
-        errors.push(`Semester harus diisi dengan angka antara 1-7 (Baris ${rowNum})`);
-        newCellErrors.push({ row: index, field: 'semester', message: `Semester harus diisi dengan angka antara 1-7`, nim: rowNim });
+      if (!row.semester || isNaN(Number(row.semester)) || Number(row.semester) < 1) {
+        errors.push(`Semester harus diisi dengan angka minimal 1 (Baris ${rowNum})`);
+        newCellErrors.push({ row: index, field: 'semester', message: `Semester harus diisi dengan angka minimal 1`, nim: rowNim });
       }
 
       // Duplikat dalam file Excel
