@@ -44,6 +44,7 @@ class JadwalAgendaKhususController extends Controller
             'jumlah_sesi' => 'required|integer|min:1|max:6',
         ]);
         $data['mata_kuliah_kode'] = $kode;
+        $data = $this->validationService->normalizeJamDataForWrite($data);
         $isSemesterAntara = !empty($data['kelompok_besar_antara_id']);
 
         $mataKuliah = MataKuliah::where('kode', $kode)->first();
@@ -102,6 +103,7 @@ class JadwalAgendaKhususController extends Controller
             'jumlah_sesi' => 'required|integer|min:1|max:6',
         ]);
         $data['mata_kuliah_kode'] = $kode;
+        $data = $this->validationService->normalizeJamDataForWrite($data);
         $isSemesterAntara = !empty($data['kelompok_besar_antara_id']);
 
         $mataKuliah = MataKuliah::where('kode', $kode)->first();
@@ -204,6 +206,7 @@ class JadwalAgendaKhususController extends Controller
             foreach ($excelData as $index => $data) {
                 $data['mata_kuliah_kode'] = $kode;
                 $data['use_ruangan'] = $data['use_ruangan'] ?? true;
+                $data = $this->validationService->normalizeJamDataForWrite($data);
                 $isSemesterAntara = !empty($data['kelompok_besar_antara_id']);
 
                 // Validasi ruangan_id jika diisi
@@ -268,6 +271,8 @@ class JadwalAgendaKhususController extends Controller
                         'kelompok_besar_antara_id' => $data['kelompok_besar_antara_id'] ?? null,
                         'use_ruangan' => $data['use_ruangan'] ?? true,
                     ];
+
+                    $jadwalData = $this->validationService->normalizeJamDataForWrite($jadwalData);
 
                     // Simpan data
                     $jadwal = JadwalAgendaKhusus::create($jadwalData);

@@ -267,13 +267,17 @@ class DosenImport implements ToCollection, WithHeadingRow
                 'telp' => $rowArray['telp'],
                 'password' => Hash::make($rowArray['password']),
                 'role' => 'dosen',
-                'keahlian' => is_array($rowArray['keahlian']) ? $rowArray['keahlian'] : explode(',', $rowArray['keahlian']),
+                'keahlian' => is_array($rowArray['keahlian'])
+                    ? array_values(array_filter(array_map('trim', $rowArray['keahlian']), fn($v) => $v !== ''))
+                    : array_values(array_filter(array_map('trim', explode(',', (string) $rowArray['keahlian'])), fn($v) => $v !== '')),
                 // signature_image tidak diset di sini - akan tetap null dan hanya bisa diisi manual oleh dosen
             ];
 
             // Add kompetensi only if not standby
             if (!$isStandby && !empty($rowArray['kompetensi'])) {
-                $userData['kompetensi'] = is_array($rowArray['kompetensi']) ? $rowArray['kompetensi'] : explode(',', $rowArray['kompetensi']);
+                $userData['kompetensi'] = is_array($rowArray['kompetensi'])
+                    ? array_values(array_filter(array_map('trim', $rowArray['kompetensi']), fn($v) => $v !== ''))
+                    : array_values(array_filter(array_map('trim', explode(',', (string) $rowArray['kompetensi'])), fn($v) => $v !== ''));
             }
 
             // Set peran_utama based on standby status

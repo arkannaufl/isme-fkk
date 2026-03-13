@@ -215,7 +215,7 @@ class UserSeeder extends Seeder
                 'name' => $name,
                 'username' => $username,
                 'keahlian' => $keahlianArr,
-                'kompetensi' => implode(', ', $kompetensiArr),
+                'kompetensi' => $kompetensiArr,
                 'peran_dalam_kurikulum' => collect($listPeranKurikulum)->shuffle()->take(rand(2,3))->values()->toArray(),
             ];
         }
@@ -231,7 +231,7 @@ class UserSeeder extends Seeder
                     'name' => $name,
                     'username' => $username,
                     'keahlian' => $keahlianArr,
-                    'kompetensi' => implode(', ', $kompetensiArr),
+                    'kompetensi' => $kompetensiArr,
                     'peran_dalam_kurikulum' => collect($listPeranKurikulum)->shuffle()->take(rand(2,3))->values()->toArray(),
                 ];
             }

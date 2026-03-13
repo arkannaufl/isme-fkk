@@ -30,11 +30,11 @@ class JadwalNonBlokNonCSRController extends Controller
         $this->validationService = $validationService;
     }
 
-    private function resolveScheduleType(string $jenisBaris): string
+    private function resolveScheduleType(string $jenisBaris, bool $isSemesterAntara): string
     {
         return match ($jenisBaris) {
             'materi' => 'jadwal_non_blok_non_csr',
-            'agenda' => 'agenda_khusus',
+            'agenda' => $isSemesterAntara ? 'agenda_khusus_antara' : 'agenda_khusus',
             'seminar_proposal' => 'seminar_proposal',
             'sidang_skripsi' => 'sidang_skripsi',
             default => 'jadwal_non_blok_non_csr',
@@ -724,7 +724,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             }
 
-            $scheduleType = $this->resolveScheduleType($request->jenis_baris);
+            $scheduleType = $this->resolveScheduleType($request->jenis_baris, $isSemesterAntara);
 
             $dataForValidation = [
                 'mata_kuliah_kode' => $kode,
@@ -742,6 +742,8 @@ class JadwalNonBlokNonCSRController extends Controller
                 'mahasiswa_nims' => $request->mahasiswa_nims,
                 'jenis_baris' => $request->jenis_baris,
             ];
+
+            $dataForValidation = $this->validationService->normalizeJamDataForWrite($dataForValidation);
 
             $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
             if ($tanggalMessage) {
@@ -762,8 +764,8 @@ class JadwalNonBlokNonCSRController extends Controller
                 'mata_kuliah_kode' => $kode,
                 'created_by' => $request->input('created_by', Auth::id()),
                 'tanggal' => $request->tanggal,
-                'jam_mulai' => $request->jam_mulai,
-                'jam_selesai' => $request->jam_selesai,
+                'jam_mulai' => $dataForValidation['jam_mulai'] ?? $request->jam_mulai,
+                'jam_selesai' => $dataForValidation['jam_selesai'] ?? $request->jam_selesai,
                 'jumlah_sesi' => $request->jumlah_sesi,
                 'jenis_baris' => $request->jenis_baris,
                 'agenda' => $request->agenda,
@@ -1045,7 +1047,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             }
 
-            $scheduleType = $this->resolveScheduleType($request->jenis_baris);
+            $scheduleType = $this->resolveScheduleType($request->jenis_baris, $isSemesterAntara);
 
             $dataForValidation = [
                 'mata_kuliah_kode' => $kode,
@@ -1064,6 +1066,8 @@ class JadwalNonBlokNonCSRController extends Controller
                 'jenis_baris' => $request->jenis_baris,
             ];
 
+            $dataForValidation = $this->validationService->normalizeJamDataForWrite($dataForValidation);
+
             $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
             if ($tanggalMessage) {
                 return response()->json(['message' => $tanggalMessage], 422);
@@ -1081,8 +1085,8 @@ class JadwalNonBlokNonCSRController extends Controller
 
             $jadwal->update([
                 'tanggal' => $request->tanggal,
-                'jam_mulai' => $request->jam_mulai,
-                'jam_selesai' => $request->jam_selesai,
+                'jam_mulai' => $dataForValidation['jam_mulai'] ?? $request->jam_mulai,
+                'jam_selesai' => $dataForValidation['jam_selesai'] ?? $request->jam_selesai,
                 'jumlah_sesi' => $request->jumlah_sesi,
                 'jenis_baris' => $request->jenis_baris,
                 'agenda' => $request->agenda,
@@ -1323,8 +1327,8 @@ class JadwalNonBlokNonCSRController extends Controller
                         $row2['ruangan_id'] = null;
                     }
 
-                    $type1 = $this->resolveScheduleType($row1['jenis_baris']);
-                    $type2 = $this->resolveScheduleType($row2['jenis_baris']);
+                    $type1 = $this->resolveScheduleType($row1['jenis_baris'], $isSemesterAntara);
+                    $type2 = $this->resolveScheduleType($row2['jenis_baris'], $isSemesterAntara);
 
                     $detail =
                         $this->validationService->validateImportDataConflictDetail($row1, $row2, $type1, $isSemesterAntara)
@@ -1433,7 +1437,7 @@ class JadwalNonBlokNonCSRController extends Controller
                         }
                     }
 
-                    $scheduleType = $this->resolveScheduleType($row['jenis_baris']);
+                    $scheduleType = $this->resolveScheduleType($row['jenis_baris'], $isSemesterAntara);
 
                     $kapasitasMessage = $this->validationService->validateRoomCapacity($row, $scheduleType, $isSemesterAntara);
                     if ($kapasitasMessage) {

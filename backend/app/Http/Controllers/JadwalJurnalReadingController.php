@@ -111,6 +111,8 @@ class JadwalJurnalReadingController extends Controller
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', auth()->id());
 
+        $data = $this->validationService->normalizeJamDataForWrite($data);
+
         // Untuk semester antara, pastikan kelompok_kecil_id diset ke null jika menggunakan kelompok_kecil_antara_id
         if (isset($data['kelompok_kecil_antara_id']) && $data['kelompok_kecil_antara_id']) {
             $data['kelompok_kecil_id'] = null;
@@ -326,6 +328,8 @@ class JadwalJurnalReadingController extends Controller
 
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', auth()->id());
+
+        $data = $this->validationService->normalizeJamDataForWrite($data);
 
         $isSemesterAntara = !empty($data['kelompok_kecil_antara_id'] ?? null);
 
@@ -983,6 +987,7 @@ class JadwalJurnalReadingController extends Controller
 
             $excelDataForAntarBaris = array_map(function ($row) use ($kode) {
                 $row['mata_kuliah_kode'] = $kode;
+                $row = $this->validationService->normalizeJamDataForWrite($row);
                 return $row;
             }, $data['data']);
 
@@ -1004,6 +1009,7 @@ class JadwalJurnalReadingController extends Controller
                 $rowErrors = [];
 
                 $row['mata_kuliah_kode'] = $kode;
+                $row = $this->validationService->normalizeJamDataForWrite($row);
                 $rowIsSemesterAntara = !empty($row['kelompok_kecil_antara_id'] ?? null);
 
                 if ($rowIsSemesterAntara) {
@@ -1095,14 +1101,18 @@ class JadwalJurnalReadingController extends Controller
                         'jam_mulai' => $row['jam_mulai'],
                         'jam_selesai' => $row['jam_selesai'],
                         'jumlah_sesi' => $row['jumlah_sesi'],
-                        'kelompok_kecil_id' => $row['kelompok_kecil_id'],
-                        'kelompok_kecil_antara_id' => $row['kelompok_kecil_antara_id'],
-                        'dosen_id' => $row['dosen_id'],
-                        'ruangan_id' => $row['ruangan_id'],
-                        'topik' => $row['topik'],
+                        'kelompok_kecil_id' => $row['kelompok_kecil_id'] ?? null,
+                        'kelompok_kecil_antara_id' => $row['kelompok_kecil_antara_id'] ?? null,
+                        'dosen_id' => $row['dosen_id'] ?? null,
+                        'dosen_ids' => $row['dosen_ids'] ?? null,
+                        'ruangan_id' => $row['ruangan_id'] ?? null,
+                        'topik' => $row['topik'] ?? null,
+                        'created_by' => auth()->id(),
                     ];
 
-                    $jadwal = \App\Models\JadwalJurnalReading::create($jadwalData);
+                    $jadwalData = $this->validationService->normalizeJamDataForWrite($jadwalData);
+
+                    $jadwal = JadwalJurnalReading::create($jadwalData);
 
                     // Kirim notifikasi ke dosen yang di-assign
                     if ($row['dosen_id']) {

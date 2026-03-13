@@ -78,6 +78,8 @@ class JadwalKuliahBesarController extends Controller
             $data['dosen_id'] = null;
         }
 
+        $data = $this->validationService->normalizeJamDataForWrite($data);
+
         // Validasi kapasitas ruangan
         $kapasitasMessage = $this->validationService->validateRoomCapacity($data, 'kuliah_besar', $isSemesterAntara);
         if ($kapasitasMessage) {
@@ -164,6 +166,8 @@ class JadwalKuliahBesarController extends Controller
             $data['materi'] = null;
             $data['dosen_id'] = null;
         }
+
+        $data = $this->validationService->normalizeJamDataForWrite($data);
 
         // Validasi kapasitas ruangan
         $kapasitasMessage = $this->validationService->validateRoomCapacity($data, 'kuliah_besar', $isSemesterAntara);
@@ -788,17 +792,12 @@ class JadwalKuliahBesarController extends Controller
             $mahasiswaList = [];
 
             if ($jadwal->kelompok_besar_id) {
-                // Get the kelompok besar info to determine semester
-                $kelompokBesar = \App\Models\KelompokBesar::find($jadwal->kelompok_besar_id);
-                Log::info("Kuliah Besar sendNotificationToMahasiswa - KelompokBesar found: " . ($kelompokBesar ? "Yes, semester: {$kelompokBesar->semester}" : "No"));
-
-                if ($kelompokBesar) {
-                    // Get ALL mahasiswa in the same semester (Kuliah Besar = semua mahasiswa semester tersebut)
-                    $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
-                        ->where('semester', $kelompokBesar->semester)
-                        ->get();
-                    Log::info("Kuliah Besar sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in semester {$kelompokBesar->semester}");
-                }
+                // Domain rule: kelompok_besar_id menyimpan nomor semester (1-8)
+                $semester = (int) $jadwal->kelompok_besar_id;
+                $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
+                    ->where('semester', $semester)
+                    ->get();
+                Log::info("Kuliah Besar sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in semester {$semester}");
             } else {
                 // Fallback: jika tidak ada kelompok_besar_id, cari berdasarkan semester mata kuliah
                 $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
@@ -1354,22 +1353,9 @@ class JadwalKuliahBesarController extends Controller
                     $semester = null;
 
                     // Ambil semester dari kelompok_besar_id
-                    // kelompok_besar_id bisa menyimpan:
-                    // 1. Semester langsung (1, 2, 3, dst.) - format lama
-                    // 2. ID database dari tabel kelompok_besar - format baru
                     if ($jadwal->kelompok_besar_id) {
-                        // Cek apakah ini ID database atau semester
-                        // Coba cari di database dulu
-                        $kelompokBesarModel = KelompokBesar::find($jadwal->kelompok_besar_id);
-                        if ($kelompokBesarModel) {
-                            // Ini adalah ID database, ambil semester dari kelompok besar
-                            $semester = $kelompokBesarModel->semester;
-                            Log::info("Kuliah Besar getMahasiswa - Found kelompok besar by ID: {$jadwal->kelompok_besar_id}, semester: {$semester}");
-                        } else {
-                            // Tidak ditemukan di database, berarti ini adalah semester langsung
-                        $semester = $jadwal->kelompok_besar_id;
-                            Log::info("Kuliah Besar getMahasiswa - Using kelompok_besar_id as semester directly: {$semester}");
-                        }
+                        $semester = (int) $jadwal->kelompok_besar_id;
+                        Log::info("Kuliah Besar getMahasiswa - Using kelompok_besar_id as semester directly: {$semester}");
                     } elseif ($jadwal->mataKuliah && $jadwal->mataKuliah->semester) {
                         // Fallback: ambil dari mata kuliah
                         $semester = $jadwal->mataKuliah->semester;
@@ -1377,17 +1363,9 @@ class JadwalKuliahBesarController extends Controller
                     }
 
                     if ($semester && $semester !== 'Antara') {
-                        // Normalize semester to integer for comparison
-                        $semesterInt = is_numeric($semester) ? (int)$semester : $semester;
-                        
-                        // Get mahasiswa dari kelompok besar berdasarkan semester
-                        // Handle both string and integer semester
-                        $kelompokBesar = KelompokBesar::where(function($q) use ($semesterInt, $semester) {
-                            $q->where('semester', $semesterInt)
-                              ->orWhere('semester', $semester);
-                        })->get();
-                        
-                        Log::info("Kuliah Besar getMahasiswa - Found {$kelompokBesar->count()} kelompok besar records for semester: {$semester} (normalized: {$semesterInt})");
+                        $semesterInt = (int) $semester;
+                        $kelompokBesar = KelompokBesar::where('semester', $semesterInt)->get();
+                        Log::info("Kuliah Besar getMahasiswa - Found {$kelompokBesar->count()} kelompok besar records for semester: {$semesterInt}");
 
                         if ($kelompokBesar->isNotEmpty()) {
                             $mahasiswaIds = $kelompokBesar->pluck('mahasiswa_id')->toArray();
@@ -1403,10 +1381,10 @@ class JadwalKuliahBesarController extends Controller
                                         'nama' => $user->name
                                     ];
                                 });
-                            
+
                             Log::info("Kuliah Besar getMahasiswa - Returning " . count($mahasiswaList) . " mahasiswa");
                         } else {
-                            Log::warning("Kuliah Besar getMahasiswa - No kelompok besar found for semester: {$semester} (normalized: {$semesterInt})");
+                            Log::warning("Kuliah Besar getMahasiswa - No kelompok besar found for semester: {$semesterInt}");
                         }
                     } else {
                         Log::warning("Kuliah Besar getMahasiswa - Invalid semester: " . ($semester ?? 'null') . ", jadwal_id: {$jadwal->id}, kelompok_besar_id: " . ($jadwal->kelompok_besar_id ?? 'null'));
@@ -1576,23 +1554,15 @@ class JadwalKuliahBesarController extends Controller
 
                     // Ambil semester dari kelompok_besar_id
                     if ($jadwal->kelompok_besar_id) {
-                        $kelompokBesarModel = KelompokBesar::find($jadwal->kelompok_besar_id);
-                        if ($kelompokBesarModel) {
-                            $semester = $kelompokBesarModel->semester;
-                        } else {
-                            $semester = $jadwal->kelompok_besar_id;
-                        }
+                        $semester = (int) $jadwal->kelompok_besar_id;
                     } elseif ($jadwal->mataKuliah && $jadwal->mataKuliah->semester) {
                         $semester = $jadwal->mataKuliah->semester;
                     }
 
                     if ($semester && $semester !== 'Antara') {
-                        $semesterInt = is_numeric($semester) ? (int)$semester : $semester;
+                        $semesterInt = (int) $semester;
 
-                        $kelompokBesar = KelompokBesar::where(function ($q) use ($semesterInt, $semester) {
-                            $q->where('semester', $semesterInt)
-                                ->orWhere('semester', $semester);
-                        })->get();
+                        $kelompokBesar = KelompokBesar::where('semester', $semesterInt)->get();
 
                         if ($kelompokBesar->isNotEmpty()) {
                             $mahasiswaIds = $kelompokBesar->pluck('mahasiswa_id')->toArray();
@@ -1608,10 +1578,7 @@ class JadwalKuliahBesarController extends Controller
                                 'jadwal_id' => $jadwalId
                             ]);
                             $mahasiswaList = User::where('role', 'mahasiswa')
-                                ->where(function ($q) use ($semesterInt, $semester) {
-                                    $q->where('semester', $semesterInt)
-                                        ->orWhere('semester', $semester);
-                                })
+                                ->where('semester', $semesterInt)
                                 ->get();
                             $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
                         }

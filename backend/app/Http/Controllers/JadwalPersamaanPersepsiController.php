@@ -112,6 +112,8 @@ class JadwalPersamaanPersepsiController extends Controller
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', auth()->id());
 
+        $data = $this->validationService->normalizeJamDataForWrite($data);
+
         // Set topik ke null jika kosong
         if (empty($data['topik'])) {
             $data['topik'] = null;
@@ -130,6 +132,8 @@ class JadwalPersamaanPersepsiController extends Controller
         // Untuk validasi kapasitas dan bentrok, gunakan semua dosen (koordinator + pengampu)
         $dataForValidation = $data;
         $dataForValidation['dosen_ids'] = $allDosenIds;
+
+        $dataForValidation = $this->validationService->normalizeJamDataForWrite($dataForValidation);
 
         $mataKuliah = MataKuliah::where('kode', $kode)->first();
         $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);

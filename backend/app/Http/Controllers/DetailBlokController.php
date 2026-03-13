@@ -830,7 +830,15 @@ class DetailBlokController extends Controller
                 }
 
                 if (isset($jadwal->kelompok_besar_id) && $jadwal->kelompok_besar_id) {
-                    $jadwal->kelompok_besar = \App\Models\KelompokBesar::find($jadwal->kelompok_besar_id);
+                    $kb = \App\Models\KelompokBesar::find($jadwal->kelompok_besar_id);
+                    if ($kb) {
+                        $jadwal->kelompok_besar = $kb;
+                    } else {
+                        $jadwal->kelompok_besar = (object) [
+                            'semester' => (int) $jadwal->kelompok_besar_id,
+                            'nama_kelompok' => null,
+                        ];
+                    }
                 }
                 
                 // Load mata kuliah

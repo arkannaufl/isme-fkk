@@ -115,6 +115,8 @@ class JadwalPBLController extends Controller
             $data['dosen_id'] = null;
         }
 
+        $data = $this->validationService->normalizeJamDataForWrite($data);
+
         $tanggalMessage = $this->validationService->validateTanggalMataKuliah($data, $mataKuliah);
         if ($tanggalMessage) {
             return response()->json(['message' => $tanggalMessage], 422);
@@ -314,6 +316,8 @@ class JadwalPBLController extends Controller
         if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
             $data['dosen_id'] = null;
         }
+
+        $data = $this->validationService->normalizeJamDataForWrite($data);
 
         $tanggalMessage = $this->validationService->validateTanggalMataKuliah($data, $mataKuliah);
         if ($tanggalMessage) {

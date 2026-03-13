@@ -92,6 +92,8 @@ class JadwalPraktikumController extends Controller
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', Auth::id());
 
+        $data = $this->validationService->normalizeJamDataForWrite($data);
+
         // Get mata kuliah for date range validation
         $mataKuliah = MataKuliah::where('kode', $kode)->first();
         if (!$mataKuliah) {
@@ -190,6 +192,8 @@ class JadwalPraktikumController extends Controller
         ]);
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', Auth::id());
+
+        $data = $this->validationService->normalizeJamDataForWrite($data);
 
         // Get mata kuliah for date range validation
         $mataKuliah = MataKuliah::where('kode', $kode)->first();

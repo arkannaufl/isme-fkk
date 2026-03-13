@@ -379,18 +379,8 @@ class MahasiswaKeabsenanController extends Controller
             $hasCondition = false;
             
             if ($semester) {
-                // Match dengan kelompok_besar_id (yang menyimpan semester) atau via relasi (foreign key ID)
-                $q->where(function ($sub) use ($semester) {
-                    $sub->where('kelompok_besar_id', (int)$semester)
-                        ->orWhereIn('kelompok_besar_id', function ($kbQ) use ($semester) {
-                            $kbQ->select('id')->from('kelompok_besar')->where('semester', (int)$semester);
-                        });
-                })->orWhere(function ($fb) use ($semester) {
-                    $fb->whereNull('kelompok_besar_id')
-                        ->whereHas('mataKuliah', function ($mk) use ($semester) {
-                            $mk->where('semester', (int)$semester);
-                        });
-                });
+                // Domain rule: reguler => kelompok_besar_id menyimpan nomor semester (1-8)
+                $q->where('kelompok_besar_id', (int) $semester);
                 $hasCondition = true;
             }
             

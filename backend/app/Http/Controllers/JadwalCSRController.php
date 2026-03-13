@@ -88,14 +88,9 @@ class JadwalCSRController extends Controller
                 'siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
-            $jamMulai = str_replace('.', ':', $request->jam_mulai);
-            $jamSelesai = str_replace('.', ':', $request->jam_selesai);
-
-            $dataForValidation = array_merge($request->all(), [
+            $dataForValidation = $this->validationService->normalizeJamDataForWrite(array_merge($request->all(), [
                 'mata_kuliah_kode' => $kode,
-                'jam_mulai' => $jamMulai,
-                'jam_selesai' => $jamSelesai,
-            ]);
+            ]));
 
             $mataKuliah = MataKuliah::where('kode', $kode)->first();
             $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
@@ -117,8 +112,8 @@ class JadwalCSRController extends Controller
                 'mata_kuliah_kode' => $kode,
                 'created_by' => auth()->id(),
                 'tanggal' => $request->tanggal,
-                'jam_mulai' => $jamMulai,
-                'jam_selesai' => $jamSelesai,
+                'jam_mulai' => isset($dataForValidation['jam_mulai']) ? str_replace('.', ':', $dataForValidation['jam_mulai']) : $request->jam_mulai,
+                'jam_selesai' => isset($dataForValidation['jam_selesai']) ? str_replace('.', ':', $dataForValidation['jam_selesai']) : $request->jam_selesai,
                 'jumlah_sesi' => $request->jumlah_sesi,
                 'jenis_csr' => $request->jenis_csr,
                 'dosen_id' => $request->dosen_id,
@@ -228,14 +223,9 @@ class JadwalCSRController extends Controller
 
             $jadwalCSR = JadwalCSR::where('mata_kuliah_kode', $kode)->findOrFail($id);
 
-            $jamMulai = str_replace('.', ':', $request->jam_mulai);
-            $jamSelesai = str_replace('.', ':', $request->jam_selesai);
-
-            $dataForValidation = array_merge($request->all(), [
+            $dataForValidation = $this->validationService->normalizeJamDataForWrite(array_merge($request->all(), [
                 'mata_kuliah_kode' => $kode,
-                'jam_mulai' => $jamMulai,
-                'jam_selesai' => $jamSelesai,
-            ]);
+            ]));
 
             $mataKuliah = MataKuliah::where('kode', $kode)->first();
             $tanggalMessage = $this->validationService->validateTanggalMataKuliah($dataForValidation, $mataKuliah);
@@ -255,8 +245,8 @@ class JadwalCSRController extends Controller
 
             $updateData = [
                 'tanggal' => $request->tanggal,
-                'jam_mulai' => $jamMulai,
-                'jam_selesai' => $jamSelesai,
+                'jam_mulai' => isset($dataForValidation['jam_mulai']) ? str_replace('.', ':', $dataForValidation['jam_mulai']) : $request->jam_mulai,
+                'jam_selesai' => isset($dataForValidation['jam_selesai']) ? str_replace('.', ':', $dataForValidation['jam_selesai']) : $request->jam_selesai,
                 'jumlah_sesi' => $request->jumlah_sesi,
                 'jenis_csr' => $request->jenis_csr,
                 'dosen_id' => $request->dosen_id,
@@ -860,13 +850,8 @@ class JadwalCSRController extends Controller
             $errors = [];
 
             $excelDataForAntarBaris = array_map(function ($row) use ($kode) {
-                $jamMulai = str_replace('.', ':', $row['jam_mulai']);
-                $jamSelesai = str_replace('.', ':', $row['jam_selesai']);
-
                 $row['mata_kuliah_kode'] = $kode;
-                $row['jam_mulai'] = $jamMulai;
-                $row['jam_selesai'] = $jamSelesai;
-                return $row;
+                return $this->validationService->normalizeJamDataForWrite($row);
             }, $data);
 
             $antarBarisErrors = $this->validationService->validateAntarBarisExcel($excelDataForAntarBaris, 'csr', false);
@@ -884,14 +869,11 @@ class JadwalCSRController extends Controller
                 $rowErrors = [];
 
                 // Validasi rentang tanggal mata kuliah
-                $jamMulai = str_replace('.', ':', $row['jam_mulai']);
-                $jamSelesai = str_replace('.', ':', $row['jam_selesai']);
-
                 $rowForValidation = array_merge($row, [
                     'mata_kuliah_kode' => $kode,
-                    'jam_mulai' => $jamMulai,
-                    'jam_selesai' => $jamSelesai,
                 ]);
+
+                $rowForValidation = $this->validationService->normalizeJamDataForWrite($rowForValidation);
 
                 $tanggalMessage = $this->validationService->validateTanggalMataKuliah($rowForValidation, $mataKuliah);
                 if ($tanggalMessage) {
@@ -937,17 +919,15 @@ class JadwalCSRController extends Controller
             try {
                 $insertedData = [];
                 foreach ($data as $row) {
-                    // Konversi format jam dari "07.20" ke "07:20" (sama seperti di store method)
-                    $jamMulai = str_replace('.', ':', $row['jam_mulai']);
-                    $jamSelesai = str_replace('.', ':', $row['jam_selesai']);
+                    $row = $this->validationService->normalizeJamDataForWrite($row);
 
                     $jadwalCSR = JadwalCSR::create([
                         'mata_kuliah_kode' => $kode,
                         'created_by' => auth()->id(),
                         'jenis_csr' => $row['jenis_csr'],
                         'tanggal' => $row['tanggal'],
-                        'jam_mulai' => $jamMulai,
-                        'jam_selesai' => $jamSelesai,
+                        'jam_mulai' => $row['jam_mulai'],
+                        'jam_selesai' => $row['jam_selesai'],
                         'jumlah_sesi' => $row['jumlah_sesi'],
                         'kelompok_kecil_id' => $row['kelompok_kecil_id'],
                         'topik' => $row['topik'],

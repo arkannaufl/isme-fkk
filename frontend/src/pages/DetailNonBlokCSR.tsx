@@ -354,6 +354,34 @@ export default function DetailNonBlokCSR() {
   const [selectedKategoriValue, setSelectedKategoriValue] = useState<string | null>(null); // State untuk value dropdown
   const [selectedKeahlian, setSelectedKeahlian] = useState<string | null>(null); // State untuk keahlian yang dipilih
 
+  const normalizeKeahlianRequired = useCallback((value: any): string[] => {
+    if (Array.isArray(value)) {
+      return value
+        .map((v) => (typeof v === 'string' ? v.trim() : ''))
+        .filter((v) => v !== '');
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((v) => (typeof v === 'string' ? v.trim() : ''))
+            .filter((v) => v !== '');
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      return value
+        .split(',')
+        .map((v) => v.trim())
+        .filter((v) => v !== '');
+    }
+
+    return [];
+  }, []);
+
   // Memoized ruangan options untuk optimisasi performa
   const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
 
@@ -1975,7 +2003,12 @@ export default function DetailNonBlokCSR() {
       setDosenList(batchData.dosen_list || batchData.dosen?.all || []);
       setRuanganList(batchData.ruangan_list);
       setKelompokKecilList(batchData.kelompok_kecil);
-      setKategoriList(batchData.kategori_list);
+      setKategoriList(
+        (batchData.kategori_list || []).map((k: any) => ({
+          ...k,
+          keahlian_required: normalizeKeahlianRequired(k.keahlian_required),
+        }))
+      );
       setJamOptions(batchData.jam_options);
 
     } catch (error: any) {
@@ -2170,11 +2203,17 @@ export default function DetailNonBlokCSR() {
   useEffect(() => {
     if (showModal && selectedKategoriValue) {
       const validOptions = (kategoriList || [])
-        .filter(k => k.nama && k.keahlian_required && k.keahlian_required.length > 0)
-        .flatMap(k =>
+        .map((k) => {
+          const keahlianRequired = normalizeKeahlianRequired((k as any).keahlian_required);
+          return { ...k, keahlian_required: keahlianRequired };
+        })
+        .filter((k: any) => Array.isArray(k.keahlian_required) && k.keahlian_required.length > 0)
+        .flatMap((k: any) =>
           (k.keahlian_required || []).map((keahlian: string, index: number) => ({
             value: `${k.id}_${index}`,
-            label: `${keahlian} (${k.nomor_csr})`
+            label: `${keahlian} (${k.nomor_csr})`,
+            kategoriId: k.id,
+            keahlianIndex: index
           }))
         );
 
@@ -2186,7 +2225,7 @@ export default function DetailNonBlokCSR() {
         }
       }
     }
-  }, [showModal, selectedKategoriValue, kategoriList, form.topik]);
+  }, [showModal, selectedKategoriValue, kategoriList, form.topik, normalizeKeahlianRequired]);
 
   // Auto-hide success messages and imported count (consolidated)
   useEffect(() => {
@@ -3019,8 +3058,12 @@ export default function DetailNonBlokCSR() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mata Kuliah</label>
                 {(() => {
                   const validOptions = (kategoriList || [])
-                    .filter(k => k.nama && k.keahlian_required && k.keahlian_required.length > 0)
-                    .flatMap(k =>
+                    .map((k) => {
+                      const keahlianRequired = normalizeKeahlianRequired((k as any).keahlian_required);
+                      return { ...k, keahlian_required: keahlianRequired };
+                    })
+                    .filter((k: any) => Array.isArray(k.keahlian_required) && k.keahlian_required.length > 0)
+                    .flatMap((k: any) =>
                       (k.keahlian_required || []).map((keahlian: string, index: number) => ({
                         value: `${k.id}_${index}`,
                         label: `${keahlian} (${k.nomor_csr})`,
@@ -3061,8 +3104,9 @@ export default function DetailNonBlokCSR() {
                         // Simpan keahlian yang dipilih
                         if (opt?.value) {
                           const kategoriData = kategoriList.find(k => k.id === kategoriId);
-                          if (kategoriData && kategoriData.keahlian_required) {
-                            setSelectedKeahlian(kategoriData.keahlian_required[keahlianIndex]);
+                          const keahlianRequired = normalizeKeahlianRequired((kategoriData as any)?.keahlian_required);
+                          if (keahlianRequired.length > 0) {
+                            setSelectedKeahlian(keahlianRequired[keahlianIndex]);
                           }
                         } else {
                           setSelectedKeahlian(null);

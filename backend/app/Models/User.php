@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class User extends Authenticatable
 {
@@ -103,6 +104,50 @@ class User extends Authenticatable
             'whatsapp_birth_day' => 'date',
             'wablas_synced_at' => 'datetime',
         ];
+    }
+
+    protected function kompetensi(): Attribute
+    {
+        return Attribute::make(
+            set: function ($value) {
+                if ($value === null) {
+                    return null;
+                }
+
+                if (is_string($value)) {
+                    $value = explode(',', $value);
+                }
+
+                if (!is_array($value)) {
+                    return null;
+                }
+
+                $normalized = array_values(array_filter(array_map('trim', $value), fn($v) => $v !== ''));
+                return $normalized === [] ? null : $normalized;
+            }
+        );
+    }
+
+    protected function keahlian(): Attribute
+    {
+        return Attribute::make(
+            set: function ($value) {
+                if ($value === null) {
+                    return null;
+                }
+
+                if (is_string($value)) {
+                    $value = explode(',', $value);
+                }
+
+                if (!is_array($value)) {
+                    return null;
+                }
+
+                $normalized = array_values(array_filter(array_map('trim', $value), fn($v) => $v !== ''));
+                return $normalized === [] ? null : $normalized;
+            }
+        );
     }
 
     public function getActivitylogOptions(): LogOptions

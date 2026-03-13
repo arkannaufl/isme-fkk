@@ -99,7 +99,7 @@ class JadwalValidationService
             'ruangan_field' => 'ruangan_id',
             'supports_semester_antara' => false,
             'conflict_checks' => ['dosen', 'ruangan', 'kelompok'],
-            'capacity_calculation' => 'dosen_only'
+            'capacity_calculation' => 'dosen_plus_mahasiswa_nims'
         ],
         'sidang_skripsi' => [
             'model' => JadwalNonBlokNonCSR::class,
@@ -108,7 +108,7 @@ class JadwalValidationService
             'ruangan_field' => 'ruangan_id',
             'supports_semester_antara' => false,
             'conflict_checks' => ['dosen', 'ruangan', 'kelompok'],
-            'capacity_calculation' => 'dosen_only'
+            'capacity_calculation' => 'dosen_plus_mahasiswa_nims'
         ],
         'jadwal_non_blok_non_csr' => [
             'model' => JadwalNonBlokNonCSR::class,
@@ -149,8 +149,20 @@ class JadwalValidationService
             return "Tipe jadwal tidak dikenal: {$scheduleType}";
         }
 
+        $data = $this->normalizeJamDataForWrite($data);
+
         // Tambahkan schedule_type ke data untuk digunakan di method lain
         $data['schedule_type'] = $scheduleType;
+
+        $this->logConflictDebug('validateConflict.start', [
+            'source_type' => $scheduleType,
+            'exclude_id' => $excludeId,
+            'tanggal' => $data['tanggal'] ?? null,
+            'jam_mulai' => $data['jam_mulai'] ?? null,
+            'jam_selesai' => $data['jam_selesai'] ?? null,
+            'mata_kuliah_kode' => $data['mata_kuliah_kode'] ?? null,
+            'source_is_antara' => $this->isSourceSemesterAntara($data),
+        ]);
 
         // Ambil semester dari mata kuliah
         $semester = $this->getMataKuliahSemester($data['mata_kuliah_kode'] ?? null);
@@ -159,12 +171,24 @@ class JadwalValidationService
         foreach (self::SCHEDULE_CONFIGS as $type => $typeConfig) {
             $shouldCheckRegular = $this->shouldCheckConflict($scheduleType, $type, false);
             $shouldCheckAntara = $this->shouldCheckConflict($scheduleType, $type, true);
+
+            $this->logConflictDebug('validateConflict.iteration', [
+                'source_type' => $scheduleType,
+                'check_type' => $type,
+                'should_check_regular' => $shouldCheckRegular,
+                'should_check_antara' => $shouldCheckAntara,
+            ]);
             
             // Check conflict with regular schedules
             if ($shouldCheckRegular) {
                 $conflict = $this->checkConflictWithScheduleType($data, $type, $excludeId, false);
                 
                 if ($conflict) {
+                    $this->logConflictDebug('validateConflict.conflict_found', [
+                        'source_type' => $scheduleType,
+                        'check_type' => $type,
+                        'bucket' => 'regular',
+                    ]);
                     return $conflict;
                 }
             }
@@ -174,10 +198,19 @@ class JadwalValidationService
                 $conflict = $this->checkConflictWithScheduleType($data, $type, $excludeId, true);
                 
                 if ($conflict) {
+                    $this->logConflictDebug('validateConflict.conflict_found', [
+                        'source_type' => $scheduleType,
+                        'check_type' => $type,
+                        'bucket' => 'antara',
+                    ]);
                     return $conflict;
                 }
             }
         }
+
+        $this->logConflictDebug('validateConflict.no_conflict', [
+            'source_type' => $scheduleType,
+        ]);
 
         return null;
     }
@@ -191,6 +224,8 @@ class JadwalValidationService
         if (!$config) {
             return "Tipe jadwal tidak dikenal: {$scheduleType}";
         }
+
+        $data = $this->normalizeJamDataForWrite($data);
 
         // Skip jika tidak ada ruangan_id atau ruangan opsional
         if (!isset($data[$config['ruangan_field']]) || !$data[$config['ruangan_field']]) {
@@ -221,14 +256,19 @@ class JadwalValidationService
             return null;
         }
 
+        $sourceType = $data['schedule_type'] ?? '';
+        $sourceIsAntara = $this->isSourceSemesterAntara($data);
+
+        $this->logConflictDebug('checkConflictWithScheduleType.start', [
+            'source_type' => $sourceType,
+            'check_type' => $checkType,
+            'check_bucket_is_antara' => $isSemesterAntara,
+            'exclude_id' => $excludeId,
+            'source_is_antara' => $sourceIsAntara,
+        ]);
+
         $checkConfig = self::SCHEDULE_CONFIGS[$checkType];
-        
-        // SPECIAL HANDLING: For agenda_khusus in antara semester, use agenda_khusus_antara config
-        if ($checkType === 'agenda_khusus' && $isSemesterAntara) {
-            $checkConfig = self::SCHEDULE_CONFIGS['agenda_khusus_antara'];
-            \Log::info("checkConflictWithScheduleType() - Using agenda_khusus_antara config for antara semester");
-        }
-        
+
         $model = $checkConfig['model'];
         $tableName = $this->getTableName($model);
 
@@ -260,11 +300,9 @@ class JadwalValidationService
             }
         }
 
-        // SPECIAL HANDLING: Filter by jenis_baris for agenda_khusus antara schedules
-        if ($checkType === 'agenda_khusus' && $isSemesterAntara) {
-            $query->where($tableName . '.jenis_baris', 'agenda');
-        } elseif ($checkType === 'agenda_khusus_antara') {
-            // Also apply filter when using agenda_khusus_antara config directly
+        // SPECIAL HANDLING: Filter by jenis_baris ONLY for jadwal_non_blok_non_csr "agenda" rows
+        // NOTE: JadwalAgendaKhusus table does not have jenis_baris.
+        if ($checkType === 'agenda_khusus_antara') {
             $query->where($tableName . '.jenis_baris', 'agenda');
         }
 
@@ -273,28 +311,82 @@ class JadwalValidationService
             // Convert input times to database format (replace : with .)
             $inputJamMulai = str_replace(':', '.', $data['jam_mulai']);
             $inputJamSelesai = str_replace(':', '.', $data['jam_selesai']);
-            
-            // Handle both formats in database: %H.%i and %H:%i
-            $q->whereRaw("(
-                (TIME(STR_TO_DATE({$tableName}.jam_mulai, '%H.%i')) < TIME(STR_TO_DATE(?, '%H.%i'))) OR
-                (TIME(STR_TO_DATE({$tableName}.jam_mulai, '%H:%i')) < TIME(STR_TO_DATE(?, '%H.%i')))
-            )", [$inputJamSelesai, $inputJamSelesai])
-            ->whereRaw("(
-                (TIME(STR_TO_DATE({$tableName}.jam_selesai, '%H.%i')) > TIME(STR_TO_DATE(?, '%H.%i'))) OR
-                (TIME(STR_TO_DATE({$tableName}.jam_selesai, '%H:%i')) > TIME(STR_TO_DATE(?, '%H.%i')))
-            )", [$inputJamMulai, $inputJamMulai]);
+
+            // Handle multiple formats in database: %H.%i, %H:%i, %H:%i:%s
+            // NOTE: STR_TO_DATE returns DATETIME; wrap in TIME() for pure time comparison.
+            $q->whereRaw(
+                "(
+                    TIME(COALESCE(
+                        STR_TO_DATE({$tableName}.jam_mulai, '%H.%i'),
+                        STR_TO_DATE({$tableName}.jam_mulai, '%H:%i'),
+                        STR_TO_DATE({$tableName}.jam_mulai, '%H:%i:%s')
+                    )) < TIME(STR_TO_DATE(?, '%H.%i'))
+                )",
+                [$inputJamSelesai]
+            )
+            ->whereRaw(
+                "(
+                    TIME(COALESCE(
+                        STR_TO_DATE({$tableName}.jam_selesai, '%H.%i'),
+                        STR_TO_DATE({$tableName}.jam_selesai, '%H:%i'),
+                        STR_TO_DATE({$tableName}.jam_selesai, '%H:%i:%s')
+                    )) > TIME(STR_TO_DATE(?, '%H.%i'))
+                )",
+                [$inputJamMulai]
+            );
         });
 
-        // Exclude current record
+        // Exclude current record ONLY for the same schedule type/table.
+        // IMPORTANT:
+        // - On update, controllers pass $excludeId of the record being edited.
+        // - validateConflict() checks multiple tables; using the same numeric $excludeId across
+        //   different tables can accidentally exclude an unrelated conflicting record if IDs match.
+        // - This caused non-deterministic conflict detection (e.g. praktikum edit sometimes not
+        //   conflicting with seminar pleno).
         if ($excludeId) {
-            $query->where($tableName . '.id', '!=', $excludeId);
+            if ($checkType === $sourceType && $isSemesterAntara === $sourceIsAntara) {
+                $query->where($tableName . '.id', '!=', $excludeId);
+
+                $this->logConflictDebug('checkConflictWithScheduleType.exclude_applied', [
+                    'source_type' => $sourceType,
+                    'check_type' => $checkType,
+                    'table' => $tableName,
+                    'exclude_id' => $excludeId,
+                    'check_bucket_is_antara' => $isSemesterAntara,
+                ]);
+            } else {
+                $this->logConflictDebug('checkConflictWithScheduleType.exclude_skipped', [
+                    'source_type' => $sourceType,
+                    'check_type' => $checkType,
+                    'table' => $tableName,
+                    'exclude_id' => $excludeId,
+                    'check_bucket_is_antara' => $isSemesterAntara,
+                ]);
+            }
         }
 
         $conflictingSchedule = $query->select($tableName . '.*')->first();
 
         if ($conflictingSchedule) {
+            $this->logConflictDebug('checkConflictWithScheduleType.conflict_row', [
+                'source_type' => $sourceType,
+                'check_type' => $checkType,
+                'table' => $tableName,
+                'conflict_id' => $conflictingSchedule->id ?? null,
+                'tanggal' => $conflictingSchedule->tanggal ?? null,
+                'jam_mulai' => $conflictingSchedule->jam_mulai ?? null,
+                'jam_selesai' => $conflictingSchedule->jam_selesai ?? null,
+                'check_bucket_is_antara' => $isSemesterAntara,
+            ]);
             return $this->formatConflictMessage($conflictingSchedule, $checkType, $data, $isSemesterAntara);
         }
+
+        $this->logConflictDebug('checkConflictWithScheduleType.no_conflict', [
+            'source_type' => $sourceType,
+            'check_type' => $checkType,
+            'table' => $tableName,
+            'check_bucket_is_antara' => $isSemesterAntara,
+        ]);
 
         return null;
     }
@@ -405,25 +497,20 @@ class JadwalValidationService
             }
         } else {
             if (str_contains($kelompokField, 'besar')) {
-                // CHECK: Jika kelompokId adalah semester (bukan ID database)
-                if (is_numeric($kelompokId) && $kelompokId <= 8) {
-                    // Asumsi ini adalah semester number (1-8)
-                    $mahasiswaIds = KelompokBesar::where('semester', (string)$kelompokId)
-                        ->pluck('mahasiswa_id')
-                        ->toArray();
-                } else {
-                    // FIX: Get semester from kelompok_besar table first, then get all mahasiswa from that semester
-                    $kelompok = KelompokBesar::find($kelompokId);
-                    if (!$kelompok) {
-                        return [];
-                    }
-                    
-                    $mahasiswaIds = KelompokBesar::where('semester', $kelompok->semester)
-                        ->pluck('mahasiswa_id')
-                        ->toArray();
+                // Domain rule: untuk semester reguler, kelompok_besar_id menyimpan nomor semester (1-8).
+                // Jadi selalu treat sebagai semester number, bukan primary key table kelompok_besar.
+                if (!is_numeric($kelompokId)) {
+                    return [];
                 }
-                
-                return $mahasiswaIds;
+
+                $semester = (int) $kelompokId;
+                if ($semester < 1 || $semester > 8) {
+                    return [];
+                }
+
+                return KelompokBesar::where('semester', (string) $semester)
+                    ->pluck('mahasiswa_id')
+                    ->toArray();
             } else {
                 $kelompokKecil = KelompokKecil::find($kelompokId);
                 if (!$kelompokKecil) {
@@ -461,16 +548,29 @@ class JadwalValidationService
                 return $mahasiswaCount + $dosenCount;
 
             case 'praktikum_kelompok_kecil_plus_dosen':
-                $mahasiswaCount = $this->getKelompokKecilMahasiswaCount($data, $isSemesterAntara);
+                $mahasiswaCount = $this->getPraktikumKelompokKecilMahasiswaCount($data);
                 $dosenCount = $this->getPraktikumDosenCount($data);
                 return $mahasiswaCount + $dosenCount;
 
             case 'dosen_only':
                 return $this->getDosenCount($data);
 
+            case 'dosen_plus_mahasiswa_nims':
+                return $this->getDosenCount($data) + $this->getMahasiswaNimsCount($data);
+
             default:
                 return 0;
         }
+    }
+
+    private function getMahasiswaNimsCount(array $data): int
+    {
+        $nims = $data['mahasiswa_nims'] ?? [];
+        if (!is_array($nims)) {
+            return 0;
+        }
+
+        return count(array_filter($nims));
     }
 
     /**
@@ -534,7 +634,17 @@ class JadwalValidationService
     private function getDosenCount(array $data): int
     {
         $count = 0;
-        $dosenFields = ['dosen_id', 'dosen_ids', 'pembimbing_id', 'penguji_id', 'komentator_id', 'koordinator_id'];
+        $dosenFields = [
+            'dosen_id',
+            'dosen_ids',
+            'pembimbing_id',
+            'penguji_id',
+            'penguji_ids',
+            'komentator_id',
+            'komentator_ids',
+            'koordinator_id',
+            'koordinator_ids',
+        ];
         
         foreach ($dosenFields as $field) {
             if (isset($data[$field])) {
@@ -547,6 +657,32 @@ class JadwalValidationService
         }
         
         return $count;
+    }
+
+    private function getPraktikumKelompokKecilMahasiswaCount(array $data): int
+    {
+        $kelompokIds = $data['kelompok_kecil_ids'] ?? [];
+        if (!is_array($kelompokIds) || count($kelompokIds) === 0) {
+            return 0;
+        }
+
+        $total = 0;
+        foreach ($kelompokIds as $kelompokId) {
+            if (!$kelompokId) {
+                continue;
+            }
+
+            $kelompokKecil = KelompokKecil::find($kelompokId);
+            if (!$kelompokKecil) {
+                continue;
+            }
+
+            $total += KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
+                ->where('semester', $kelompokKecil->semester)
+                ->count();
+        }
+
+        return $total;
     }
 
     /**
@@ -619,6 +755,65 @@ class JadwalValidationService
         
         // UNIVERSAL: Semua jadwal bisa bentrok dengan semua jadwal lain
         return true;
+    }
+
+    private function logConflictDebug(string $event, array $context = []): void
+    {
+        $enabled = (bool) env('JADWAL_CONFLICT_DEBUG', false) || (bool) config('app.debug', false);
+        if (!$enabled) {
+            return;
+        }
+
+        \Log::info('[JADWAL_CONFLICT] ' . $event, $context);
+    }
+
+    public function normalizeJamDataForWrite(array $data): array
+    {
+        if (array_key_exists('jam_mulai', $data)) {
+            $data['jam_mulai'] = $this->normalizeJamString($data['jam_mulai']);
+        }
+        if (array_key_exists('jam_selesai', $data)) {
+            $data['jam_selesai'] = $this->normalizeJamString($data['jam_selesai']);
+        }
+
+        return $data;
+    }
+
+    private function normalizeJamString($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $v = trim((string) $value);
+        if ($v === '') {
+            return $v;
+        }
+
+        // Accept: HH.MM, H.MM, HH:MM, H:MM, HH:MM:SS, HH.MM.SS
+        // Normalize to HH.MM
+        $v = str_replace([' ', '\t'], '', $v);
+        $v = str_replace(':', '.', $v);
+
+        // If seconds exist, drop them
+        if (preg_match('/^(\d{1,2})\.(\d{2})\.(\d{2})$/', $v, $m)) {
+            $v = $m[1] . '.' . $m[2];
+        }
+
+        if (!preg_match('/^(\d{1,2})\.(\d{2})$/', $v, $m)) {
+            // Unknown format, keep original to avoid breaking existing flows
+            return trim((string) $value);
+        }
+
+        $h = (int) $m[1];
+        $min = (int) $m[2];
+
+        // Guardrails: if invalid time, keep original
+        if ($h < 0 || $h > 23 || $min < 0 || $min > 59) {
+            return trim((string) $value);
+        }
+
+        return str_pad((string) $h, 2, '0', STR_PAD_LEFT) . '.' . str_pad((string) $min, 2, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -754,10 +949,7 @@ class JadwalValidationService
         // FIX: Determine actual target config based on jenis_baris for jadwal_non_blok_non_csr
         $actualTargetScheduleType = $scheduleType;
         
-        // SPECIAL HANDLING: For agenda_khusus in antara semester, use agenda_khusus_antara config
-        if ($scheduleType === 'agenda_khusus' && $isSemesterAntara) {
-            $actualTargetScheduleType = 'agenda_khusus_antara';
-        } elseif ($scheduleType === 'seminar_proposal' || $scheduleType === 'sidang_skripsi') {
+        if ($scheduleType === 'seminar_proposal' || $scheduleType === 'sidang_skripsi') {
             $jenisBaris = $conflictingSchedule->jenis_baris ?? null;
             if ($jenisBaris === 'materi' || $jenisBaris === 'agenda') {
                 $actualTargetScheduleType = 'jadwal_non_blok_non_csr';

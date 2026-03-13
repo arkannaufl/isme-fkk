@@ -163,6 +163,8 @@ class JadwalSeminarPlenoController extends Controller
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', Auth::id());
 
+        $data = $this->validationService->normalizeJamDataForWrite($data);
+
         // Set topik ke null jika kosong
         if (empty($data['topik'])) {
             $data['topik'] = null;
@@ -181,6 +183,8 @@ class JadwalSeminarPlenoController extends Controller
         // Untuk validasi kapasitas dan bentrok, gunakan semua dosen (koordinator + pengampu)
         $dataForValidation = $data;
         $dataForValidation['dosen_ids'] = $allDosenIds;
+
+        $dataForValidation = $this->validationService->normalizeJamDataForWrite($dataForValidation);
 
         // Validasi kapasitas ruangan hanya jika menggunakan ruangan
         if ($data['use_ruangan'] && $data['ruangan_id']) {
@@ -398,6 +402,8 @@ class JadwalSeminarPlenoController extends Controller
         // Untuk validasi kapasitas dan bentrok, gunakan semua dosen (koordinator + pengampu)
         $dataForValidation = $data;
         $dataForValidation['dosen_ids'] = $allDosenIds;
+
+        $dataForValidation = $this->validationService->normalizeJamDataForWrite($dataForValidation);
 
         // Validasi kapasitas ruangan hanya jika menggunakan ruangan
         if ($data['use_ruangan'] && $data['ruangan_id']) {
@@ -1010,29 +1016,14 @@ class JadwalSeminarPlenoController extends Controller
             ]);
 
             // Filter berdasarkan kelompok besar
-        // PENTING: kelompok_besar_id di jadwal bisa menyimpan semester (int) atau ID foreign key
-        $query->where(function ($q) use ($semesterMahasiswa, $kelompokBesarAntaraId) {
-            // Filter untuk semester reguler
-            if ($semesterMahasiswa && $semesterMahasiswa !== 'Antara') {
-                $q->where(function ($subQ) use ($semesterMahasiswa) {
-                    // 1. Match langsung dengan nomor semester (new design)
-                    $subQ->where('kelompok_besar_id', $semesterMahasiswa)
-                         // 2. Atau match dengan ID KelompokBesar yang memiliki semester tersebut (original design)
-                         ->orWhereIn('kelompok_besar_id', function($kbQ) use ($semesterMahasiswa) {
-                             $kbQ->select('id')->from('kelompok_besar')->where('semester', $semesterMahasiswa);
-                         })
-                         // 3. Atau jika kelompok_besar_id null, cek semester dari mata kuliah (fallback)
-                         ->orWhere(function ($fallbackQ) use ($semesterMahasiswa) {
-                             $fallbackQ->whereNull('kelompok_besar_id')
-                                       ->whereHas('mataKuliah', function ($mkQ) use ($semesterMahasiswa) {
-                                           $mkQ->where('semester', $semesterMahasiswa)
-                                               ->where('semester', '!=', 'Antara');
-                                       });
-                         });
-                });
-            }
+            // Domain rule:
+            // - Reguler: kelompok_besar_id menyimpan nomor semester (1-8)
+            // - Antara: kelompok_besar_antara_id menyimpan ID kelompok antara
+            $query->where(function ($q) use ($semesterMahasiswa, $kelompokBesarAntaraId) {
+                if ($semesterMahasiswa) {
+                    $q->where('kelompok_besar_id', $semesterMahasiswa);
+                }
 
-                // Filter untuk semester antara: kelompok_besar_antara_id = ID kelompok antara mahasiswa
                 if ($kelompokBesarAntaraId) {
                     $q->orWhere('kelompok_besar_antara_id', $kelompokBesarAntaraId);
                 }

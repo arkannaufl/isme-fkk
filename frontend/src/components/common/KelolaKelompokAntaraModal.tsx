@@ -107,6 +107,28 @@ export default function KelolaKelompokAntaraModal({
   const setFilterKecil = setFilterIPKKelompokKecil ?? setFilterIPK;
   const loadingKecil = isLoadingKelompokKecilAntara ?? isLoadingKelompok;
 
+  const normalizeKelompokName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+  const extractKelompokName = (raw: any) => {
+    const base = (raw?.nama_kelompok ?? raw?.label ?? raw?.nama ?? '') as string;
+    return base.split('(')[0]?.trim() ?? '';
+  };
+
+  const kelompokBesarNames = React.useMemo(
+    () => new Set((kelompokBesarOptions || []).map((k: any) => normalizeKelompokName(extractKelompokName(k))).filter(Boolean)),
+    [kelompokBesarOptions]
+  );
+
+  const kelompokKecilNames = React.useMemo(
+    () => new Set((kelompokKecilAntaraList || []).map((k: any) => normalizeKelompokName(k?.nama_kelompok ?? '')).filter(Boolean)),
+    [kelompokKecilAntaraList]
+  );
+
+  const normalizedNamaKelBesar = normalizeKelompokName(kelompokBesarAntaraForm.nama_kelompok || '');
+  const normalizedNamaKelKecil = normalizeKelompokName(kelompokKecilAntaraForm.nama_kelompok || '');
+
+  const isDuplicateKelompokBesar = !!normalizedNamaKelBesar && kelompokBesarNames.has(normalizedNamaKelBesar);
+  const isDuplicateKelompokKecil = !!normalizedNamaKelKecil && kelompokKecilNames.has(normalizedNamaKelKecil);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -170,7 +192,7 @@ export default function KelolaKelompokAntaraModal({
                   onClick={() => setActiveTab('kecil')}
                   className={`flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
                     activeTab === 'kecil'
-                      ? 'bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-md'
+                      ? 'bg-white dark:bg-gray-700 text-brand-600 dark:text-brand-400 shadow-md'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
                   }`}
                 >
@@ -198,6 +220,9 @@ export default function KelolaKelompokAntaraModal({
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 shadow-sm"
                             placeholder="Contoh: Kelompok Besar 1"
                           />
+                          {isDuplicateKelompokBesar && (
+                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">Nama kelompok besar sudah ada. Gunakan nama lain.</p>
+                          )}
                         </div>
 
                         {selectedMahasiswa.length > 0 && (
@@ -360,8 +385,13 @@ export default function KelolaKelompokAntaraModal({
                         </div>
 
                         <button
-                          onClick={createKelompokBesarAntara}
-                          disabled={!kelompokBesarAntaraForm.nama_kelompok || kelompokBesarAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompok}
+                          onClick={() => {
+                            if (isDuplicateKelompokBesar) {
+                              return;
+                            }
+                            createKelompokBesarAntara();
+                          }}
+                          disabled={!kelompokBesarAntaraForm.nama_kelompok || kelompokBesarAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompok || isDuplicateKelompokBesar}
                           className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
                         >
                           <div className="flex items-center justify-center space-x-2">
@@ -571,15 +601,18 @@ export default function KelolaKelompokAntaraModal({
                             type="text"
                             value={kelompokKecilAntaraForm.nama_kelompok}
                             onChange={(e) => setKelompokKecilAntaraForm((prev) => ({ ...prev, nama_kelompok: e.target.value }))}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm"
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 shadow-sm"
                             placeholder="Contoh: Kelompok Kecil 1"
                           />
+                          {isDuplicateKelompokKecil && (
+                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">Nama kelompok kecil sudah ada. Gunakan nama lain.</p>
+                          )}
                         </div>
 
                         {kelompokKecilAntaraForm.mahasiswa_ids.length > 0 && (
-                          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 shadow-sm mb-4">
+                          <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-xl p-4 shadow-sm mb-4">
                             <div className="flex items-center space-x-2">
-                              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                              <div className="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
                                 <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                   <path
                                     fillRule="evenodd"
@@ -588,7 +621,7 @@ export default function KelolaKelompokAntaraModal({
                                   />
                                 </svg>
                               </div>
-                              <p className="text-sm font-semibold text-green-800 dark:text-green-200">{kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa dipilih</p>
+                              <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">{kelompokKecilAntaraForm.mahasiswa_ids.length} mahasiswa dipilih</p>
                             </div>
                           </div>
                         )}
@@ -603,7 +636,7 @@ export default function KelolaKelompokAntaraModal({
                                 value={searchKecil}
                                 onChange={(e) => setSearchKecil(e.target.value)}
                                 placeholder="Cari nama atau email mahasiswa..."
-                                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
                               />
                               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -621,7 +654,7 @@ export default function KelolaKelompokAntaraModal({
                               <select
                                 value={filterKecil}
                                 onChange={(e) => setFilterKecil(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
                               >
                                 <option value="semua">Semua IPK</option>
                                 <option value=">=3.5">IPK ≥3.5 (Hijau)</option>
@@ -714,7 +747,7 @@ export default function KelolaKelompokAntaraModal({
                                           <div
                                             key={mahasiswa.id}
                                             className={`p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 ${
-                                              isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''
+                                              isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''
                                             } ${isInOtherKelompokKecil && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             onClick={() => {
                                               if (isInOtherKelompokKecil && !isSelected) return;
@@ -736,7 +769,7 @@ export default function KelolaKelompokAntaraModal({
                                               <div className="flex items-center space-x-3">
                                                 <div
                                                   className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                                    isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-gray-600'
+                                                    isSelected ? 'bg-brand-500 border-brand-500' : 'border-gray-300 dark:border-gray-600'
                                                   }`}
                                                 >
                                                   {isSelected && (
@@ -785,8 +818,13 @@ export default function KelolaKelompokAntaraModal({
                         </div>
 
                         <button
-                          onClick={createKelompokKecilAntara}
-                          disabled={!kelompokKecilAntaraForm.nama_kelompok || kelompokKecilAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompokKecilAntara}
+                          onClick={() => {
+                            if (isDuplicateKelompokKecil) {
+                              return;
+                            }
+                            createKelompokKecilAntara();
+                          }}
+                          disabled={!kelompokKecilAntaraForm.nama_kelompok || kelompokKecilAntaraForm.mahasiswa_ids.length === 0 || isCreatingKelompokKecilAntara || isDuplicateKelompokKecil}
                           className="w-full px-6 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
                         >
                           <div className="flex items-center justify-center space-x-2">
